@@ -1,0 +1,28 @@
+# Add dep based on https://github.com/bazelbuild/rules_go/issues/3442
+bazel_dep(name="platforms", version="0.0.5")
+
+bazel_dep(name = "bazel_skylib", version = "1.4.2")
+
+bazel_dep(name = "rules_oci", version = "1.0.0")
+bazel_dep(name = "aspect_bazel_lib",  version = "1.31.2")
+bazel_dep(name = "aspect_rules_js", version = "1.27.1")
+#bazel_dep(name = "rules_go", version = "0.39.1")
+#bazel_dep(name = "gazelle", version = "0.31.0")
+
+####### Node.js version #########
+# By default you get the node version from DEFAULT_NODE_VERSION in @rules_nodejs//nodejs:repositories.bzl
+# Optionally you can pin a different node version:
+#bazel_dep(name = "rules_nodejs", version = "5.8.2")
+#node = use_extension("@rules_nodejs//nodejs:extensions.bzl", "node")
+#node.toolchain(node_version = "18.12.0")
+#################################
+
+npm = use_extension("@aspect_rules_js//npm:extensions.bzl", "npm", dev_dependency = True)
+
+npm.npm_translate_lock(
+    name = "npm-website",
+    pnpm_lock = "//website:pnpm-lock.yaml",
+    verify_node_modules_ignored = "//:.bazelignore",
+)
+
+use_repo(npm, "npm-website")

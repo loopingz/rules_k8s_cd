@@ -1,0 +1,59 @@
+
+---
+apiVersion: v1
+data:
+  auth: dGVsbGFlOiRhcHIxJDZ3b0U0WGlKJGVESWxwblBiTEFwME9uNGVaMWNpNi8K
+kind: Secret
+metadata:
+  name: tellae-website-auth
+  namespace: tellae
+type: Opaque
+
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: tls-website-tellae-ingress
+  namespace: tellae
+spec:
+  secretName: tls-website-tellae-ingress
+  dnsNames:
+    - tellae.loopingz.com
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "1800"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "1800"
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/auth-secret: tellae-website-auth
+    nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
+  labels:
+    app: website
+    release: website
+  name: website-tellae
+  namespace: tellae
+spec:
+  rules:
+    - host: tellae.loopingz.com
+      http:
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: website
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - tellae.loopingz.com
+      secretName: tls-website-tellae-ingress
