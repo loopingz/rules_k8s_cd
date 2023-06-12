@@ -34,3 +34,24 @@ Result
 //deployments/website:user.show
 ```
 
+When you deploy the main resources have labels:
+
+Like this service:
+```
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    gitops.loopingz.com/target: deployments/website:preview
+  labels:
+    app: website
+    gitops.loopingz.com/commit: 09f7b66
+    gitops.loopingz.com/environment: preview
+```
+
+It is then easy to clean-up with a command like this:
+
+```
+kubectl -n bazel-preview delete all -l 'gitops.loopingz.com/commit,gitops.loopingz.com/commit!=09f7b66,gitops.loopingz.com/environment=preview'
+```
+
