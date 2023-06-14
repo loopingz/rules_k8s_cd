@@ -9,6 +9,10 @@ load(
 load("@com_adobe_rules_gitops//skylib:k8s.bzl", "show")
 load("kustomize.bzl", "kustomize")
 
+# 
+# kubectl apply -k . --dry-run=client --validate=false -o=yaml | yq -r 'del(.items[].metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"]) | .items[] | split_doc'
+# 
+
 EnvironmentInfo = provider(fields = ["type"])
 
 def _image_pushes(images, image_repository, name_suffix = ".push"):

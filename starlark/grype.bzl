@@ -4,10 +4,10 @@ load("//starlark:utils.bzl", "download_binary")
 # https://dl.k8s.io/release/${version}/bin/darwin/arm64/kubectl https://dl.k8s.io/release/${version}/bin/darwin/arm64/kubectl.sha256
 
 _binaries = {
-    "darwin-amd64": ("https://github.com/anchore/grype/releases/download/v0.61.1/grype_0.61.1_darwin_amd64.tar.gz", "ced8fe972cf690cc295e1c1ef334a3b27c85ff27875d4afc214824ce664c8472"),
-    "darwin-arm64": ("https://github.com/anchore/grype/releases/download/v0.61.1/grype_0.61.1_darwin_arm64.tar.gz", "6a72f55f3106c9498ec5f5f967c71da754951b61a3d6c9122e08652ec80e5e66"),
-    "linux-amd64": ("https://github.com/anchore/grype/releases/download/v0.61.1/grype_0.61.1_linux_amd64.tar.gz", "b5628b37123ae03b85bb6e692f37ba015c60ba92f4ef6a2a874fd015f918a6ef"),
-    "linux-arm64": ("https://github.com/anchore/grype/releases/download/v0.61.1/grype_0.61.1_linux_arm64.tar.gz", "b77f592386f9dd48d23b05b7bdb52d92e1c9f1b98403c3b54f7e1280b5931ebd"),
+    "darwin_amd64": ("https://github.com/anchore/grype/releases/download/v0.62.3/grype_0.62.3_darwin_amd64.tar.gz", "d3ce446526a4cafb55d4b25de9cdb4bab8f30a141a12ad0875cef9f105cf3477"),
+    "darwin_arm64": ("https://github.com/anchore/grype/releases/download/v0.62.3/grype_0.62.3_darwin_arm64.tar.gz", "aa5dbcdc459792b3e91be826d6db2e306b247f79518cea225b51088bbd4b6210"),
+    "linux_amd64": ("https://github.com/anchore/grype/releases/download/v0.62.3/grype_0.62.3_linux_amd64.tar.gz", "274edb56e39da44e8d8987e027fbf022e386c736956e88a9e404ebfc173bcbc7"),
+    "linux_arm64": ("https://github.com/anchore/grype/releases/download/v0.62.3/grype_0.62.3_linux_arm64.tar.gz", "f4fdda5c29b50e3cf36737ea8fcf53b68718084cc92ef875ec9b0d13f0bfc066"),
 }
 
 def grype_setup(name = "grype_bin", binaries = _binaries, bin = ""):
@@ -15,3 +15,56 @@ def grype_setup(name = "grype_bin", binaries = _binaries, bin = ""):
         bin = name.replace("_bin", "")
     download_binary(name = name, binaries = binaries, bin = bin)
 
+def _grype_test_impl(ctx):
+    cmd = ""
+    command = [ctx.executable._grype.short_path]
+    for f in ctx.files.srcs:
+        cmd += "mkdir -p $BUILD_WORKSPACE_DIRECTORY/security/reports/" + f.short_path.replace("../", "") + "\n"
+        parts = command + [f.short_path, "-o", "json", "--file", "$BUILD_WORKSPACE_DIRECTORY/security/reports/" + f.short_path.replace("../", "") + "/grype.json"]
+        cmd += " ".join([part for part in parts if part]) + "\n"
+
+    for f in ctx.attr.images:
+        parts = command + [f]
+        cmd += " ".join([part for part in parts if part]) + "\n"
+
+    # Write the file that will be executed by 'bazel test'.
+    ctx.actions.write(
+        output = ctx.outputs.test,
+        content = cmd,
+    )
+
+    return [DefaultInfo(
+        executable = ctx.outputs.test,
+        runfiles = ctx.runfiles(files = [
+            ctx.executable._grype,
+        ] + ctx.files.srcs + ctx.files.manifests),
+    )]
+
+# Rule that tests whether a JSON file is valid.
+grype_scan = rule(
+    implementation = _grype_test_impl,
+    attrs = {
+        "srcs": attr.label_list(
+            mandatory = False,
+            allow_files = [".tar"],
+            doc = ("List of inputs. The test will scan all images passed as srcs."),
+        ),
+        "images": attr.string_list(
+            mandatory = False,
+            doc = ("List of images. The test will scan all images passed as srcs."),
+        ),
+        "manifests": attr.label_list(
+            mandatory = False,
+            allow_files = [".yaml"],
+            doc = ("List of manifests. The test will scan all images defined inside manifests."),
+        ),
+        "_grype": attr.label(
+            cfg = "host",
+            executable = True,
+            default = Label("@grype_bin//:grype"),
+        ),
+    },
+    outputs = {"test": "%{name}.sh"},
+    test = False,
+    executable = True,
+)

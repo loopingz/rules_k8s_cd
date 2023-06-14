@@ -2,11 +2,10 @@ load(
     "@io_bazel_rules_docker//skylib:path.bzl",
     _get_runfile_path = "runfile",
 )
+load("@aspect_bazel_lib//lib:repo_utils.bzl", "repo_utils")
 
 def _download_binary_impl(ctx):
-    arch = "arm64" if ctx.os.arch == "aarch64" else ctx.os.arch
-    osname = "darwin" if ctx.os.name == "mac os x" else ctx.os.name
-    platform = osname + "-" + arch
+    platform = repo_utils.platform(ctx)
     if platform not in ctx.attr.binaries:
         fail("Platform " + platform + " is not supported")
     path = ctx.path("bin")
@@ -17,10 +16,10 @@ def _download_binary_impl(ctx):
         ctx.file("BUILD", """
 sh_binary(
     name = "{}",
-    srcs = ["download/{}/{}"],
+    srcs = ["download/{}"],
     visibility = ["//visibility:public"],
 )
-""".format(ctx.attr.name, platform, ctx.attr.bin))      
+""".format(ctx.attr.bin, ctx.attr.bin))      
         ctx.download_and_extract(url, "download/", sha256 = sha256)
     else:
         ctx.file("BUILD", """
@@ -60,7 +59,7 @@ def _run_all_impl(ctx):
         _prefix = _prefix + " async "
 
     _statements = ("\n" + ctx.attr.delimiter).join([_prefix] +
-                                                   [_runfiles(ctx, exe.files_to_run.executable) + _append for exe in ctx.attr.runners] +
+                                                   [_runfiles(ctx, exe.files_to_run.executable) + _append for exe in ctx.attr.targets] +
                                                    [_suffix])
 
     if ctx.attr.parralel:
@@ -74,8 +73,8 @@ def _run_all_impl(ctx):
         output = ctx.outputs.executable,
     )
 
-    runfiles = [obj.files_to_run.executable for obj in ctx.attr.runners]
-    for obj in ctx.attr.runners:
+    runfiles = [obj.files_to_run.executable for obj in ctx.attr.targets]
+    for obj in ctx.attr.targets:
         runfiles.extend(list(obj.default_runfiles.files.to_list()))
 
     return [
@@ -87,8 +86,9 @@ def _run_all_impl(ctx):
 run_all = rule(
     attrs = {
         "delimiter": attr.string(default = ""),
-        "runners": attr.label_list(
+        "targets": attr.label_list(
             cfg = "target",
+            allow_empty = False,
         ),
         "wrap_exits": attr.bool(default = False),
         "parralel": attr.bool(default = True),
@@ -99,4 +99,39 @@ run_all = rule(
     },
     executable = True,
     implementation = _run_all_impl,
+)
+
+# Show rule
+#
+# Useful for debug to have a way to display the output of a target
+
+def _show_impl(ctx):
+    script_content = "#!/usr/bin/env bash\nset -e\n"
+
+    outputs = [
+        "tree -C `dirname %s` -I %s" % (ctx.attr.src.files.to_list()[0].short_path, ctx.outputs.executable.path.split("/")[-1])
+    ]
+    if ctx.attr.content:
+        for dep in ctx.attr.src.files.to_list():
+            outputs.append("echo ---- %s -----\ncat %s\necho \n" % (dep.short_path,dep.short_path))
+
+    script_content += "\n".join(outputs)
+
+    ctx.actions.write(ctx.outputs.executable, script_content, is_executable = True)
+    return [
+        DefaultInfo(executable = ctx.outputs.executable, runfiles=ctx.runfiles(ctx.attr.src.files.to_list())),
+    ]
+
+show = rule(
+    implementation = _show_impl,
+    attrs = {
+        "src": attr.label(
+            doc = "Input file(s).",
+            mandatory = True,
+        ),
+        "content": attr.bool(
+            default = False
+        )
+    },
+    executable = True,
 )

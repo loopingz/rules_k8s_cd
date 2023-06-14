@@ -15,5 +15,11 @@ It also contains soem rules for IaC.
 
 ## Utils
 
-`run_all`: Run all executable dependencies before running the command itself
-`download_binary`: Repository rule to download a binary from a url
+Rules:
+
+- `run_all`: Run all executable dependencies before running the command itself
+- `show`: Display files of another target
+
+Repository rules:
+
+ - `download_binary`: Repository rule to download a binary from a url
