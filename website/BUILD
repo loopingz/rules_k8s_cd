@@ -40,7 +40,6 @@ grype_scan(
 
 )
 
-
 kubectl_export(name="kubectl", arguments=["version", "--client"])
 kubectl(name="kubectl2", arguments=["version"])
 

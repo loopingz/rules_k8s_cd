@@ -109,7 +109,7 @@ def _show_impl(ctx):
     script_content = "#!/usr/bin/env bash\nset -e\n"
 
     outputs = [
-        "tree -C `dirname %s` -I %s" % (ctx.attr.src.files.to_list()[0].short_path, ctx.outputs.executable.path.split("/")[-1])
+        "tree -C . -I %s" % (ctx.outputs.executable.path.split("/")[-1])
     ]
     if ctx.attr.content:
         for dep in ctx.attr.src.files.to_list():
@@ -118,6 +118,7 @@ def _show_impl(ctx):
     script_content += "\n".join(outputs)
 
     ctx.actions.write(ctx.outputs.executable, script_content, is_executable = True)
+    print(ctx.attr.src.files.to_list())
     return [
         DefaultInfo(executable = ctx.outputs.executable, runfiles=ctx.runfiles(ctx.attr.src.files.to_list())),
     ]
@@ -132,6 +133,56 @@ show = rule(
         "content": attr.bool(
             default = False
         )
+    },
+    executable = True,
+)
+
+# Write source files rule
+#
+# Useful for debug to have a way to display the output of a target
+
+def _write_source_files_impl(ctx):
+    script_content = "#!/usr/bin/env bash\nset -e\n"
+
+    outputs = []
+    files = []
+    for src in ctx.attr.srcs:
+        for f in src.files.to_list():
+            files.append(f)
+            # f.short_path will equal to target + "gitops.kustomize.yaml"
+            output_path = f.short_path
+            for prefix in ctx.attr.strip_prefixes:
+                if output_path.startswith(prefix):
+                    output_path = output_path[len(prefix):]
+                    break
+            #paths = output_path.split("/")
+            #paths.pop()
+            output_path = ctx.attr.target + output_path
+                
+            outputs.append("mkdir -p $(dirname $BUILD_WORKSPACE_DIRECTORY/%s)" % (output_path))
+            outputs.append("chmod +w %s" % (f.short_path))
+            outputs.append("cp %s $BUILD_WORKSPACE_DIRECTORY/%s" % (f.short_path, output_path))
+            outputs.append("echo Generated %s" % (output_path))
+
+    script_content += "\n".join(outputs)
+
+    ctx.actions.write(ctx.outputs.executable, script_content, is_executable = True)
+
+    return [
+        DefaultInfo(executable = ctx.outputs.executable, runfiles=ctx.runfiles(files)),
+    ]
+
+write_source_files = rule(
+    implementation = _write_source_files_impl,
+    attrs = {
+        "srcs": attr.label_list(
+            doc = "Input file(s).",
+            mandatory = True,
+        ),
+        "target": attr.string(
+            mandatory = True,
+        ),
+        "strip_prefixes": attr.string_list(default = []),
     },
     executable = True,
 )

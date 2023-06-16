@@ -1,4 +1,4 @@
-load("//starlark:utils.bzl", "download_binary")
+load("//starlark:utils.bzl", "download_binary", "write_source_files")
 
 # version=https://dl.k8s.io/release/stable.txt
 # https://dl.k8s.io/release/${version}/bin/darwin/arm64/kubectl https://dl.k8s.io/release/${version}/bin/darwin/arm64/kubectl.sha256
@@ -38,13 +38,11 @@ def _kubectl_impl(ctx):
         ])
     )]
 
-
-    
-
 kubectl = rule(
     implementation = _kubectl_impl,
     attrs = {
         "arguments": attr.string_list(),
+        "context": attr.label_list(),
         "_kubectl": attr.label(
             cfg = "host",
             executable = True,
@@ -60,20 +58,27 @@ kubectl = rule(
 def _kubectl_export_impl(ctx):
 
     launch = ctx.actions.declare_file(ctx.attr.name + ".sh")
-    command = ""
     args = [ctx.executable._kubectl.path] + ctx.attr.arguments
-    command = " ".join(args)
+    # Export target name
+    paths = ctx.build_file_path.split("/")
+    paths.pop()
+    command = "echo '# Generated from bazel build //%s' > %s\n" % ("/".join(paths) + ":" + ctx.attr.name, ctx.outputs.template.path)
+    command += " ".join(args)
 
-    command += " > %s" % (ctx.outputs.template.path)
+    command += " >> %s" % (ctx.outputs.template.path)
 
     ctx.actions.write(
         output = launch,
         content = command,
         is_executable = True,
     )
+    inputs = []
+    for f in ctx.attr.context:
+        inputs = inputs + f.files.to_list() 
     ctx.actions.run(
         executable = launch,
         outputs = [ctx.outputs.template],
+        inputs = inputs,
         tools = [ctx.executable._kubectl],
     )
 
@@ -81,26 +86,34 @@ kubectl_export = rule(
     implementation = _kubectl_export_impl,
     attrs = {
         "arguments": attr.string_list(),
-        "stdout": attr.output(),
+        "template": attr.output(),
+        "context": attr.label_list(),
         "_kubectl": attr.label(
             cfg = "host",
             executable = True,
             default = Label("@kubectl_bin//:kubectl_bin"),
         )
     },
-    outputs = {"template": "%{name}.yaml"},
     test = False,
     executable = False,
 )
 
-def kustomize(name):
+def kustomize(name, context = []):
     kubectl_export(
         name = name,
-        args = ["apply", "-k", "--dry-run=client"]
+        arguments = ["kustomize", "--load-restrictor", "LoadRestrictionsNone", "./deployments/website/"],
+        context = context,
+        template = "test.yaml",
     )
 
-def kustomize_gitops(name, export_path = "cloud"):
-    kubectl(
+def kustomize_gitops(name, context = [], export_path = "cloud/{CLUSTER}/{NAMESPACE}/"):
+    kustomize(
+        name = name + ".kustomize",
+        context = context,
+    )
+    write_source_files(
         name = name,
-        args = ["apply", "-k", "--dry-run=client"]
+        srcs = [":" + name + ".kustomize"],
+        target = export_path.format(CLUSTER="loopkube", NAMESPACE="bazel-test"),
+        strip_prefixes = ["deployments/"]
     )
