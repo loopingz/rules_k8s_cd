@@ -55,14 +55,14 @@ def _run_all_impl(ctx):
         _append = ""
         _suffix = ""
 
-    if ctx.attr.parralel:
+    if ctx.attr.parallel:
         _prefix = _prefix + " async "
 
     _statements = ("\n" + ctx.attr.delimiter).join([_prefix] +
                                                    [_runfiles(ctx, exe.files_to_run.executable) + _append for exe in ctx.attr.targets] +
                                                    [_suffix])
 
-    if ctx.attr.parralel:
+    if ctx.attr.parallel:
         _statements += "\nwaitpids\n"
 
     ctx.actions.expand_template(
@@ -91,7 +91,7 @@ run_all = rule(
             allow_empty = False,
         ),
         "wrap_exits": attr.bool(default = False),
-        "parralel": attr.bool(default = True),
+        "parallel": attr.bool(default = True),
         "_template": attr.label(
             default = Label(":resolve-all.sh.tpl"),
             allow_single_file = True,
@@ -183,6 +183,41 @@ write_source_files = rule(
             mandatory = True,
         ),
         "strip_prefixes": attr.string_list(default = []),
+    },
+    executable = True,
+)
+def _write_source_file_impl(ctx):
+    script_content = "#!/usr/bin/env bash\nset -e\n"
+
+    outputs = []
+    
+    f = ctx.attr.src.files.to_list()[0]
+    files = [f]
+        
+    outputs.append("mkdir -p $(dirname $BUILD_WORKSPACE_DIRECTORY/%s)" % (ctx.attr.target))
+    outputs.append("chmod +w %s" % (f.short_path))
+    outputs.append("cp %s $BUILD_WORKSPACE_DIRECTORY/%s" % (f.short_path, ctx.attr.target))
+    outputs.append("echo Generated %s" % (ctx.attr.target))
+
+    script_content += "\n".join(outputs)
+
+    ctx.actions.write(ctx.outputs.executable, script_content, is_executable = True)
+
+    return [
+        DefaultInfo(executable = ctx.outputs.executable, runfiles=ctx.runfiles(files)),
+    ]
+
+write_source_file = rule(
+    implementation = _write_source_file_impl,
+    attrs = {
+        "src": attr.label(
+            doc = "Input file(s).",
+            mandatory = True,
+            allow_single_file = True,
+        ),
+        "target": attr.string(
+            mandatory = True,
+        ),
     },
     executable = True,
 )

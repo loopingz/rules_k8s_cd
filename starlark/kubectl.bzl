@@ -1,4 +1,5 @@
-load("//starlark:utils.bzl", "download_binary", "write_source_files")
+load("//starlark:utils.bzl", "download_binary", "write_source_file", "show", "run_all")
+load("//starlark:oci.bzl", "ContainerPushInfo")
 
 # version=https://dl.k8s.io/release/stable.txt
 # https://dl.k8s.io/release/${version}/bin/darwin/arm64/kubectl https://dl.k8s.io/release/${version}/bin/darwin/arm64/kubectl.sha256
@@ -22,7 +23,15 @@ def kubectl_setup(name = "kubectl_bin", binaries = _binaries, bin = ""):
 
 def _kubectl_impl(ctx):
     command = ""
-    args = [ctx.executable._kubectl.short_path] + ctx.attr.arguments
+    launch = ctx.outputs.launch
+    if ctx.attr.chdir:
+        command += "cd %s\n" % launch.dirname
+        output = ctx.outputs.template.basename
+        upupup = "/".join([".."] * (launch.dirname.count("/") + 1))
+        args = [upupup + "/" + ctx.executable._kubectl.path] + ctx.attr.arguments
+    else:
+        args = [ctx.executable._kubectl.path] + ctx.attr.arguments
+
     command = " ".join(args)
 
     ctx.actions.write(
@@ -43,6 +52,7 @@ kubectl = rule(
     attrs = {
         "arguments": attr.string_list(),
         "context": attr.label_list(),
+        "chdir": attr.bool(default = False),
         "_kubectl": attr.label(
             cfg = "host",
             executable = True,
@@ -58,14 +68,23 @@ kubectl = rule(
 def _kubectl_export_impl(ctx):
 
     launch = ctx.actions.declare_file(ctx.attr.name + ".sh")
-    args = [ctx.executable._kubectl.path] + ctx.attr.arguments
+    
     # Export target name
     paths = ctx.build_file_path.split("/")
     paths.pop()
-    command = "echo '# Generated from bazel build //%s' > %s\n" % ("/".join(paths) + ":" + ctx.attr.name, ctx.outputs.template.path)
+    command = ""
+    output = ctx.outputs.template.path
+    if ctx.attr.chdir:
+        command += "cd %s\n" % launch.dirname
+        output = ctx.outputs.template.basename
+        upupup = "/".join([".."] * (launch.dirname.count("/") + 1))
+        args = [upupup + "/" + ctx.executable._kubectl.path] + ctx.attr.arguments
+    else:
+        args = [ctx.executable._kubectl.path] + ctx.attr.arguments
+    command += "echo '# Generated from bazel build //%s' > %s\n" % ("/".join(paths) + ":" + ctx.attr.name, output)
     command += " ".join(args)
 
-    command += " >> %s" % (ctx.outputs.template.path)
+    command += " >> %s" % (output)
 
     ctx.actions.write(
         output = launch,
@@ -88,6 +107,7 @@ kubectl_export = rule(
         "arguments": attr.string_list(),
         "template": attr.output(),
         "context": attr.label_list(),
+        "chdir": attr.bool(default = False),
         "_kubectl": attr.label(
             cfg = "host",
             executable = True,
@@ -98,22 +118,129 @@ kubectl_export = rule(
     executable = False,
 )
 
-def kustomize(name, context = []):
+def kustomize(name, context = [], template = "", **kwargs):
+    if (template == ""):
+        template = name + ".yaml"
     kubectl_export(
         name = name,
-        arguments = ["kustomize", "--load-restrictor", "LoadRestrictionsNone", "./deployments/website/"],
+        chdir = True,
+        arguments = ["kustomize", "--load-restrictor", "LoadRestrictionsNone", "."],
         context = context,
-        template = "test.yaml",
+        template = template,
+        **kwargs
     )
 
-def kustomize_gitops(name, context = [], export_path = "cloud/{CLUSTER}/{NAMESPACE}/"):
+def kustomize_gitops(name, context = [], export_path = "cloud/{CLUSTER}/{NAMESPACE}/", template = ""):
     kustomize(
-        name = name + ".kustomize",
+        name = "_" + name + ".kustomize",
         context = context,
+        template = template,
+        visibility = ["//visibility:private"],
     )
-    write_source_files(
+    write_source_file(
         name = name,
-        srcs = [":" + name + ".kustomize"],
+        src = ":_" + name + ".kustomize",
         target = export_path.format(CLUSTER="loopkube", NAMESPACE="bazel-test"),
-        strip_prefixes = ["deployments/"]
     )
+
+
+kustomization_yaml = """
+namespace: {{NAMESPACE}}
+namePrefix: {{PREFIX}}-
+nameSuffix: {{SUFFIX}}
+commonLabels:
+  app: {{APP}}
+  env: {{ENV}}
+  version: {{VERSION}}
+commonAnnotations:
+    app: {{APP}}
+    env: {{ENV}}
+    version: {{VERSION}}
+resources:
+ - file
+ - file
+configMapGenerator:
+- name: {{APP}}-config
+  files:
+  - config.yaml
+secretGenerator:
+- name: {{APP}}-secret
+  files:
+  - secret.yaml
+generatorOptions:
+    disableNameSuffixHash: true
+bases:
+ -
+ -
+patchesStrategicMerge:
+    - patch.yaml
+    - patch.yaml
+patchesJson6902:
+    - patch.yaml
+    - patch.yaml
+vars:
+    -  
+images:
+
+# configurations: Not supported yet
+crds:
+ - 
+ - 
+"""
+def _kustomization_file_impl(ctx):
+    partial_out = ctx.actions.declare_file("partial_kustomization.yaml")
+    out = ctx.actions.declare_file("kustomization.yaml")
+    image_injector = ctx.actions.declare_file("image_injector.sh")
+    root = out.dirname
+    # hack to get relative path to glob resources...
+    upupup = "/".join([".."] * (root.count("/") + 1))
+
+    content = ""
+    if (ctx.attr.namespace != ""):
+        content += "namespace: %s\n" % ctx.attr.namespace
+    if (ctx.attr.namePrefix != ""):
+        content += "namePrefix: %s\n" % ctx.attr.namePrefix
+    if (ctx.attr.nameSuffix != ""):
+        content += "nameSuffix: %s\n" % ctx.attr.nameSuffix
+    content += "resources:\n"
+    for m in ctx.files.manifests:
+        #for f in m.files.to_list():
+        content += " - %s/%s\n" % (upupup, m.path)
+
+    injections = "cat %s >> %s\necho \"images:\n\" >> %s" % (partial_out.path,out.path,out.path)
+    injections_inputs = [
+        partial_out
+    ]
+    for img in ctx.attr.images:
+        injections += "echo \" - name: %s\n    newName: %s@$(cat %s)\n\" >> %s" % (img[ContainerPushInfo].name, img[ContainerPushInfo].registry + "/" + img[ContainerPushInfo].repository, img[ContainerPushInfo].digestfile.path, out.path)
+        injections_inputs.append(img[ContainerPushInfo].digestfile)
+
+    # Write kustomization_file
+    ctx.actions.write(
+        output = partial_out,
+        content = content,
+    )
+    ctx.actions.write(
+        output = image_injector,
+        content = injections,
+        is_executable = True,
+    )
+    ctx.actions.run(
+        executable = image_injector,
+        outputs = [out],
+        inputs = injections_inputs,
+    )
+    return [DefaultInfo(files = depset([out]))]
+
+kustomization_file = rule(
+    implementation = _kustomization_file_impl,
+    attrs = {
+        "namespace": attr.string(),
+        "namePrefix": attr.string(),
+        "nameSuffix": attr.string(),
+        "commonLabels": attr.string_dict(),
+        "commonAnnotations": attr.string_dict(),
+        "manifests": attr.label_list(),
+        "images": attr.label_list(providers = [ContainerPushInfo])
+    },
+)
