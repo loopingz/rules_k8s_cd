@@ -8,32 +8,32 @@ environments = {
         "cluster": "loopkube",
         "registry": "docker.loopingz.com/bazel-temp",
     },
+    "preview": {
+        "namespace": "bazel-dev",
+        "cluster": "loopkube",
+        "registry": "docker.loopingz.com/bazel-temp",
+    },
     "beta": {
         "namespace": "bazel-beta",
         "cluster": "loopkube",
-        "gitops": True,
+        "gitops": "cloud/{CLUSTER}/{NAMESPACE}/{PACKAGE}.yaml",
         "registry": "docker.loopingz.com/bazel",
     },
     "production": {
         "namespace": "bazel-prod",
         "cluster": "gke-loop-1",
-        "gitops": True,
+        "gitops": "cloud/{CLUSTER}/{NAMESPACE}/{PACKAGE}.yaml",
         "registry": "docker.loopingz.com/bazel",
     },
 }
-
-def push_images(images = {}):
-    # Push images
-    print(images)
-    return [
-        ":_deploy.dev.kustomization.show",
-    ]
 
 def gitops(images = {}):
     name = "deploy"
     for env in environments:
         info = environments[env]
         manifests_target = "_" + name + "." + env + ".manifests"
+        patches_target = "_" + name + "." + env + ".patches"
+        patchesjson6902_target = "_" + name + "." + env + ".patches6902"
         kustomization_target = "_" + name + "." + env + ".kustomization"
         package_name = native.package_name().replace("deployments/", "")
         images_pushed = image_pushes(images, info["registry"])
@@ -48,22 +48,36 @@ def gitops(images = {}):
             name = manifests_target,
             srcs = native.glob(["manifests/*.yaml", "manifests/%s/**/*.yaml" % env]),
         )
+        native.filegroup(
+            name = patches_target,
+            srcs = native.glob(["overlays/*.yaml", "overlays/%s/**/*.yaml" % env]),
+        )
+        native.filegroup(
+            name = patchesjson6902_target,
+            srcs = native.glob(["patches/*.yaml", "patches/%s/**/*.yaml" % env]),
+        )
         kustomization_file(
             name = kustomization_target,
             namespace = "bazel-" + env,
-            manifests = [":" + manifests_target],
+            resources = [":" + manifests_target],
             images = images_pushed,
+            commonAnnotations = {
+                "commit": "{{STABLE_GIT_COMMIT}}"
+            },
+            patchesStrategicMerge = [":" + patches_target],
+            patchesJson6902 = [":" + patchesjson6902_target]
         )
+        context = [":" + kustomization_target, ":" + manifests_target, ":" + patches_target]
         show(
             name = kustomization_target + ".show",
             src = ":" + kustomization_target,
             content = True,
         )
-        if "gitops" in info and info["gitops"]:
+        if "gitops" in info:
             kustomize_gitops(
                 name = "_gitops." + env,
-                context = [":" + kustomization_target, ":" + manifests_target],
-                export_path = "cloud/{CLUSTER}/{NAMESPACE}/{PACKAGE}.yaml".format(PACKAGE=package_name, CLUSTER=info["cluster"], NAMESPACE=info["namespace"]),
+                context = context,
+                export_path = info["gitops"].format(PACKAGE=package_name, CLUSTER=info["cluster"], NAMESPACE=info["namespace"]),
             )
             run_all(
                 name = "gitops." + env,
@@ -78,7 +92,13 @@ def gitops(images = {}):
                 name = "_deploy." + env,
                 chdir = True,
                 arguments = ["apply", "--load-restrictor", "LoadRestrictionsNone", "-k", "."],
-                context = [":" + kustomization_target, ":" + manifests_target],
+                context = context,
+            )
+            kubectl(
+                name = "_show." + env,
+                #chdir = True,
+                arguments = ["kustomize", "--load-restrictor", "LoadRestrictionsNone", native.package_name()],
+                context = context,
             )
             run_all(
                 name = "apply." + env,

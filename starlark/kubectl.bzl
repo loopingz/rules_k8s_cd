@@ -1,5 +1,6 @@
 load("//starlark:utils.bzl", "download_binary", "write_source_file", "show", "run_all")
 load("//starlark:oci.bzl", "ContainerPushInfo")
+load("@aspect_bazel_lib//lib:stamping.bzl", "STAMP_ATTRS", "maybe_stamp")
 
 # version=https://dl.k8s.io/release/stable.txt
 # https://dl.k8s.io/release/${version}/bin/darwin/arm64/kubectl https://dl.k8s.io/release/${version}/bin/darwin/arm64/kubectl.sha256
@@ -22,17 +23,21 @@ def kubectl_setup(name = "kubectl_bin", binaries = _binaries, bin = ""):
 
 
 def _kubectl_impl(ctx):
+
+    inputs = []
+    for f in ctx.attr.context:
+        inputs = inputs + f.files.to_list() 
+
     command = ""
     launch = ctx.outputs.launch
     if ctx.attr.chdir:
-        command += "cd %s\n" % launch.dirname
-        output = ctx.outputs.template.basename
+        output = ctx.outputs.launch.basename
         upupup = "/".join([".."] * (launch.dirname.count("/") + 1))
         args = [upupup + "/" + ctx.executable._kubectl.path] + ctx.attr.arguments
     else:
-        args = [ctx.executable._kubectl.path] + ctx.attr.arguments
+        args = [ctx.executable._kubectl.short_path] + ctx.attr.arguments
 
-    command = " ".join(args)
+    command += " ".join(args)
 
     ctx.actions.write(
         output = ctx.outputs.launch,
@@ -44,7 +49,7 @@ def _kubectl_impl(ctx):
         executable = ctx.outputs.launch,
         runfiles = ctx.runfiles(files = [
             ctx.executable._kubectl,
-        ])
+        ] + inputs)
     )]
 
 kubectl = rule(
@@ -143,50 +148,6 @@ def kustomize_gitops(name, context = [], export_path = "cloud/{CLUSTER}/{NAMESPA
         target = export_path.format(CLUSTER="loopkube", NAMESPACE="bazel-test"),
     )
 
-
-kustomization_yaml = """
-namespace: {{NAMESPACE}}
-namePrefix: {{PREFIX}}-
-nameSuffix: {{SUFFIX}}
-commonLabels:
-  app: {{APP}}
-  env: {{ENV}}
-  version: {{VERSION}}
-commonAnnotations:
-    app: {{APP}}
-    env: {{ENV}}
-    version: {{VERSION}}
-resources:
- - file
- - file
-configMapGenerator:
-- name: {{APP}}-config
-  files:
-  - config.yaml
-secretGenerator:
-- name: {{APP}}-secret
-  files:
-  - secret.yaml
-generatorOptions:
-    disableNameSuffixHash: true
-bases:
- -
- -
-patchesStrategicMerge:
-    - patch.yaml
-    - patch.yaml
-patchesJson6902:
-    - patch.yaml
-    - patch.yaml
-vars:
-    -  
-images:
-
-# configurations: Not supported yet
-crds:
- - 
- - 
-"""
 def _kustomization_file_impl(ctx):
     partial_out = ctx.actions.declare_file("partial_kustomization.yaml")
     out = ctx.actions.declare_file("kustomization.yaml")
@@ -202,15 +163,70 @@ def _kustomization_file_impl(ctx):
         content += "namePrefix: %s\n" % ctx.attr.namePrefix
     if (ctx.attr.nameSuffix != ""):
         content += "nameSuffix: %s\n" % ctx.attr.nameSuffix
+    if (ctx.attr.commonAnnotations):
+        content += "commonAnnotations:\n"
+        for key in ctx.attr.commonAnnotations:
+            content += "  %s: %s\n" % (key, ctx.attr.commonAnnotations[key])
+    if (ctx.attr.commonLabels):
+            content += "commonLabels:\n"
+            for key in ctx.attr.commonLabels:
+                content += "  %s: %s\n" % (key, ctx.attr.commonLabels[key])
+
+    # Add crds
+    if len(ctx.files.crds) > 0:
+        content += "crds:\n"
+        for p in ctx.files.crds:
+            content += " - %s/%s\n" % (upupup, p.path)
+
     content += "resources:\n"
-    for m in ctx.files.manifests:
+    for m in ctx.files.resources:
         #for f in m.files.to_list():
         content += " - %s/%s\n" % (upupup, m.path)
 
-    injections = "cat %s >> %s\necho \"images:\n\" >> %s" % (partial_out.path,out.path,out.path)
+    # for _, f in enumerate(ctx.files.patches):
+    # Add strategic patch
+    if len(ctx.files.patchesJson6902) + len(ctx.files.patchesStrategicMerge) > 0:
+        content += "patches:\n"
+    # Strategic Merge
+    for p in ctx.files.patchesStrategicMerge:
+        content += "- path: %s/%s\n" % (upupup, p.path)
+
     injections_inputs = [
         partial_out
     ]
+    
+    injections = "cat %s >> %s\n" % (partial_out.path,out.path)
+
+    # Stamp file
+    stamp = maybe_stamp(ctx)
+    if stamp:
+        injections_inputs = injections_inputs + [stamp.volatile_status_file, stamp.stable_status_file]
+        injections = """
+cat """ + stamp.volatile_status_file.path + " " + stamp.stable_status_file.path + """ | (while read -r l; do
+	KEY=""" + "${l% *}" + """
+	VALUE=${l:${#KEY}+1}
+	SED_COMMAND=$SED_COMMAND$SEP"s/{{$KEY}}/$VALUE/g"
+	SEP=";"
+done
+sed $SED_COMMAND %s > %s
+)
+""" % (partial_out.path, out.path)
+    # Now inject patchesJson6902
+    for p in ctx.files.patchesJson6902:
+        injections += """
+SEP="-"
+cat %s | (while IFS= read -r l; do
+    echo "$SEP $l" >> %s
+    SEP=" "
+done
+)
+""" % (p.path, out.path)
+        injections += "cat %s >> %s\n" 
+        injections_inputs.append(p)
+
+    injections += "find .\n"
+    injections += "echo \"images:\n\" >> %s" % (out.path)
+    
     for img in ctx.attr.images:
         injections += "echo \" - name: %s\n    newName: %s@$(cat %s)\n\" >> %s" % (img[ContainerPushInfo].name, img[ContainerPushInfo].registry + "/" + img[ContainerPushInfo].repository, img[ContainerPushInfo].digestfile.path, out.path)
         injections_inputs.append(img[ContainerPushInfo].digestfile)
@@ -234,13 +250,18 @@ def _kustomization_file_impl(ctx):
 
 kustomization_file = rule(
     implementation = _kustomization_file_impl,
-    attrs = {
+    attrs = dict({
         "namespace": attr.string(),
         "namePrefix": attr.string(),
         "nameSuffix": attr.string(),
         "commonLabels": attr.string_dict(),
         "commonAnnotations": attr.string_dict(),
-        "manifests": attr.label_list(),
+        "resources": attr.label_list(),
+        "patchesStrategicMerge": attr.label_list(),
+        "patchesJson6902": attr.label_list(),
+        "crds": attr.label_list(),
+        "configMapGenerator": attr.label_keyed_string_dict(),
+        "secretGenerator": attr.label_keyed_string_dict(),
         "images": attr.label_list(providers = [ContainerPushInfo])
-    },
+    }, **STAMP_ATTRS)
 )

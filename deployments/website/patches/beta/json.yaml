@@ -1,0 +1,18 @@
+target:
+  name: ".*"
+patch: |-
+  - op: add
+    path: "/metadata/labels/gitops.loopingz.com~1commit"
+    value: "{{GIT_COMMIT}}"
+    target:
+      name: ".*"
+  - op: add
+    path: "/metadata/labels/gitops.loopingz.com~1environment"
+    value: "{{ENVIRONMENT}}"
+    target:
+      name: ".*"
+  - op: add
+    path: "/metadata/annotations/gitops.loopingz.com~1target"
+    value: "{{SOURCE}}"
+    target:
+      name: ".*"
