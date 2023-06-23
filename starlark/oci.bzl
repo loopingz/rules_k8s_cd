@@ -22,7 +22,7 @@ def image_pushes(images, image_repository, name_suffix = ".push"):
 
     #for image_name in images:
     #    image_pushes[image_name] = process_image(images[image_name], image_name)
-    return [ process_image(images[image_name], image_name) for image_name in images ]
+    return [process_image(images[image_name], image_name) for image_name in images]
 
 def _oci_push_info(ctx):
     push_result = oci_push_lib.implementation(ctx)
@@ -62,7 +62,7 @@ def _oci_push_info(ctx):
         repository = repository,
         name = repository.split("/").pop(),
         digestfile = digestfile,
-        tags = []
+        tags = [],
     )]
 
 oci_push_info = rule(

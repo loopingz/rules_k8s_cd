@@ -19,7 +19,7 @@ sh_binary(
     srcs = ["download/{}"],
     visibility = ["//visibility:public"],
 )
-""".format(ctx.attr.bin, ctx.attr.bin))      
+""".format(ctx.attr.bin, ctx.attr.bin))
         ctx.download_and_extract(url, "download/", sha256 = sha256)
     else:
         ctx.file("BUILD", """
@@ -28,18 +28,16 @@ sh_binary(
     srcs = ["{}"],
     visibility = ["//visibility:public"],
 )
-""".format(ctx.attr.name, ctx.attr.bin))      
+""".format(ctx.attr.name, ctx.attr.bin))
         ctx.download(url, ctx.attr.bin, sha256 = sha256, executable = True)
-
 
 download_binary = repository_rule(
     _download_binary_impl,
     attrs = {
         "binaries": attr.string_list_dict(),
         "bin": attr.string(),
-    }
+    },
 )
-
 
 # Inspired by https://github.com/bazelbuild/rules_k8s/blob/master/k8s/objects.bzl
 def _runfiles(ctx, f):
@@ -109,18 +107,18 @@ def _show_impl(ctx):
     script_content = "#!/usr/bin/env bash\nset -e\n"
 
     outputs = [
-        "tree -C . -I %s" % (ctx.outputs.executable.path.split("/")[-1])
+        "tree -C . -I %s" % (ctx.outputs.executable.path.split("/")[-1]),
     ]
     if ctx.attr.content:
         for dep in ctx.attr.src.files.to_list():
-            outputs.append("echo ---- %s -----\ncat %s\necho \n" % (dep.short_path,dep.short_path))
+            outputs.append("echo ---- %s -----\ncat %s\necho \n" % (dep.short_path, dep.short_path))
 
     script_content += "\n".join(outputs)
 
     ctx.actions.write(ctx.outputs.executable, script_content, is_executable = True)
     print(ctx.attr.src.files.to_list())
     return [
-        DefaultInfo(executable = ctx.outputs.executable, runfiles=ctx.runfiles(ctx.attr.src.files.to_list())),
+        DefaultInfo(executable = ctx.outputs.executable, runfiles = ctx.runfiles(ctx.attr.src.files.to_list())),
     ]
 
 show = rule(
@@ -131,8 +129,8 @@ show = rule(
             mandatory = True,
         ),
         "content": attr.bool(
-            default = False
-        )
+            default = False,
+        ),
     },
     executable = True,
 )
@@ -149,16 +147,18 @@ def _write_source_files_impl(ctx):
     for src in ctx.attr.srcs:
         for f in src.files.to_list():
             files.append(f)
+
             # f.short_path will equal to target + "gitops.kustomize.yaml"
             output_path = f.short_path
             for prefix in ctx.attr.strip_prefixes:
                 if output_path.startswith(prefix):
                     output_path = output_path[len(prefix):]
                     break
+
             #paths = output_path.split("/")
             #paths.pop()
             output_path = ctx.attr.target + output_path
-                
+
             outputs.append("mkdir -p $(dirname $BUILD_WORKSPACE_DIRECTORY/%s)" % (output_path))
             outputs.append("chmod +w %s" % (f.short_path))
             outputs.append("cp %s $BUILD_WORKSPACE_DIRECTORY/%s" % (f.short_path, output_path))
@@ -169,7 +169,7 @@ def _write_source_files_impl(ctx):
     ctx.actions.write(ctx.outputs.executable, script_content, is_executable = True)
 
     return [
-        DefaultInfo(executable = ctx.outputs.executable, runfiles=ctx.runfiles(files)),
+        DefaultInfo(executable = ctx.outputs.executable, runfiles = ctx.runfiles(files)),
     ]
 
 write_source_files = rule(
@@ -186,14 +186,15 @@ write_source_files = rule(
     },
     executable = True,
 )
+
 def _write_source_file_impl(ctx):
     script_content = "#!/usr/bin/env bash\nset -e\n"
 
     outputs = []
-    
+
     f = ctx.attr.src.files.to_list()[0]
     files = [f]
-        
+
     outputs.append("mkdir -p $(dirname $BUILD_WORKSPACE_DIRECTORY/%s)" % (ctx.attr.target))
     outputs.append("chmod +w %s" % (f.short_path))
     outputs.append("cp %s $BUILD_WORKSPACE_DIRECTORY/%s" % (f.short_path, ctx.attr.target))
@@ -204,7 +205,7 @@ def _write_source_file_impl(ctx):
     ctx.actions.write(ctx.outputs.executable, script_content, is_executable = True)
 
     return [
-        DefaultInfo(executable = ctx.outputs.executable, runfiles=ctx.runfiles(files)),
+        DefaultInfo(executable = ctx.outputs.executable, runfiles = ctx.runfiles(files)),
     ]
 
 write_source_file = rule(

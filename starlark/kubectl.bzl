@@ -1,4 +1,4 @@
-load("//starlark:utils.bzl", "download_binary", "write_source_file", "show", "run_all")
+load("//starlark:utils.bzl", "download_binary", "run_all", "show", "write_source_file")
 load("//starlark:oci.bzl", "ContainerPushInfo")
 load("@aspect_bazel_lib//lib:stamping.bzl", "STAMP_ATTRS", "maybe_stamp")
 
@@ -20,13 +20,10 @@ def kubectl_setup(name = "kubectl_bin", binaries = _binaries, bin = ""):
         bin = name.replace("_bin", "")
     download_binary(name = name, binaries = binaries, bin = bin)
 
-
-
 def _kubectl_impl(ctx):
-
     inputs = []
     for f in ctx.attr.context:
-        inputs = inputs + f.files.to_list() 
+        inputs = inputs + f.files.to_list()
 
     command = ""
     launch = ctx.outputs.launch
@@ -49,7 +46,7 @@ def _kubectl_impl(ctx):
         executable = ctx.outputs.launch,
         runfiles = ctx.runfiles(files = [
             ctx.executable._kubectl,
-        ] + inputs)
+        ] + inputs),
     )]
 
 kubectl = rule(
@@ -62,18 +59,16 @@ kubectl = rule(
             cfg = "host",
             executable = True,
             default = Label("@kubectl_bin//:kubectl_bin"),
-        )
+        ),
     },
     outputs = {"launch": "%{name}.sh"},
     test = False,
     executable = True,
 )
 
-
 def _kubectl_export_impl(ctx):
-
     launch = ctx.actions.declare_file(ctx.attr.name + ".sh")
-    
+
     # Export target name
     paths = ctx.build_file_path.split("/")
     paths.pop()
@@ -98,7 +93,7 @@ def _kubectl_export_impl(ctx):
     )
     inputs = []
     for f in ctx.attr.context:
-        inputs = inputs + f.files.to_list() 
+        inputs = inputs + f.files.to_list()
     ctx.actions.run(
         executable = launch,
         outputs = [ctx.outputs.template],
@@ -117,7 +112,7 @@ kubectl_export = rule(
             cfg = "host",
             executable = True,
             default = Label("@kubectl_bin//:kubectl_bin"),
-        )
+        ),
     },
     test = False,
     executable = False,
@@ -145,123 +140,80 @@ def kustomize_gitops(name, context = [], export_path = "cloud/{CLUSTER}/{NAMESPA
     write_source_file(
         name = name,
         src = ":_" + name + ".kustomize",
-        target = export_path.format(CLUSTER="loopkube", NAMESPACE="bazel-test"),
+        target = export_path.format(CLUSTER = "loopkube", NAMESPACE = "bazel-test"),
     )
 
-def _kustomization_file_impl(ctx):
-    partial_out = ctx.actions.declare_file("partial_kustomization.yaml")
+def _kustomization_injector_impl(ctx):
     out = ctx.actions.declare_file("kustomization.yaml")
-    image_injector = ctx.actions.declare_file("image_injector.sh")
-    root = out.dirname
-    # hack to get relative path to glob resources...
-    upupup = "/".join([".."] * (root.count("/") + 1))
-
-    content = ""
-    if (ctx.attr.namespace != ""):
-        content += "namespace: %s\n" % ctx.attr.namespace
-    if (ctx.attr.namePrefix != ""):
-        content += "namePrefix: %s\n" % ctx.attr.namePrefix
-    if (ctx.attr.nameSuffix != ""):
-        content += "nameSuffix: %s\n" % ctx.attr.nameSuffix
-    if (ctx.attr.commonAnnotations):
-        content += "commonAnnotations:\n"
-        for key in ctx.attr.commonAnnotations:
-            content += "  %s: %s\n" % (key, ctx.attr.commonAnnotations[key])
-    if (ctx.attr.commonLabels):
-            content += "commonLabels:\n"
-            for key in ctx.attr.commonLabels:
-                content += "  %s: %s\n" % (key, ctx.attr.commonLabels[key])
-
-    # Add crds
-    if len(ctx.files.crds) > 0:
-        content += "crds:\n"
-        for p in ctx.files.crds:
-            content += " - %s/%s\n" % (upupup, p.path)
-
-    content += "resources:\n"
-    for m in ctx.files.resources:
-        #for f in m.files.to_list():
-        content += " - %s/%s\n" % (upupup, m.path)
-
-    # for _, f in enumerate(ctx.files.patches):
-    # Add strategic patch
-    if len(ctx.files.patchesJson6902) + len(ctx.files.patchesStrategicMerge) > 0:
-        content += "patches:\n"
-    # Strategic Merge
-    for p in ctx.files.patchesStrategicMerge:
-        content += "- path: %s/%s\n" % (upupup, p.path)
-
-    injections_inputs = [
-        partial_out
+    arguments = [
+        "--input=%s" % ctx.files.input[0].path,
+        "--output=%s" % out.path,
     ]
-    
-    injections = "cat %s >> %s\n" % (partial_out.path,out.path)
-
-    # Stamp file
-    stamp = maybe_stamp(ctx)
-    if stamp:
-        injections_inputs = injections_inputs + [stamp.volatile_status_file, stamp.stable_status_file]
-        injections = """
-cat """ + stamp.volatile_status_file.path + " " + stamp.stable_status_file.path + """ | (while read -r l; do
-	KEY=""" + "${l% *}" + """
-	VALUE=${l:${#KEY}+1}
-	SED_COMMAND=$SED_COMMAND$SEP"s/{{$KEY}}/$VALUE/g"
-	SEP=";"
-done
-sed $SED_COMMAND %s > %s
-)
-""" % (partial_out.path, out.path)
-    # Now inject patchesJson6902
-    for p in ctx.files.patchesJson6902:
-        injections += """
-SEP="-"
-cat %s | (while IFS= read -r l; do
-    echo "$SEP $l" >> %s
-    SEP=" "
-done
-)
-""" % (p.path, out.path)
-        injections += "cat %s >> %s\n" 
-        injections_inputs.append(p)
-
-    injections += "find .\n"
-    injections += "echo \"images:\n\" >> %s" % (out.path)
-    
     for img in ctx.attr.images:
-        injections += "echo \" - name: %s\n    newName: %s@$(cat %s)\n\" >> %s" % (img[ContainerPushInfo].name, img[ContainerPushInfo].registry + "/" + img[ContainerPushInfo].repository, img[ContainerPushInfo].digestfile.path, out.path)
-        injections_inputs.append(img[ContainerPushInfo].digestfile)
+        arguments.append("--image=%s:fs://%s" % (img[ContainerPushInfo].name, img[ContainerPushInfo].digestfile.path))
+    for res in ctx.files.resources:
+        arguments.append("--path=resources:%s" % res.path)
+    for res in ctx.files.crds:
+        arguments.append("--path=crds:%s" % res.path)
+    for res in ctx.files.configMapGenerator:
+        arguments.append("--path=configMapGenerator:%s" % res.path)
+    for res in ctx.files.secretGenerator:
+        arguments.append("--path=secretGenerator:%s" % res.path)
+    for res in ctx.files.patchesStrategicMerge:
+        arguments.append("--path=patchesStrategicMerge:%s" % res.path)
+    for res in ctx.files.patchesJson6902:
+        arguments.append("--path=patchesJson6902:%s" % res.path)
 
-    # Write kustomization_file
-    ctx.actions.write(
-        output = partial_out,
-        content = content,
-    )
-    ctx.actions.write(
-        output = image_injector,
-        content = injections,
-        is_executable = True,
-    )
+    if (ctx.attr.repository != ""):
+        arguments.append("--repository=%s" % ctx.attr.repository)
+
     ctx.actions.run(
-        executable = image_injector,
+        executable = ctx.executable._kustomizer,
+        arguments = arguments,
         outputs = [out],
-        inputs = injections_inputs,
+        inputs = ctx.files.input + ctx.files.images + ctx.files.resources + ctx.files.crds + ctx.files.configMapGenerator + ctx.files.secretGenerator + ctx.files.patchesStrategicMerge + ctx.files.patchesJson6902,
     )
     return [DefaultInfo(files = depset([out]))]
 
-kustomization_file = rule(
-    implementation = _kustomization_file_impl,
+kustomization_injector = rule(
+    implementation = _kustomization_injector_impl,
     attrs = dict({
-        "namespace": attr.string(),
-        "namePrefix": attr.string(),
-        "nameSuffix": attr.string(),
-        "commonLabels": attr.string_dict(),
-        "commonAnnotations": attr.string_dict(),
-        "resources": attr.label_list(),
-        "patchesStrategicMerge": attr.label_list(),
-        "patchesJson6902": attr.label_list(),
-        "crds": attr.label_list(),
-        "configMapGenerator": attr.label_keyed_string_dict(),
-        "secretGenerator": attr.label_keyed_string_dict(),
-        "images": attr.label_list(providers = [ContainerPushInfo])
-    }, **STAMP_ATTRS)
+        "input": attr.label(allow_single_file = True, mandatory = True, doc = "Input kustomization file"),
+        "repository": attr.string(default = "", doc = "Images repository to use as prefix for images"),
+        "images": attr.label_list(
+            providers = [ContainerPushInfo],
+            allow_files = True,
+            doc = "List of images to inject in the kustomization file",
+        ),
+        "resources": attr.label_list(
+            allow_files = True,
+            doc = "List of resources to inject in the kustomization file",
+        ),
+        "patchesStrategicMerge": attr.label_list(
+            allow_files = True,
+            doc = "List of patches to inject in the kustomization file",
+        ),
+        "patchesJson6902": attr.label_list(
+            allow_files = True,
+            doc = "List of patches to inject in the kustomization file",
+        ),
+        "crds": attr.label_list(
+            allow_files = True,
+            doc = "List of patches to inject in the kustomization file",
+        ),
+        "configMapGenerator": attr.label_list(
+            allow_files = True,
+            doc = "List of patches to inject in the kustomization file",
+        ),
+        "secretGenerator": attr.label_list(
+            allow_files = True,
+            doc = "List of secrets to inject in the kustomization file",
+        ),
+        "_kustomizer": attr.label(
+            default = Label("//ci/go/kustomizer:kustomizer"),
+            cfg = "exec",
+            executable = True,
+            allow_files = True,
+        ),
+    }),
 )

@@ -36,20 +36,33 @@ oci_tarball(
 
 grype_scan(
     name = "image_scan",
-    srcs = [":image_tar"]
-
+    srcs = [":image_tar"],
 )
 
-kubectl_export(name="kubectl", arguments=["version", "--client"])
-kubectl(name="kubectl2", arguments=["version"])
+kubectl_export(
+    name = "kubectl",
+    arguments = [
+        "version",
+        "--client",
+    ],
+)
 
-show(name="kubeshow", src=":kubectl", content=True)
+kubectl(
+    name = "kubectl2",
+    arguments = ["version"],
+)
+
+show(
+    name = "kubeshow",
+    src = ":kubectl",
+    content = True,
+)
 
 run_all(
-  name = "run_all",
-  targets = [
-    ":kubeshow",
-    ":kubectl",
-    ":kubectl2",
-  ]
+    name = "run_all",
+    targets = [
+        ":kubeshow",
+        ":kubectl",
+        ":kubectl2",
+    ],
 )

@@ -1,6 +1,7 @@
-load("//starlark:utils.bzl", "download_binary", "write_source_file", "show", "run_all")
-load("//starlark:kubectl.bzl", "kustomization_file", "kustomize_gitops", "kubectl")
+load("//starlark:utils.bzl", "download_binary", "run_all", "show", "write_source_file")
+load("//starlark:kubectl.bzl", "kubectl", "kustomization_injector", "kustomize_gitops")
 load("//starlark:oci.bzl", "image_pushes")
+load("@aspect_bazel_lib//lib:expand_make_vars.bzl", "expand_template")
 
 environments = {
     "dev": {
@@ -56,16 +57,29 @@ def gitops(images = {}):
             name = patchesjson6902_target,
             srcs = native.glob(["patches/*.yaml", "patches/%s/**/*.yaml" % env]),
         )
-        kustomization_file(
+
+        expand_template(
+            # A unique name for this target.
+            name = kustomization_target + ".tpl",
+            # Where to write the expanded file.
+            out = "kustomization.yaml." + env + ".tpl",
+            # The template file to expand.
+            template = "//starlark:kustomization.yaml.tpl",
+            substitutions = {
+                "{{environment}}": env,
+                "{{namespace}}": "bazel-" + env,
+                "{{commit}}": "\"{{STABLE_GIT_COMMIT}}\""
+            },
+            stamp = -1
+        )
+        kustomization_injector(
             name = kustomization_target,
-            namespace = "bazel-" + env,
+            input = ":kustomization.yaml." + env + ".tpl",
             resources = [":" + manifests_target],
             images = images_pushed,
-            commonAnnotations = {
-                "commit": "{{STABLE_GIT_COMMIT}}"
-            },
             patchesStrategicMerge = [":" + patches_target],
-            patchesJson6902 = [":" + patchesjson6902_target]
+            patchesJson6902 = [":" + patchesjson6902_target],
+            repository = info["registry"] + "/",
         )
         context = [":" + kustomization_target, ":" + manifests_target, ":" + patches_target]
         show(
@@ -77,7 +91,7 @@ def gitops(images = {}):
             kustomize_gitops(
                 name = "_gitops." + env,
                 context = context,
-                export_path = info["gitops"].format(PACKAGE=package_name, CLUSTER=info["cluster"], NAMESPACE=info["namespace"]),
+                export_path = info["gitops"].format(PACKAGE = package_name, CLUSTER = info["cluster"], NAMESPACE = info["namespace"]),
             )
             run_all(
                 name = "gitops." + env,
@@ -108,4 +122,3 @@ def gitops(images = {}):
                 ],
                 parallel = False,
             )
-            
