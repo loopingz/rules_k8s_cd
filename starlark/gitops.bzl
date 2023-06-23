@@ -68,9 +68,9 @@ def gitops(images = {}):
             substitutions = {
                 "{{environment}}": env,
                 "{{namespace}}": "bazel-" + env,
-                "{{commit}}": "\"{{STABLE_GIT_COMMIT}}\""
+                "{{commit}}": "{{STABLE_GIT_COMMIT}}",
+                "{{source}}": native.package_name(),
             },
-            stamp = -1
         )
         kustomization_injector(
             name = kustomization_target,
@@ -104,13 +104,11 @@ def gitops(images = {}):
         else:
             kubectl(
                 name = "_deploy." + env,
-                chdir = True,
                 arguments = ["apply", "--load-restrictor", "LoadRestrictionsNone", "-k", "."],
                 context = context,
             )
             kubectl(
                 name = "_show." + env,
-                #chdir = True,
                 arguments = ["kustomize", "--load-restrictor", "LoadRestrictionsNone", native.package_name()],
                 context = context,
             )

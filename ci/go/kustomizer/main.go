@@ -37,6 +37,7 @@ var (
 	output             string
 	input			   string
 	repository		 string
+	relativePath	 string
 )
 
 // https://github.com/kubernetes-sigs/kustomize/blob/master/api/types/image.go#L8
@@ -61,9 +62,14 @@ type Image struct {
 	Digest string `json:"digest,omitempty" yaml:"digest,omitempty"`
 }
 
+type Patch struct {
+	Path string `json:"path,omitempty" yaml:"path,omitempty"`
+}
+
 func init() {
 	flag.Var(&paths, "path", "Paths to file to add to the yaml --path=type:path.")
 	flag.StringVar(&output, "output", "", "The output file")
+	flag.StringVar(&relativePath, "relativePath", "", "The relative path for resources")
 	flag.StringVar(&input, "input", "", "The input file")
 	flag.StringVar(&repository, "repository", "", "Repository prefix for images")
 	flag.Var(&images, "image", "The image file (can be used multiple times)")
@@ -90,8 +96,11 @@ func main() {
 
 	for _, p := range paths {
 		log.Printf("Adding %s", p)
-		info := strings.SplitN(p, ":", 2)
+		info := strings.SplitN(p, ":", 2)	
 		var value interface{} = info[1]
+		if (strings.HasPrefix(info[1], relativePath)) {
+			value = info[1][len(relativePath):]
+		}
 		// Specific case as patchJson6902 need to be replaced by inline
 		if (info[0] == "patchesJson6902") {
 			info[0] = "patches"
@@ -107,6 +116,7 @@ func main() {
 			}
 		} else if (info[0] == "patchesStrategicMerge") {
 			info[0] = "patches"
+			value = Patch{Path: value.(string)}
 		}
 		if (data[info[0]] == nil) {
 			data[info[0]] = []interface{}{}
@@ -132,9 +142,11 @@ func main() {
 			if err != nil {
 				log.Fatal(err)
 			}
-			img.NewName = info[0] + "@" + strings.Trim(string(b), " \n")
+			img.NewName = repository + info[0]
+			img.Digest = strings.Trim(string(b), " \n")
 		} else {
-			img.NewName = info[0] + "@" + info[1]
+			img.NewName = repository + info[0]
+			img.Digest = info[1]
 		}
 		data["images"] = append(data["images"].([]Image), img)
 	}

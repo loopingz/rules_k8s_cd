@@ -1,6 +1,7 @@
 load("//starlark:utils.bzl", "download_binary", "run_all", "show", "write_source_file")
 load("//starlark:oci.bzl", "ContainerPushInfo")
 load("@aspect_bazel_lib//lib:stamping.bzl", "STAMP_ATTRS", "maybe_stamp")
+load("@aspect_bazel_lib//lib:paths.bzl", "relative_file")
 
 # version=https://dl.k8s.io/release/stable.txt
 # https://dl.k8s.io/release/${version}/bin/darwin/arm64/kubectl https://dl.k8s.io/release/${version}/bin/darwin/arm64/kubectl.sha256
@@ -27,12 +28,7 @@ def _kubectl_impl(ctx):
 
     command = ""
     launch = ctx.outputs.launch
-    if ctx.attr.chdir:
-        output = ctx.outputs.launch.basename
-        upupup = "/".join([".."] * (launch.dirname.count("/") + 1))
-        args = [upupup + "/" + ctx.executable._kubectl.path] + ctx.attr.arguments
-    else:
-        args = [ctx.executable._kubectl.short_path] + ctx.attr.arguments
+    args = [ctx.executable._kubectl.short_path] + ctx.attr.arguments
 
     command += " ".join(args)
 
@@ -54,7 +50,6 @@ kubectl = rule(
     attrs = {
         "arguments": attr.string_list(),
         "context": attr.label_list(),
-        "chdir": attr.bool(default = False),
         "_kubectl": attr.label(
             cfg = "host",
             executable = True,
@@ -74,13 +69,15 @@ def _kubectl_export_impl(ctx):
     paths.pop()
     command = ""
     output = ctx.outputs.template.path
-    if ctx.attr.chdir:
-        command += "cd %s\n" % launch.dirname
-        output = ctx.outputs.template.basename
-        upupup = "/".join([".."] * (launch.dirname.count("/") + 1))
-        args = [upupup + "/" + ctx.executable._kubectl.path] + ctx.attr.arguments
-    else:
-        args = [ctx.executable._kubectl.path] + ctx.attr.arguments
+    args = [ctx.executable._kubectl.path] + ctx.attr.arguments
+    for f in ctx.files.context:
+        p = f.path
+        if p.startswith("bazel-out"):
+            src = p
+            dst = p[p.index("/bin/")+5:]
+            rel_src = relative_file(src, dst)
+            command += "mkdir -p `dirname %s` && ln -s %s %s\n" % (dst, rel_src, dst)
+        
     command += "echo '# Generated from bazel build //%s' > %s\n" % ("/".join(paths) + ":" + ctx.attr.name, output)
     command += " ".join(args)
 
@@ -107,7 +104,6 @@ kubectl_export = rule(
         "arguments": attr.string_list(),
         "template": attr.output(),
         "context": attr.label_list(),
-        "chdir": attr.bool(default = False),
         "_kubectl": attr.label(
             cfg = "host",
             executable = True,
@@ -123,8 +119,7 @@ def kustomize(name, context = [], template = "", **kwargs):
         template = name + ".yaml"
     kubectl_export(
         name = name,
-        chdir = True,
-        arguments = ["kustomize", "--load-restrictor", "LoadRestrictionsNone", "."],
+        arguments = ["kustomize", "--load-restrictor", "LoadRestrictionsNone", native.package_name() + "/"],
         context = context,
         template = template,
         **kwargs
@@ -145,9 +140,13 @@ def kustomize_gitops(name, context = [], export_path = "cloud/{CLUSTER}/{NAMESPA
 
 def _kustomization_injector_impl(ctx):
     out = ctx.actions.declare_file("kustomization.yaml")
+    builddir = ctx.build_file_path.split("/")
+    builddir.pop()
+    builddir = "/".join(builddir) + "/"
     arguments = [
         "--input=%s" % ctx.files.input[0].path,
         "--output=%s" % out.path,
+        "--relativePath=%s" % builddir,
     ]
     for img in ctx.attr.images:
         arguments.append("--image=%s:fs://%s" % (img[ContainerPushInfo].name, img[ContainerPushInfo].digestfile.path))
