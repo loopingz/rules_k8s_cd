@@ -1,7 +1,3 @@
-load(
-    "@io_bazel_rules_docker//skylib:path.bzl",
-    _get_runfile_path = "runfile",
-)
 load("@aspect_bazel_lib//lib:repo_utils.bzl", "repo_utils")
 
 def _download_binary_impl(ctx):
@@ -39,9 +35,18 @@ download_binary = repository_rule(
     },
 )
 
+# > From rules_docker https://github.com/bazelbuild/rules_docker
+def runfile(ctx, f):
+    """Return the runfiles relative path of f."""
+    if ctx.workspace_name:
+        return ctx.workspace_name + "/" + f.short_path
+    else:
+        return f.short_path
+# < https://github.com/bazelbuild/rules_docker
+
 # Inspired by https://github.com/bazelbuild/rules_k8s/blob/master/k8s/objects.bzl
 def _runfiles(ctx, f):
-    return "PYTHON_RUNFILES=${RUNFILES} ${RUNFILES}/%s $@" % _get_runfile_path(ctx, f)
+    return "PYTHON_RUNFILES=${RUNFILES} ${RUNFILES}/%s $@" % runfile(ctx, f)
 
 def _run_all_impl(ctx):
     if ctx.attr.wrap_exits:
@@ -91,7 +96,7 @@ run_all = rule(
         "wrap_exits": attr.bool(default = False),
         "parallel": attr.bool(default = True),
         "_template": attr.label(
-            default = Label(":resolve-all.sh.tpl"),
+            default = Label(":run_all.sh.tpl"),
             allow_single_file = True,
         ),
     },
@@ -155,8 +160,6 @@ def _write_source_files_impl(ctx):
                     output_path = output_path[len(prefix):]
                     break
 
-            #paths = output_path.split("/")
-            #paths.pop()
             output_path = ctx.attr.target + output_path
 
             outputs.append("mkdir -p $(dirname $BUILD_WORKSPACE_DIRECTORY/%s)" % (output_path))

@@ -25,6 +25,7 @@ Rules:
 - `run_all`: Run all executable dependencies before running the command itself
 - `show`: Display files of another target
 - `write_source_files`: Allow you to write some generated files back to the repository
+- `write_source_file`: Allow you to write some one file back to the repository
 
 Repository rules:
 

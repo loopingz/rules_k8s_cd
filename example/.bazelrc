@@ -1,0 +1,6 @@
+# Turn on the bzlmod feature in Bazel, before 6.0 final it's experimental
+
+common --enable_bzlmod
+# --@io_bazel_rules_docker//transitions:enable=false
+run --stamp --workspace_status_command=starlark/stamp.sh
+build --stamp --workspace_status_command=starlark/stamp.sh

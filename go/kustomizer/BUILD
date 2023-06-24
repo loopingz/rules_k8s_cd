@@ -17,7 +17,7 @@ go_library(
     visibility = ["//visibility:private"],
     #deps = ["//templating/fasttemplate:go_default_library"],
     deps = [
-        "//ci/go/vendor/gopkg.in/yaml.v3:yaml",
+        "//go/vendor/gopkg.in/yaml.v3:yaml",
     ],
 )
 

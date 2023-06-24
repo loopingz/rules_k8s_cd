@@ -149,7 +149,7 @@ def _kustomization_injector_impl(ctx):
         "--relativePath=%s" % builddir,
     ]
     for img in ctx.attr.images:
-        arguments.append("--image=%s:fs://%s" % (img[ContainerPushInfo].name, img[ContainerPushInfo].digestfile.path))
+        arguments.append("--image=%s:oci_push_info://%s" % (img[ContainerPushInfo].name, img.files.to_list()[0].path))
     for res in ctx.files.resources:
         arguments.append("--path=resources:%s" % res.path)
     for res in ctx.files.crds:
@@ -209,7 +209,7 @@ kustomization_injector = rule(
             doc = "List of secrets to inject in the kustomization file",
         ),
         "_kustomizer": attr.label(
-            default = Label("//ci/go/kustomizer:kustomizer"),
+            default = Label("//go/kustomizer:kustomizer"),
             cfg = "exec",
             executable = True,
             allow_files = True,

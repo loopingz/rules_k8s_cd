@@ -137,8 +137,8 @@ func main() {
 		img := Image{}
 		info := strings.SplitN(i, ":", 2)
 		img.Name = info[0]
-		if (strings.HasPrefix(info[1], "fs://")) {
-			b, err := ioutil.ReadFile(info[1][5:])
+		if (strings.HasPrefix(info[1], "oci_push_info://")) {
+			b, err := ioutil.ReadFile(info[1][len("oci_push_info://"):])
 			if err != nil {
 				log.Fatal(err)
 			}

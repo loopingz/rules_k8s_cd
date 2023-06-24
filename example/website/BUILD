@@ -1,9 +1,9 @@
 load("@rules_oci//oci:defs.bzl", "oci_image", "oci_image_index", "oci_tarball")
 load("@rules_pkg//:pkg.bzl", "pkg_tar")
-load("//starlark:kubectl.bzl", "kubectl", "kubectl_export")
-load("//starlark:utils.bzl", "run_all", "show")
+load("@rules_k8s_cd//starlark:kubectl.bzl", "kubectl", "kubectl_export")
+load("@rules_k8s_cd//starlark:utils.bzl", "run_all", "show")
 load("//starlark:gitops.bzl", "gitops")
-load("//starlark:grype.bzl", "grype_scan")
+load("@rules_k8s_cd//starlark:grype.bzl", "grype_scan")
 
 filegroup(
     name = "website-src",
