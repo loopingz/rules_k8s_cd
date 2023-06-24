@@ -11,10 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: google-github-actions/release-please-action@v3
-        id: release
         with:
           release-type: simple
           package-name: rules_k8s_cd
-          command: github-release
 
 
