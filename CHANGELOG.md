@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/loopingz/rules_k8s_cd/compare/v1.0.0...v1.0.1) (2023-06-26)
+
+
+### Bug Fixes
+
+* auto link context ([204a11d](https://github.com/loopingz/rules_k8s_cd/commit/204a11d89271bf3e53d915fe947f9b8bab4813d8))
+
 ## 1.0.0 (2023-06-24)
 
 
