@@ -29,6 +29,17 @@ def _kubectl_impl(ctx):
     command = ""
     launch = ctx.outputs.launch
     args = [ctx.executable._kubectl.short_path] + ctx.attr.arguments
+    for i in range(len(args)):
+        if args[i] == "{{kubectl}}":
+            args[i] = ctx.executable._kubectl.short_path
+    
+    for f in ctx.files.context:
+        p = f.path
+        if p.startswith("bazel-out"):
+            src = p
+            dst = p[p.index("/bin/") + 5:]
+            rel_src = relative_file(src, dst)
+            command += "[ ! -f \"%s\"  ] && mkdir -p `dirname %s` && ln -s %s %s\n" % (dst, dst, rel_src, dst)
 
     command += " ".join(args)
 
@@ -70,14 +81,15 @@ def _kubectl_export_impl(ctx):
     command = ""
     output = ctx.outputs.template.path
     args = [ctx.executable._kubectl.path] + ctx.attr.arguments
+
     for f in ctx.files.context:
         p = f.path
         if p.startswith("bazel-out"):
             src = p
-            dst = p[p.index("/bin/")+5:]
+            dst = p[p.index("/bin/") + 5:]
             rel_src = relative_file(src, dst)
             command += "mkdir -p `dirname %s` && ln -s %s %s\n" % (dst, rel_src, dst)
-        
+
     command += "echo '# Generated from bazel build //%s' > %s\n" % ("/".join(paths) + ":" + ctx.attr.name, output)
     command += " ".join(args)
 

@@ -34,6 +34,7 @@ oci_tarball(
     repo_tags = [],
 )
 
+# A way to use the grype_scan
 grype_scan(
     name = "image_scan",
     srcs = [":image_tar"],
@@ -47,9 +48,23 @@ kubectl_export(
     ],
 )
 
+# This target will return your contexts
 kubectl(
-    name = "kubectl2",
-    arguments = ["version"],
+    name = "contexts",
+    arguments = [
+        "config",
+        "get-contexts",
+    ],
+)
+
+# This target will return empty context
+kubectl_export(
+    name = "contexts-export",
+    arguments = [
+        "config",
+        "get-contexts",
+    ],
+    template = "output.txt",
 )
 
 show(
@@ -63,6 +78,6 @@ run_all(
     targets = [
         ":kubeshow",
         ":kubectl",
-        ":kubectl2",
+        ":contexts",
     ],
 )

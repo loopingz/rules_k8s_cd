@@ -3,8 +3,10 @@ load("//starlark:kubectl.bzl", "kubectl", "kustomization_injector", "kustomize_g
 load("//starlark:oci.bzl", "image_pushes")
 load("@aspect_bazel_lib//lib:expand_make_vars.bzl", "expand_template")
 
+# This method is one way of implementing - feel free to copy/paste and change to your liking
 def gitops(images = {}, environments = {}):
     name = "deploy"
+
     # For each environment we define the different targets
     for env in environments:
         info = environments[env]
@@ -83,6 +85,7 @@ def gitops(images = {}, environments = {}):
                 context = context,
                 export_path = info["gitops"].format(PACKAGE = package_name, CLUSTER = info["cluster"], NAMESPACE = info["namespace"]),
             )
+
             # Allow one target to generate the manifests and push them to the gitops repository
             run_all(
                 name = "gitops." + env,
@@ -96,7 +99,7 @@ def gitops(images = {}, environments = {}):
             # Otherwise we apply the manifests directly to the cluster
             kubectl(
                 name = "_deploy." + env,
-                arguments = ["apply", "--load-restrictor", "LoadRestrictionsNone", "-k", "."],
+                arguments = ["kustomize", "--load-restrictor", "LoadRestrictionsNone", ".", "|", "{{kubectl}}", "apply", "-f", "-"],
                 context = context,
             )
             kubectl(
@@ -104,6 +107,7 @@ def gitops(images = {}, environments = {}):
                 arguments = ["kustomize", "--load-restrictor", "LoadRestrictionsNone", native.package_name()],
                 context = context,
             )
+
             # Allow one target to push images then apply
             run_all(
                 name = "apply." + env,

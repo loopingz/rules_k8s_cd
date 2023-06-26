@@ -1,6 +1,5 @@
 load("@rules_k8s_cd//starlark:gitops.bzl", _gitops = "gitops")
 
-
 # Define the different environments
 environments = {
     "dev": {

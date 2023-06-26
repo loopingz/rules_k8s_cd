@@ -42,6 +42,7 @@ def runfile(ctx, f):
         return ctx.workspace_name + "/" + f.short_path
     else:
         return f.short_path
+
 # < https://github.com/bazelbuild/rules_docker
 
 # Inspired by https://github.com/bazelbuild/rules_k8s/blob/master/k8s/objects.bzl
@@ -121,7 +122,7 @@ def _show_impl(ctx):
     script_content += "\n".join(outputs)
 
     ctx.actions.write(ctx.outputs.executable, script_content, is_executable = True)
-    print(ctx.attr.src.files.to_list())
+
     return [
         DefaultInfo(executable = ctx.outputs.executable, runfiles = ctx.runfiles(ctx.attr.src.files.to_list())),
     ]
