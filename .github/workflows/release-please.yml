@@ -16,6 +16,9 @@ jobs:
           release-type: simple
           package-name: rules_k8s_cd
 
+      - name: Checkout
+        uses: actions/checkout@v3
+
       - run: .github/workflows/update-release-note.sh
         if: ${{ steps.release.outputs.release_created }}
         env:
