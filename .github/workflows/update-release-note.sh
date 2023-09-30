@@ -1,13 +1,14 @@
 #!/bin/bash
 set -e
 
+CND=sha256sum
 # For mac
 if ! [ -x "$(command -v sha256sum)" ]; then
-  alias sha256sum="shasum -a256"
+  CMD="shasum -a256"
 fi
 
 gh release view ${TAG} --json body -q .body > release.txt
-DIGEST=`wget https://github.com/loopingz/rules_k8s_cd/archive/refs/tags/${TAG}.tar.gz -O- | sha256sum | cut -f1 -d' '`
+DIGEST=`wget https://github.com/loopingz/rules_k8s_cd/archive/refs/tags/${TAG}.tar.gz -O- | ${CMD} | cut -f1 -d' '`
 cat << EOF >> release.txt
 
 ## Workspace snippet
