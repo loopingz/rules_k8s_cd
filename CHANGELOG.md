@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2](https://github.com/loopingz/rules_k8s_cd/compare/v1.0.1...v1.0.2) (2023-09-30)
+
+
+### Bug Fixes
+
+* update grype to latest version ([4135209](https://github.com/loopingz/rules_k8s_cd/commit/4135209f203697c38d9186f9b40e6035fdb98f23))
+
 ## [1.0.1](https://github.com/loopingz/rules_k8s_cd/compare/v1.0.0...v1.0.1) (2023-06-26)
 
 
