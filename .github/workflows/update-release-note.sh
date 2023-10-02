@@ -17,9 +17,9 @@ cat << EOF >> release.txt
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(
-    name = "com_loopingz_rules_k8s_cd",
+    name = "rules_k8s_cd",
     sha256 = "${DIGEST}",
-    strip_prefix = "rules_k8s_cd-${TAG}",
+    strip_prefix = "rules_k8s_cd-${TAG:1}",
     urls = ["https://github.com/loopingz/rules_k8s_cd/archive/refs/tags/${TAG}.tar.gz"],
 )
 \`\`\`
