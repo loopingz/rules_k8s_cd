@@ -3,14 +3,12 @@ load("//starlark:utils.bzl", "download_binary")
 # version=https://dl.k8s.io/release/stable.txt
 # https://dl.k8s.io/release/${version}/bin/darwin/arm64/kubectl https://dl.k8s.io/release/${version}/bin/darwin/arm64/kubectl.sha256
 
-#+ updater:github https://github.com/anchore/grype/releases/latest 
 _binaries = {
     "darwin_amd64": ("https://github.com/anchore/grype/releases/download/v0.69.1/grype_0.69.1_darwin_amd64.tar.gz", "da6846fe8d722c852e3e0583f0511443219829195f972e84550ef2843b760110"),
     "darwin_arm64": ("https://github.com/anchore/grype/releases/download/v0.69.1/grype_0.69.1_darwin_arm64.tar.gz", "5b482c0f9806ddda60d8c586952dff9651500bd5a298d1e84b624d7cf25908e3"),
     "linux_amd64": ("https://github.com/anchore/grype/releases/download/v0.69.1/grype_0.69.1_linux_amd64.tar.gz", "53ad7a96d0561fdacc82519972025ba0f1a74e16edfdf628d4ce16cc3c714817"),
     "linux_arm64": ("https://github.com/anchore/grype/releases/download/v0.69.1/grype_0.69.1_linux_arm64.tar.gz", "22d4fdf249fa9f73d4eff8bb4fb19649171da4cf1eb420422fae1da57065a739"),
 }
-#- updater:github
 
 def grype_setup(name = "grype_bin", binaries = _binaries, bin = ""):
     if (bin == ""):

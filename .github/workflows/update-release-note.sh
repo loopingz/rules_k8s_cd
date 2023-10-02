@@ -3,7 +3,7 @@ set -e
 
 CND=sha256sum
 # For mac
-if ! [ -x "$(command -v sha256sum)" ]; then
+if [ ! -x "$(command -v sha256sum)" ]; then
   CMD="shasum -a256"
 fi
 
