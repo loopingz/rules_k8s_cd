@@ -55,3 +55,11 @@ It is then easy to clean-up with a command like this:
 kubectl -n bazel-preview delete all -l 'gitops.loopingz.com/commit,gitops.loopingz.com/commit!=09f7b66,gitops.loopingz.com/environment=preview'
 ```
 
+
+## How to use grype
+
+You can use the grype scanner from your bazel installation directly with:
+
+```
+bazel run @grype_bin//:grype -- --help
+```
