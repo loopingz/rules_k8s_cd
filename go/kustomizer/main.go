@@ -13,11 +13,11 @@ package main
 
 import (
 	"flag"
-	"io/ioutil"
 	"log"
-	"gopkg.in/yaml.v3"
-//	"os"
+	"os"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 type arrayFlags []string
@@ -32,13 +32,13 @@ func (i *arrayFlags) Set(value string) error {
 }
 
 var (
-	paths      arrayFlags
-	images			   arrayFlags
-	vars				arrayFlags
-	output             string
-	input			   string
-	repository		 string
-	relativePath	 string
+	paths        arrayFlags
+	images       arrayFlags
+	vars         arrayFlags
+	output       string
+	input        string
+	repository   string
+	relativePath string
 )
 
 // https://github.com/kubernetes-sigs/kustomize/blob/master/api/types/image.go#L8
@@ -81,57 +81,69 @@ func main() {
 	var err error
 	flag.Parse()
 
-	yfile, err := ioutil.ReadFile(input)
+	yfile, err := os.ReadFile(input)
 
-    if err != nil {
-         log.Fatal(err)
-    }
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	data := make(map[interface{}]interface{})
 
-	
-    err = yaml.Unmarshal(yfile, &data)
+	err = yaml.Unmarshal(yfile, &data)
 
-    if err != nil {
-        log.Fatal(err)
-    }
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	for _, p := range paths {
 		log.Printf("Adding %s", p)
-		info := strings.SplitN(p, ":", 2)	
+		info := strings.SplitN(p, ":", 2)
 		var value interface{} = info[1]
-		if (strings.HasPrefix(info[1], relativePath)) {
+		if strings.HasPrefix(info[1], relativePath) {
 			value = info[1][len(relativePath):]
 		}
 		// Specific case as patchJson6902 need to be replaced by inline
-		if (info[0] == "patchesJson6902") {
+		if info[0] == "patchesJson6902" {
 			info[0] = "patches"
-			pfile, err := ioutil.ReadFile(info[1])
+			pfile, err := os.ReadFile(info[1])
 			if err != nil {
 				log.Fatal(err)
-		   }
-		   value = make(map[interface{}]interface{})
-		   err = yaml.Unmarshal(pfile, &value)
+			}
+			value = make(map[interface{}]interface{})
+			err = yaml.Unmarshal(pfile, &value)
 
 			if err != nil {
 				log.Fatal(err)
 			}
-		} else if (info[0] == "patchesStrategicMerge") {
+		} else if info[0] == "patchesStrategicMerge" {
 			info[0] = "patches"
 			value = Patch{Path: value.(string)}
+		} else if info[0] == "stamp" {
+			pfile, err := os.ReadFile(info[1])
+			if err != nil {
+				log.Fatal(err)
+			}
+			for _, line := range strings.Split(strings.TrimSpace(string(pfile)), "\n") {
+				pair := strings.SplitN(line, " ", 2)
+				if len(pair) != 2 {
+					continue
+				}
+				vars = append(vars, "{{"+pair[0]+"}}:"+pair[1])
+			}
+			continue
 		}
-		if (data[info[0]] == nil) {
+		if data[info[0]] == nil {
 			data[info[0]] = []interface{}{}
 		}
 		switch v := data[info[0]].(type) {
-			case []interface {}:
-				data[info[0]] = append(data[info[0]].([]interface {}), value)
-			default:
-				log.Printf("Type %s is not managed currently", v)		
+		case []interface{}:
+			data[info[0]] = append(data[info[0]].([]interface{}), value)
+		default:
+			log.Printf("Type %s is not managed currently", v)
 		}
 	}
 
-	if (data["images"] == nil) {
+	if data["images"] == nil {
 		data["images"] = []Image{}
 	}
 	for _, i := range images {
@@ -139,8 +151,8 @@ func main() {
 		img := Image{}
 		info := strings.SplitN(i, ":", 2)
 		img.Name = info[0]
-		if (strings.HasPrefix(info[1], "oci_push_info://")) {
-			b, err := ioutil.ReadFile(info[1][len("oci_push_info://"):])
+		if strings.HasPrefix(info[1], "oci_push_info://") {
+			b, err := os.ReadFile(info[1][len("oci_push_info://"):])
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -155,9 +167,9 @@ func main() {
 
 	result, err := yaml.Marshal(&data)
 
-    if err != nil {
-         log.Fatal(err)
-    }
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	content := string(result)
 	for _, v := range vars {
@@ -165,5 +177,5 @@ func main() {
 		content = strings.ReplaceAll(content, info[0], info[1])
 	}
 
-    err = ioutil.WriteFile(output, []byte(content), 0)
+	err = os.WriteFile(output, []byte(content), 0)
 }

@@ -2,6 +2,7 @@ load("//starlark:utils.bzl", "download_binary", "run_all", "show", "write_source
 load("//starlark:oci.bzl", "ContainerPushInfo")
 load("@aspect_bazel_lib//lib:stamping.bzl", "STAMP_ATTRS", "maybe_stamp")
 load("@aspect_bazel_lib//lib:paths.bzl", "relative_file")
+load("@bazel_skylib//lib:dicts.bzl", "dicts")
 
 # version=https://dl.k8s.io/release/stable.txt
 # https://dl.k8s.io/release/${version}/bin/darwin/arm64/kubectl https://dl.k8s.io/release/${version}/bin/darwin/arm64/kubectl.sha256
@@ -175,22 +176,30 @@ def _kustomization_injector_impl(ctx):
     for res in ctx.files.patchesJson6902:
         arguments.append("--path=patchesJson6902:%s" % res.path)
     for res in ctx.attr.substitutions:
-        arguments.append("'--var=%s:%s'" % (res, ctx.attr.substitutions[res]))
+        arguments.append("--var=%s:%s" % (res, ctx.attr.substitutions[res]))
 
     if (ctx.attr.repository != ""):
         arguments.append("--repository=%s" % ctx.attr.repository)
 
+    inputs = ctx.files.input + ctx.files.images + ctx.files.resources + ctx.files.crds + ctx.files.configMapGenerator + ctx.files.secretGenerator + ctx.files.patchesStrategicMerge + ctx.files.patchesJson6902
+    # Add stamps to substitution
+    stamp = maybe_stamp(ctx)
+    if stamp:
+        arguments.append("--path=stamp:%s" % stamp.volatile_status_file.path)
+        arguments.append("--path=stamp:%s" % stamp.stable_status_file.path)
+        inputs = inputs + [stamp.volatile_status_file, stamp.stable_status_file]
+    print(arguments)
     ctx.actions.run(
         executable = ctx.executable._kustomizer,
         arguments = arguments,
         outputs = [out],
-        inputs = ctx.files.input + ctx.files.images + ctx.files.resources + ctx.files.crds + ctx.files.configMapGenerator + ctx.files.secretGenerator + ctx.files.patchesStrategicMerge + ctx.files.patchesJson6902,
+        inputs = inputs,
     )
     return [DefaultInfo(files = depset([out]))]
 
 kustomization_injector = rule(
     implementation = _kustomization_injector_impl,
-    attrs = dict({
+    attrs = dicts.add({
         "input": attr.label(allow_single_file = True, mandatory = True, doc = "Input kustomization file"),
         "repository": attr.string(default = "", doc = "Images repository to use as prefix for images"),
         "images": attr.label_list(
@@ -231,5 +240,5 @@ kustomization_injector = rule(
             executable = True,
             allow_files = True,
         ),
-    }),
+    }, **STAMP_ATTRS),
 )
