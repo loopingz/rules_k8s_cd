@@ -34,6 +34,7 @@ func (i *arrayFlags) Set(value string) error {
 var (
 	paths      arrayFlags
 	images			   arrayFlags
+	vars				arrayFlags
 	output             string
 	input			   string
 	repository		 string
@@ -67,6 +68,7 @@ type Patch struct {
 }
 
 func init() {
+	flag.Var(&vars, "var", "Var to replace in template --var=name:value.")
 	flag.Var(&paths, "path", "Paths to file to add to the yaml --path=type:path.")
 	flag.StringVar(&output, "output", "", "The output file")
 	flag.StringVar(&relativePath, "relativePath", "", "The relative path for resources")
@@ -157,5 +159,11 @@ func main() {
          log.Fatal(err)
     }
 
-    err = ioutil.WriteFile(output, result, 0)
+	content := string(result)
+	for _, v := range vars {
+		info := strings.SplitN(v, ":", 2)
+		content = strings.ReplaceAll(content, info[0], info[1])
+	}
+
+    err = ioutil.WriteFile(output, []byte(content), 0)
 }

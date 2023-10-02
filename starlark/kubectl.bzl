@@ -174,6 +174,8 @@ def _kustomization_injector_impl(ctx):
         arguments.append("--path=patchesStrategicMerge:%s" % res.path)
     for res in ctx.files.patchesJson6902:
         arguments.append("--path=patchesJson6902:%s" % res.path)
+    for res in ctx.attr.substitutions:
+        arguments.append("'--var=%s:%s'" % (res, ctx.attr.substitutions[res]))
 
     if (ctx.attr.repository != ""):
         arguments.append("--repository=%s" % ctx.attr.repository)
@@ -219,6 +221,9 @@ kustomization_injector = rule(
         "secretGenerator": attr.label_list(
             allow_files = True,
             doc = "List of secrets to inject in the kustomization file",
+        ),
+        "substitutions": attr.string_dict(
+            doc = "Replace variables within the kustomization file (after all other operations)"
         ),
         "_kustomizer": attr.label(
             default = Label("//go/kustomizer:kustomizer"),

@@ -3,6 +3,6 @@ target:
 patch: |-
   - op: add
     path: "/metadata/labels/gitops.loopingz.com~1demo"
-    value: "toto"
+    value: "toto-{{name}}"
     target:
       name: ".*"
