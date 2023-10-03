@@ -1,14 +1,3 @@
-/*
-Copyright 2020 Adobe. All rights reserved.
-This file is licensed to you under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License. You may obtain a copy
-of the License at http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under
-the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS
-OF ANY KIND, either express or implied. See the License for the specific language
-governing permissions and limitations under the License.
-*/
 package main
 
 import (
@@ -36,6 +25,7 @@ var (
 	images       arrayFlags
 	vars         arrayFlags
 	output       string
+	combine      string
 	input        string
 	repository   string
 	relativePath string
@@ -71,14 +61,31 @@ func init() {
 	flag.Var(&vars, "var", "Var to replace in template --var=name:value.")
 	flag.Var(&paths, "path", "Paths to file to add to the yaml --path=type:path.")
 	flag.StringVar(&output, "output", "", "The output file")
+	flag.StringVar(&combine, "combine", "", "The combined manifests file")
 	flag.StringVar(&relativePath, "relativePath", "", "The relative path for resources")
 	flag.StringVar(&input, "input", "", "The input file")
 	flag.StringVar(&repository, "repository", "", "Repository prefix for images")
 	flag.Var(&images, "image", "The image file (can be used multiple times)")
 }
 
+/**
+ * Replace vars in content
+ */
+func replaceVars(data []byte) []byte {
+	content := string(data)
+	for _, v := range vars {
+		info := strings.SplitN(v, ":", 2)
+		content = strings.ReplaceAll(content, info[0], info[1])
+	}
+	return []byte(content)
+}
+
+/**
+ *
+ */
 func main() {
 	var err error
+	var combineStream *os.File
 	flag.Parse()
 
 	yfile, err := os.ReadFile(input)
@@ -95,8 +102,17 @@ func main() {
 		log.Fatal(err)
 	}
 
+	if combine != "" {
+		// Get only filename
+		tmp := strings.Split(combine, "/")
+		data["resources"] = []interface{}{tmp[len(tmp)-1]}
+		combineStream, err = os.OpenFile(combine, os.O_CREATE|os.O_WRONLY, 0644)
+		defer combineStream.Close()
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 	for _, p := range paths {
-		log.Printf("Adding %s", p)
 		info := strings.SplitN(p, ":", 2)
 		var value interface{} = info[1]
 		if strings.HasPrefix(info[1], relativePath) {
@@ -131,6 +147,15 @@ func main() {
 				vars = append(vars, "{{"+pair[0]+"}}:"+pair[1])
 			}
 			continue
+		} else if info[0] == "resources" && combine != "" {
+			// Concatenate all resources in a single file if requested
+			pfile, err := os.ReadFile(info[1])
+			if err != nil {
+				log.Fatal(err)
+			}
+			combineStream.Write(replaceVars(pfile))
+			combineStream.Write([]byte("\n---\n"))
+			continue
 		}
 		if data[info[0]] == nil {
 			data[info[0]] = []interface{}{}
@@ -147,7 +172,6 @@ func main() {
 		data["images"] = []Image{}
 	}
 	for _, i := range images {
-		log.Printf("Adding %s", i)
 		img := Image{}
 		info := strings.SplitN(i, ":", 2)
 		img.Name = info[0]
@@ -171,11 +195,5 @@ func main() {
 		log.Fatal(err)
 	}
 
-	content := string(result)
-	for _, v := range vars {
-		info := strings.SplitN(v, ":", 2)
-		content = strings.ReplaceAll(content, info[0], info[1])
-	}
-
-	err = os.WriteFile(output, []byte(content), 0)
+	err = os.WriteFile(output, replaceVars(result), 0)
 }

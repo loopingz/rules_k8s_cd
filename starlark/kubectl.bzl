@@ -3,6 +3,7 @@ load("//starlark:oci.bzl", "ContainerPushInfo")
 load("@aspect_bazel_lib//lib:stamping.bzl", "STAMP_ATTRS", "maybe_stamp")
 load("@aspect_bazel_lib//lib:paths.bzl", "relative_file")
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
+load("@bazel_skylib//lib:paths.bzl", "paths")
 
 # version=https://dl.k8s.io/release/stable.txt
 # https://dl.k8s.io/release/${version}/bin/darwin/arm64/kubectl https://dl.k8s.io/release/${version}/bin/darwin/arm64/kubectl.sha256
@@ -17,6 +18,16 @@ _binaries = {
     "linux_arm64": ("https://dl.k8s.io/release/v1.27.2/bin/linux/amd64/kubectl", "1b0966692e398efe71fe59f913eaec44ffd4468cc1acd00bf91c29fa8ff8f578"),
 }
 
+# FILEPATH: /Users/loopingz/Git/rules_k8s_cd/starlark/kubectl.bzl
+# Sets up kubectl binary by downloading it if it is not already present.
+#
+# Args:
+#   name (str): The name of the kubectl binary.
+#   binaries (dict): A dictionary containing the URLs and SHA256 hashes of the kubectl binaries.
+#   bin (str): The name of the binary file to be downloaded.
+#
+# Returns:
+#   None
 def kubectl_setup(name = "kubectl_bin", binaries = _binaries, bin = ""):
     if (bin == ""):
         bin = name.replace("_bin", "")
@@ -57,6 +68,13 @@ def _kubectl_impl(ctx):
         ] + inputs),
     )]
 
+# Defines a Starlark rule named "kubectl" that generates a shell script to launch kubectl command.
+# The rule takes the following attributes:
+# - "arguments": a list of strings representing the arguments to pass to the kubectl command.
+# - "context": a list of labels representing the Kubernetes contexts to use.
+#
+# The rule generates a shell script named "{name}.sh" as output.
+# The rule is executable and cannot be used for testing.
 kubectl = rule(
     implementation = _kubectl_impl,
     attrs = {
@@ -73,14 +91,14 @@ kubectl = rule(
     executable = True,
 )
 
+
+# Implementation of kubectl export
+# Creating the resources and capturing the stdout with a comment
 def _kubectl_export_impl(ctx):
     launch = ctx.actions.declare_file(ctx.attr.name + ".sh")
 
-    # Export target name
-    paths = ctx.build_file_path.split("/")
-    paths.pop()
     command = ""
-    output = ctx.outputs.template.path
+    output = ctx.outputs.stdout.path
     args = [ctx.executable._kubectl.path] + ctx.attr.arguments
 
     for f in ctx.files.context:
@@ -91,7 +109,7 @@ def _kubectl_export_impl(ctx):
             rel_src = relative_file(src, dst)
             command += "mkdir -p `dirname %s` && ln -s %s %s\n" % (dst, rel_src, dst)
 
-    command += "echo '# Generated from bazel build //%s' > %s\n" % ("/".join(paths) + ":" + ctx.attr.name, output)
+    command += "echo '# Generated with rules_k8s_cd from bazel build //%s' > %s\n" % (paths.dirname(ctx.build_file_path) + ":" + ctx.attr.name, output)
     command += " ".join(args)
 
     command += " >> %s" % (output)
@@ -106,16 +124,25 @@ def _kubectl_export_impl(ctx):
         inputs = inputs + f.files.to_list()
     ctx.actions.run(
         executable = launch,
-        outputs = [ctx.outputs.template],
+        outputs = [ctx.outputs.stdout],
         inputs = inputs,
         tools = [ctx.executable._kubectl],
     )
 
+# Defines a Starlark rule named "kubectl_export" that generates a Kubernetes YAML file
+# by running the "kubectl" command with the specified arguments and context.
+#
+# Can be used at build to generate resources
+# 
+# The rule has the following attributes:
+# - "arguments": a list of strings representing the arguments to pass to the "kubectl" command.
+# - "template": an output file representing the template file to use for generating the YAML file.
+# - "context": a list of labels representing the Kubernetes contexts to use for running the "kubectl" command.
 kubectl_export = rule(
     implementation = _kubectl_export_impl,
     attrs = {
         "arguments": attr.string_list(),
-        "template": attr.output(),
+        "stdout": attr.output(),
         "context": attr.label_list(),
         "_kubectl": attr.label(
             cfg = "host",
@@ -138,19 +165,64 @@ def kustomize(name, context = [], template = "", **kwargs):
         **kwargs
     )
 
-def kustomize_gitops(name, context = [], export_path = "cloud/{CLUSTER}/{NAMESPACE}/", template = ""):
+# Generates a kustomize command for the given Kustomize resource and shows the output.
+# If a template is not provided, it defaults to the resource name with a .yaml extension.
+#
+# name: The name of the Kubernetes resource to generate the kustomization file for.
+# context: The Kubernetes context to use. Defaults to the current context.
+# template: The name of the template file to use. Defaults to the resource name with a .yaml extension.
+# kwargs: Additional arguments to pass to the kubectl command.
+def kustomize_show(name, context = [], **kwargs):
+    kubectl(
+        name = name,
+        arguments = ["kustomize", "--load-restrictor", "LoadRestrictionsNone", native.package_name()],
+        context = context,
+        **kwargs
+    )
+
+# Generates a kustomize command for the given Kustomize resource and apply it.
+# If a template is not provided, it defaults to the resource name with a .yaml extension.
+#
+# name: The name of the Kubernetes resource to generate the kustomization file for.
+# cluster: The Kubernetes cluster to use.
+# context: The Kubernetes context to use. Defaults to the current context.
+# template: The name of the template file to use. Defaults to the resource name with a .yaml extension.
+# kwargs: Additional arguments to pass to the kubectl command.
+def kustomize_apply(name, cluster, context = [], **kwargs):
+    kubectl(
+        name = name,
+        arguments = ["kustomize", "--cluster", cluster, "--load-restrictor", "LoadRestrictionsNone", native.package_name(), "|", "{{kubectl}}", "--cluster", cluster,"apply", "-f", "-"],
+        context = context,
+        **kwargs
+    )
+
+# Creates a kustomization for GitOps deployment using kubectl.
+# And export its result to a file in the given path.
+# 
+# Args:
+# - name (str): The name of the kustomization.
+# - context (List[Label]): The context to use for kubectl.
+# - export_path (str): The path to export the kustomization to.
+#
+# Returns:
+# - None
+def kustomize_gitops(name, context, export_path):
+    # Generate the yaml file
     kustomize(
         name = "_" + name + ".kustomize",
         context = context,
-        template = template,
+        stdout = paths.basename(export_path),
         visibility = ["//visibility:private"],
     )
+    # Copying the yaml file to the export path
     write_source_file(
         name = name,
         src = ":_" + name + ".kustomize",
-        target = export_path.format(CLUSTER = "loopkube", NAMESPACE = "bazel-test"),
+        target = paths.dirname(export_path),
     )
 
+# Implementation of injector
+#  - preparing inputs/outputs for the go binary //go/kustomizer:kustomizer
 def _kustomization_injector_impl(ctx):
     out = ctx.actions.declare_file("kustomization.yaml")
     builddir = ctx.build_file_path.split("/")
@@ -188,19 +260,40 @@ def _kustomization_injector_impl(ctx):
         arguments.append("--path=stamp:%s" % stamp.volatile_status_file.path)
         arguments.append("--path=stamp:%s" % stamp.stable_status_file.path)
         inputs = inputs + [stamp.volatile_status_file, stamp.stable_status_file]
-    print(arguments)
+    
+    if ctx.outputs.combine:
+        arguments.append("--combine=%s" % ctx.outputs.combine.path)
+
     ctx.actions.run(
         executable = ctx.executable._kustomizer,
         arguments = arguments,
-        outputs = [out],
+        outputs = [out, ctx.outputs.combine] if ctx.outputs.combine else [out],
         inputs = inputs,
     )
-    return [DefaultInfo(files = depset([out]))]
+    return [DefaultInfo(files = depset([out, ctx.outputs.combine] if ctx.outputs.combine else [out]))]
 
+# Rule to inject images, resources, patches, config maps, secrets and substitutions into a kustomization file.
+# 
+# Args:
+# - input (label, mandatory): Input kustomization file.
+# - combine (output): Output combined manifest files into a single file and replace variables.
+# - repository (string, optional): Images repository to use as prefix for images.
+# - images (label_list, optional): List of images to inject in the kustomization file.
+# - resources (label_list, optional): List of resources to inject in the kustomization file.
+# - patchesStrategicMerge (label_list, optional): List of patches to inject in the kustomization file.
+# - patchesJson6902 (label_list, optional): List of patches to inject in the kustomization file.
+# - crds (label_list, optional): List of patches to inject in the kustomization file.
+# - configMapGenerator (label_list, optional): List of patches to inject in the kustomization file.
+# - secretGenerator (label_list, optional): List of secrets to inject in the kustomization file.
+# - substitutions (string_dict, optional): Replace variables within the kustomization file (after all other operations).
+#
+# Returns:
+# - kustomization.yaml template and output file with the combined manifest files into a single file and replaced variables.
 kustomization_injector = rule(
     implementation = _kustomization_injector_impl,
     attrs = dicts.add({
         "input": attr.label(allow_single_file = True, mandatory = True, doc = "Input kustomization file"),
+        "combine": attr.output(doc = "Output combined manifest files into a single file and replace variables"),
         "repository": attr.string(default = "", doc = "Images repository to use as prefix for images"),
         "images": attr.label_list(
             providers = [ContainerPushInfo],
