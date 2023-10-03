@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.0](https://github.com/loopingz/rules_k8s_cd/compare/v1.0.2...v1.1.0) (2023-10-03)
+
+
+### Features
+
+* add stamp replacement ([2487881](https://github.com/loopingz/rules_k8s_cd/commit/24878819e6b01601aaea3a28035c09d003901031))
+* add substitution to kustomization_injector ([b6d3e33](https://github.com/loopingz/rules_k8s_cd/commit/b6d3e334fe10b205a2786eaf1b1be8cc0fcc22d2))
+* add vars replacement in kustomization_injector ([1f202ff](https://github.com/loopingz/rules_k8s_cd/commit/1f202ff2ce75aa9465e784fd8d40b690aa1501ef))
+
 ## [1.0.2](https://github.com/loopingz/rules_k8s_cd/compare/v1.0.1...v1.0.2) (2023-09-30)
 
 
