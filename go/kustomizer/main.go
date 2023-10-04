@@ -55,6 +55,11 @@ type Image struct {
 
 type Patch struct {
 	Path string `json:"path,omitempty" yaml:"path,omitempty"`
+	// Patch is the content of a patch.
+	Patch string `json:"patch,omitempty" yaml:"patch,omitempty"`
+
+	// Options is a list of options for the patch
+	Options map[string]bool `json:"options,omitempty" yaml:"options,omitempty"`
 }
 
 func init() {
@@ -133,7 +138,11 @@ func main() {
 			}
 		} else if info[0] == "patchesStrategicMerge" {
 			info[0] = "patches"
-			value = Patch{Path: value.(string)}
+			pfile, err := os.ReadFile(info[1])
+			if err != nil {
+				log.Fatal(err)
+			}
+			value = Patch{Patch: string(pfile)}
 		} else if info[0] == "stamp" {
 			pfile, err := os.ReadFile(info[1])
 			if err != nil {
