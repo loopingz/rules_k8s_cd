@@ -15,7 +15,7 @@ _binaries = {
     "darwin_arm64": ("https://dl.k8s.io/release/v1.27.2/bin/darwin/arm64/kubectl", "d2b045b1a0804d4c46f646aeb6dcd278202b9da12c773d5e462b1b857d1f37d7"),
     "darwin_amd64": ("https://dl.k8s.io/release/v1.27.2/bin/darwin/amd64/kubectl", "ec954c580e4f50b5a8aa9e29132374ce54390578d6e95f7ad0b5d528cb025f85"),
     "linux_amd64": ("https://dl.k8s.io/release/v1.27.2/bin/linux/amd64/kubectl", "4f38ee903f35b300d3b005a9c6bfb9a46a57f92e89ae602ef9c129b91dc6c5a5"),
-    "linux_arm64": ("https://dl.k8s.io/release/v1.27.2/bin/linux/amd64/kubectl", "1b0966692e398efe71fe59f913eaec44ffd4468cc1acd00bf91c29fa8ff8f578"),
+    "linux_arm64": ("https://dl.k8s.io/release/v1.27.2/bin/linux/arm64/kubectl", "1b0966692e398efe71fe59f913eaec44ffd4468cc1acd00bf91c29fa8ff8f578"),
 }
 
 # FILEPATH: /Users/loopingz/Git/rules_k8s_cd/starlark/kubectl.bzl
@@ -45,7 +45,7 @@ def _kubectl_impl(ctx):
         if args[i] == "{{kubectl}}":
             args[i] = ctx.executable._kubectl.short_path
     
-    for f in ctx.files.context:
+    for f in ctx.files.data:
         p = f.path
         if p.startswith("bazel-out"):
             src = p
@@ -79,7 +79,7 @@ kubectl = rule(
     implementation = _kubectl_impl,
     attrs = {
         "arguments": attr.string_list(),
-        "context": attr.label_list(),
+        "data": attr.label_list(),
         "_kubectl": attr.label(
             cfg = "host",
             executable = True,
@@ -98,10 +98,10 @@ def _kubectl_export_impl(ctx):
     launch = ctx.actions.declare_file(ctx.attr.name + ".sh")
 
     command = ""
-    output = ctx.outputs.stdout.path
+    output = ctx.outputs.out.path
     args = [ctx.executable._kubectl.path] + ctx.attr.arguments
 
-    for f in ctx.files.context:
+    for f in ctx.files.data:
         p = f.path
         if p.startswith("bazel-out"):
             src = p
@@ -124,7 +124,7 @@ def _kubectl_export_impl(ctx):
         inputs = inputs + f.files.to_list()
     ctx.actions.run(
         executable = launch,
-        outputs = [ctx.outputs.stdout],
+        outputs = [ctx.outputs.out],
         inputs = inputs,
         tools = [ctx.executable._kubectl],
     )
@@ -142,8 +142,8 @@ kubectl_export = rule(
     implementation = _kubectl_export_impl,
     attrs = {
         "arguments": attr.string_list(),
-        "stdout": attr.output(),
-        "context": attr.label_list(),
+        "out": attr.output(),
+        "data": attr.label_list(),
         "_kubectl": attr.label(
             cfg = "host",
             executable = True,
@@ -154,13 +154,13 @@ kubectl_export = rule(
     executable = False,
 )
 
-def kustomize(name, context = [], template = "", **kwargs):
+def kustomize(name, data = [], template = "", **kwargs):
     if (template == ""):
         template = name + ".yaml"
     kubectl_export(
         name = name,
         arguments = ["kustomize", "--load-restrictor", "LoadRestrictionsNone", native.package_name() + "/"],
-        context = context,
+        data = data,
         template = template,
         **kwargs
     )
@@ -172,11 +172,11 @@ def kustomize(name, context = [], template = "", **kwargs):
 # context: The Kubernetes context to use. Defaults to the current context.
 # template: The name of the template file to use. Defaults to the resource name with a .yaml extension.
 # kwargs: Additional arguments to pass to the kubectl command.
-def kustomize_show(name, context = [], **kwargs):
+def kustomize_show(name, data = [], **kwargs):
     kubectl(
         name = name,
         arguments = ["kustomize", "--load-restrictor", "LoadRestrictionsNone", native.package_name()],
-        context = context,
+        data = data,
         **kwargs
     )
 
@@ -184,14 +184,14 @@ def kustomize_show(name, context = [], **kwargs):
 # If a template is not provided, it defaults to the resource name with a .yaml extension.
 #
 # name: The name of the Kubernetes resource to generate the kustomization file for.
-# cluster: The Kubernetes cluster to use.
-# context: The Kubernetes context to use. Defaults to the current context.
+# context: The Kubernetes context to use.
+# data: The Kustomize directory to use1.
 # template: The name of the template file to use. Defaults to the resource name with a .yaml extension.
 # kwargs: Additional arguments to pass to the kubectl command.
-def kustomize_apply(name, cluster, context = [], **kwargs):
+def kustomize_apply(name, context, data = [], **kwargs):
     kubectl(
         name = name,
-        arguments = ["kustomize", "--cluster", cluster, "--load-restrictor", "LoadRestrictionsNone", native.package_name(), "|", "{{kubectl}}", "--cluster", cluster,"apply", "-f", "-"],
+        arguments = ["kustomize", "--context", context, "--load-restrictor", "LoadRestrictionsNone", native.package_name(), "|", "{{kubectl}}", "--context", context,"apply", "-f", "-"],
         context = context,
         **kwargs
     )
@@ -206,12 +206,12 @@ def kustomize_apply(name, cluster, context = [], **kwargs):
 #
 # Returns:
 # - None
-def kustomize_gitops(name, context, export_path):
+def kustomize_gitops(name, data, export_path):
     # Generate the yaml file
     kustomize(
         name = "_" + name + ".kustomize",
-        context = context,
-        stdout = paths.basename(export_path),
+        data = data,
+        out = paths.basename(export_path),
         visibility = ["//visibility:private"],
     )
     # Copying the yaml file to the export path
