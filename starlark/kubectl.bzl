@@ -35,7 +35,7 @@ def kubectl_setup(name = "kubectl_bin", binaries = _binaries, bin = ""):
 
 def _kubectl_impl(ctx):
     inputs = []
-    for f in ctx.attr.context:
+    for f in ctx.attr.data:
         inputs = inputs + f.files.to_list()
 
     command = ""
@@ -120,7 +120,7 @@ def _kubectl_export_impl(ctx):
         is_executable = True,
     )
     inputs = []
-    for f in ctx.attr.context:
+    for f in ctx.attr.data:
         inputs = inputs + f.files.to_list()
     ctx.actions.run(
         executable = launch,
