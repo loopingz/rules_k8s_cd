@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.2](https://github.com/loopingz/rules_k8s_cd/compare/v1.2.1...v1.2.2) (2023-10-12)
+
+
+### Bug Fixes
+
+* data files usage ([2a0c831](https://github.com/loopingz/rules_k8s_cd/commit/2a0c831960582cf0d4ffe5ec0fe3c9c198d9b535))
+
 ## [1.2.1](https://github.com/loopingz/rules_k8s_cd/compare/v1.2.0...v1.2.1) (2023-10-12)
 
 
