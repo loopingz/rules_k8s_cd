@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-CND=sha256sum
+CMD=sha256sum
 # For mac
 if [ ! -x "$(command -v sha256sum)" ]; then
   CMD="shasum -a256"

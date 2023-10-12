@@ -192,7 +192,7 @@ def kustomize_apply(name, context, data = [], **kwargs):
     kubectl(
         name = name,
         arguments = ["kustomize", "--context", context, "--load-restrictor", "LoadRestrictionsNone", native.package_name(), "|", "{{kubectl}}", "--context", context,"apply", "-f", "-"],
-        context = context,
+        data = data,
         **kwargs
     )
 
