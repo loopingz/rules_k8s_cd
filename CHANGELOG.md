@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.0](https://github.com/loopingz/rules_k8s_cd/compare/v1.1.0...v1.2.0) (2023-10-12)
+
+
+### Features
+
+* allow replacements in strategicMerge patch ([eaa070c](https://github.com/loopingz/rules_k8s_cd/commit/eaa070ccf3dcf109b6ab7a1b2aa6e578b933622d))
+
+
+### Bug Fixes
+
+* arm64 kubectl hash ([7f37d9c](https://github.com/loopingz/rules_k8s_cd/commit/7f37d9c15914b68c0e4a42cbd4adfe3bd7f93581))
+
 ## [1.1.0](https://github.com/loopingz/rules_k8s_cd/compare/v1.0.2...v1.1.0) (2023-10-03)
 
 
