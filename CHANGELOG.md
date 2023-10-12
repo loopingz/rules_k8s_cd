@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/loopingz/rules_k8s_cd/compare/v1.2.0...v1.2.1) (2023-10-12)
+
+
+### Bug Fixes
+
+* kubectl data/context mismatch ([a12db26](https://github.com/loopingz/rules_k8s_cd/commit/a12db26a7e3fb11a2c93695edc0a63fe763b7ee9))
+
 ## [1.2.0](https://github.com/loopingz/rules_k8s_cd/compare/v1.1.0...v1.2.0) (2023-10-12)
 
 
