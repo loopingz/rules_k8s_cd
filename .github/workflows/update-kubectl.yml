@@ -1,0 +1,27 @@
+on:
+    workflow_dispatch:
+    schedule: # execute once a day
+      - cron: '* 4 * * *'
+
+permissions:
+    contents: write
+    pull-requests: write
+
+name: check-kubectl
+jobs:
+    check-kubectl:
+        runs-on: ubuntu-latest
+        steps:
+        - uses: actions/checkout@v4
+        - uses: actions/setup-node@v2
+          with:
+            node-version: '20'
+        - name: Check and update Kubectl
+          run: node update_kubectl.mjs
+        - name: Create Pull Request
+          uses: peter-evans/create-pull-request@v5
+          with:
+            commit-message: "chore(deps): update kubectl"
+            branch: kubectl/update
+            title: "chore(deps): update kubectl"
+            body: "Update kubectl to latest version"
