@@ -1,3 +1,16 @@
 {
-  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  enabledManagers: ["regex"],
+  customManagers: [
+    {
+      customType: "regex",
+      fileMatch: ["^starlark/grype.bzl$"],
+      matchStringsStrategy: "recursive",
+      matchStrings: [
+        "_binaries\\W=\\W({[^}]+)",
+        'https://github.com/(?<packageName>[^/]+/(?<depName>[^/]+))/releases/download/(?<currentValue>[^/]+)[^,]*,\\W"(?<currentDigest>[^"]+)',
+      ],
+      datasourceTemplate: "github-release-attachments",
+    },
+  ],
 }
