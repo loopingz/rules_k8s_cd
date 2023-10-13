@@ -1,7 +1,7 @@
 on:
     workflow_dispatch:
     schedule: # execute once a day
-      - cron: '* 4 * * *'
+      - cron: '0 4 * * *'
 
 permissions:
     contents: write
