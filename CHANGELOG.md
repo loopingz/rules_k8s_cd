@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.3](https://github.com/loopingz/rules_k8s_cd/compare/v1.2.2...v1.2.3) (2023-10-13)
+
+
+### Miscellaneous Chores
+
+* **deps:** update actions/setup-node action to v3 ([#28](https://github.com/loopingz/rules_k8s_cd/issues/28)) ([96b708b](https://github.com/loopingz/rules_k8s_cd/commit/96b708b28854b741c39800ac460045529d465469))
+
 ## [1.2.2](https://github.com/loopingz/rules_k8s_cd/compare/v1.2.1...v1.2.2) (2023-10-12)
 
 
