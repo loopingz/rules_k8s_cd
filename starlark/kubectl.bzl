@@ -188,10 +188,17 @@ def kustomize_show(name, data = [], **kwargs):
 # data: The Kustomize directory to use1.
 # template: The name of the template file to use. Defaults to the resource name with a .yaml extension.
 # kwargs: Additional arguments to pass to the kubectl command.
-def kustomize_apply(name, context, data = [], **kwargs):
+def kustomize_apply(name, context = None, data = [], **kwargs):
+    args = ["kustomize"]
+    if context != None:
+        args.extend(["--context", context])
+    args.extend(["--load-restrictor", "LoadRestrictionsNone", native.package_name(), "|", "{{kubectl}}"])
+    if context != None:
+        args.extend(["--context", context])
+    args.extend(["apply", "-f", "-"])
     kubectl(
         name = name,
-        arguments = ["kustomize", "--context", context, "--load-restrictor", "LoadRestrictionsNone", native.package_name(), "|", "{{kubectl}}", "--context", context,"apply", "-f", "-"],
+        arguments = args,
         data = data,
         **kwargs
     )
