@@ -1,7 +1,7 @@
 # Add dep based on https://github.com/bazelbuild/rules_go/issues/3442
 bazel_dep(name="platforms", version="0.0.8")
 
-bazel_dep(name = "bazel_skylib", version = "1.4.2")
+bazel_dep(name = "bazel_skylib", version = "1.5.0")
 
 bazel_dep(name = "rules_oci", version = "1.4.0")
 bazel_dep(name = "aspect_bazel_lib",  version = "1.37.0")
