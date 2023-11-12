@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.0](https://github.com/loopingz/rules_k8s_cd/compare/v1.2.3...v1.3.0) (2023-11-12)
+
+
+### Features
+
+* allow to not provide a context ([dc18281](https://github.com/loopingz/rules_k8s_cd/commit/dc182812e1a21fad98735dceae44be59babddafd))
+
+
+### Bug Fixes
+
+* allow files for kubectl ([e882a4e](https://github.com/loopingz/rules_k8s_cd/commit/e882a4e03ec860899fce84ce0152d05925aede83))
+
 ## [1.2.3](https://github.com/loopingz/rules_k8s_cd/compare/v1.2.2...v1.2.3) (2023-10-13)
 
 
