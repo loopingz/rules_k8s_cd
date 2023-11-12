@@ -79,7 +79,7 @@ kubectl = rule(
     implementation = _kubectl_impl,
     attrs = {
         "arguments": attr.string_list(),
-        "data": attr.label_list(),
+        "data": attr.label_list(allow_files = True),
         "_kubectl": attr.label(
             cfg = "host",
             executable = True,
@@ -169,7 +169,7 @@ def kustomize(name, data = [], template = "", **kwargs):
 # If a template is not provided, it defaults to the resource name with a .yaml extension.
 #
 # name: The name of the Kubernetes resource to generate the kustomization file for.
-# context: The Kubernetes context to use. Defaults to the current context.
+# data: The Kubernetes context to use. Defaults to the current context.
 # template: The name of the template file to use. Defaults to the resource name with a .yaml extension.
 # kwargs: Additional arguments to pass to the kubectl command.
 def kustomize_show(name, data = [], **kwargs):
