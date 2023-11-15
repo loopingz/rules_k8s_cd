@@ -242,6 +242,8 @@ def _kustomization_injector_impl(ctx):
     ]
     for img in ctx.attr.images:
         arguments.append("--image=%s:oci_push_info://%s" % (img[ContainerPushInfo].name, img.files.to_list()[0].path))
+    for img in ctx.attr.external_images:
+        arguments.append("--image=%s:ref://%s" % (img, ctx.attr.external_images[img]))
     for res in ctx.files.resources:
         arguments.append("--path=resources:%s" % res.path)
     for res in ctx.files.crds:
@@ -305,6 +307,9 @@ kustomization_injector = rule(
         "images": attr.label_list(
             providers = [ContainerPushInfo],
             allow_files = True,
+            doc = "List of images to inject in the kustomization file",
+        ),
+        "external_images": attr.string_dict(
             doc = "List of images to inject in the kustomization file",
         ),
         "resources": attr.label_list(

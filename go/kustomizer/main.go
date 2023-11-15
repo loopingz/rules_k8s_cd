@@ -191,9 +191,10 @@ func main() {
 			}
 			img.NewName = repository + info[0]
 			img.Digest = strings.Trim(string(b), " \n")
-		} else {
-			img.NewName = repository + info[0]
-			img.Digest = info[1]
+		} else if strings.HasPrefix(info[1], "ref://") {
+			digest := strings.Split(info[1][len("ref://"):], "@")
+			img.NewName = digest[0]
+			img.Digest = digest[1]
 		}
 		data["images"] = append(data["images"].([]Image), img)
 	}
