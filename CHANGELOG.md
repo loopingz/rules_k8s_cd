@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/loopingz/rules_k8s_cd/compare/v1.3.0...v1.4.0) (2023-11-15)
+
+
+### Features
+
+* allow image direct references ([ade0eb0](https://github.com/loopingz/rules_k8s_cd/commit/ade0eb0ee4f08f98aa22829e4819a02e40f75c07))
+
 ## [1.3.0](https://github.com/loopingz/rules_k8s_cd/compare/v1.2.3...v1.3.0) (2023-11-12)
 
 
