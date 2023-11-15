@@ -9,7 +9,6 @@
         "_binaries\\W=\\W({[^}]+)",
         'https://github.com/(?<packageName>[^/]+/(?<depName>[^/]+))/releases/download/(?<currentValue>[^/]+)/grype_\\d+\\.\\d+\\.\\d+(?<arch>[^,]*),\\W"(?<currentDigest>[^"]+)',
       ],
-      autoReplaceStringTemplate: 'https://github.com/{{{packageName}}}/releases/download/{{{newValue}}}/grype_{{{newValue}}}{{{arch}}}, "{{{newDigest}}}"',
       datasourceTemplate: "github-release-attachments",
     },
   ],
