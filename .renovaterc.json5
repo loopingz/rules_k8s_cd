@@ -7,9 +7,9 @@
       matchStringsStrategy: "recursive",
       matchStrings: [
         "_binaries\\W=\\W({[^}]+)",
-        'https://github.com/(?<packageName>[^/]+/(?<depName>[^/]+))/releases/download/(?<currentValue>[^/]+)/grype_\\d+\\.\\d+\\.\\d+(?<arch>[^,]*),\\W"(?<currentDigest>[^"]+)',
+        'https://github.com/(?<packageName>[^/]+/(?<depName>[^/]+))/releases/download/(?<currentValue>[^/]+)/grype_\\d+\\.\\d+\\.\\d+(?<depType>[^"]*)",\\W"(?<currentDigest>[^"]+)',
       ],
-      autoReplaceStringTemplate: 'https://github.com/{{{packageName}}}/releases/download/{{{newValue}}}/grype_{{{replace v "" newValue}}}{{{arch}}}, "{{{newDigest}}}"',
+      autoReplaceStringTemplate: 'https://github.com/{{packageName}}/releases/download/{{newValue}}/grype_{{replace "v" "" newValue}}{{depType}}", "{{newDigest}}"',
       datasourceTemplate: "github-release-attachments",
     },
   ],
