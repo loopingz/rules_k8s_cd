@@ -32,10 +32,10 @@ gazelle_dependencies()
 # Protocol Buffers
 http_archive(
     name = "com_google_protobuf",
-    sha256 = "79082dc68d8bab2283568ce0be3982b73e19ddd647c2411d1977ca5282d2d6b3",
-    strip_prefix = "protobuf-25.0",
+    sha256 = "eaafa4e19a6619c15df4c30d7213efbfd0f33ad16021cc5f72bbc5d0877346b5",
+    strip_prefix = "protobuf-25.1",
     urls = [
-        "https://github.com/protocolbuffers/protobuf/archive/refs/tags/v25.0.zip",
+        "https://github.com/protocolbuffers/protobuf/archive/refs/tags/v25.1.zip",
     ],
 )
 
