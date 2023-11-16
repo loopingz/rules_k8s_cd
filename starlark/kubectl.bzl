@@ -12,10 +12,10 @@ load("@bazel_skylib//lib:paths.bzl", "paths")
 # https://dl.k8s.io/release/${version}/bin/linux/amd64/kubectl https://dl.k8s.io/release/${version}/bin/linux/amd64/kubectl.sha256
 
 _binaries = {
-    "darwin_arm64": ("https://dl.k8s.io/release/v1.28.3/bin/darwin/arm64/kubectl", "b1b83c298177b849f9a8564b0dfcde8ecabc646b7f409d18001b8d4de407e0bf"),
-    "darwin_amd64": ("https://dl.k8s.io/release/v1.28.3/bin/darwin/amd64/kubectl", "3130398698b131ceae24879745aa536f9ec38790b397d806e4f6db03d65e4abb"),
-    "linux_amd64": ("https://dl.k8s.io/release/v1.28.3/bin/linux/amd64/kubectl", "0c680c90892c43e5ce708e918821f92445d1d244f9b3d7513023bcae9a6246d1"),
-    "linux_arm64": ("https://dl.k8s.io/release/v1.28.3/bin/linux/arm64/kubectl", "06511f03e34d8ee350bd55717845e27ebec3116526db7c60092eeb33a475a337"),
+    "darwin_arm64": ("https://dl.k8s.io/release/v1.28.4/bin/darwin/arm64/kubectl", "7e49c25887fe7cbf2a4b01a41604bdf1edc18a9faede45c810713af2b3a28361"),
+    "darwin_amd64": ("https://dl.k8s.io/release/v1.28.4/bin/darwin/amd64/kubectl", "70ac52dab10e4e276ce49a5cde05d495149ecaa0dc3126ba50611542ef0e6d56"),
+    "linux_amd64": ("https://dl.k8s.io/release/v1.28.4/bin/linux/amd64/kubectl", "893c92053adea6edbbd4e959c871f5c21edce416988f968bec565d115383f7b8"),
+    "linux_arm64": ("https://dl.k8s.io/release/v1.28.4/bin/linux/arm64/kubectl", "edf1e17b41891ec15d59dd3cc62bcd2cdce4b0fd9c2ee058b0967b17534457d7"),
 }
 
 # FILEPATH: /Users/loopingz/Git/rules_k8s_cd/starlark/kubectl.bzl
