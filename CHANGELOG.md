@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.2](https://github.com/loopingz/rules_k8s_cd/compare/v1.4.1...v1.4.2) (2023-12-23)
+
+
+### Bug Fixes
+
+* Update grype.bzl ([6fe3086](https://github.com/loopingz/rules_k8s_cd/commit/6fe3086dcb8c9418b9eddef243be3c6c69000b6a))
+
 ## [1.4.1](https://github.com/loopingz/rules_k8s_cd/compare/v1.4.0...v1.4.1) (2023-11-27)
 
 
