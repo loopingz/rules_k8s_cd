@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.3](https://github.com/loopingz/rules_k8s_cd/compare/v1.4.2...v1.4.3) (2023-12-23)
+
+
+### Bug Fixes
+
+* import from bazellib ([87877e7](https://github.com/loopingz/rules_k8s_cd/commit/87877e71892dc0fcc261300a06421fe9c9dd62b0))
+
 ## [1.4.2](https://github.com/loopingz/rules_k8s_cd/compare/v1.4.1...v1.4.2) (2023-12-23)
 
 
