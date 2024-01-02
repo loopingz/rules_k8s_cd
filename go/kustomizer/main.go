@@ -165,6 +165,32 @@ func main() {
 			combineStream.Write(replaceVars(pfile))
 			combineStream.Write([]byte("\n---\n"))
 			continue
+		} else if info[0] == "configMapGenerator" || info[0] == "secretGenerator" {
+			if data[info[0]] == nil {
+				data[info[0]] = []interface{}{}
+			}
+			// Get name of the folder containing the file
+			name := strings.Split(info[1], "/")[len(strings.Split(info[1], "/"))-2]
+			found := false
+			for i := range data[info[0]].([]interface{}) {
+				// Add file to existing configMapGenerator
+				if data[info[0]].([]interface{})[i].(map[interface{}]interface{})["name"] == name {
+					// Add file to existing configMapGenerator
+					data[info[0]].([]interface{})[i].(map[interface{}]interface{})["files"] = append(
+						data[info[0]].([]interface{})[i].(map[interface{}]interface{})["files"].([]interface{}),
+						value,
+					)
+					found = true
+					break
+				}
+			}
+			if !found {
+				data[info[0]] = append(data[info[0]].([]interface{}), map[interface{}]interface{}{
+					"name":  name,
+					"files": []interface{}{value},
+				})
+			}
+			continue
 		}
 		if data[info[0]] == nil {
 			data[info[0]] = []interface{}{}
