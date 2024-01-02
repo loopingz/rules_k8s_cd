@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/loopingz/rules_k8s_cd/compare/v1.4.3...v1.5.0) (2024-01-02)
+
+
+### Features
+
+* add secret/config generator ([f1a5078](https://github.com/loopingz/rules_k8s_cd/commit/f1a507890d048012807e97e88c165b848aa479a5))
+
 ## [1.4.3](https://github.com/loopingz/rules_k8s_cd/compare/v1.4.2...v1.4.3) (2023-12-23)
 
 
