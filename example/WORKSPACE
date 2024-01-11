@@ -26,10 +26,10 @@ go_register_toolchains(version = "1.20.4")
 # Protocol Buffers
 http_archive(
     name = "com_google_protobuf",
-    sha256 = "eaafa4e19a6619c15df4c30d7213efbfd0f33ad16021cc5f72bbc5d0877346b5",
-    strip_prefix = "protobuf-25.1",
+    sha256 = "ddd0f5271f31b549efc74eb39061e142132653d5d043071fcec265bd571e73c4",
+    strip_prefix = "protobuf-25.2",
     urls = [
-        "https://github.com/protocolbuffers/protobuf/archive/refs/tags/v25.1.zip",
+        "https://github.com/protocolbuffers/protobuf/archive/refs/tags/v25.2.zip",
     ],
 )
 
