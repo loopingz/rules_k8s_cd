@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.1](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.0...v1.5.1) (2024-01-15)
+
+
+### Bug Fixes
+
+* **deps:** update nginx docker digest to 161ef4b ([#78](https://github.com/loopingz/rules_k8s_cd/issues/78)) ([87af021](https://github.com/loopingz/rules_k8s_cd/commit/87af021fc2126eca280f359fd25b8b0f264c04a2))
+
 ## [1.5.0](https://github.com/loopingz/rules_k8s_cd/compare/v1.4.3...v1.5.0) (2024-01-02)
 
 
