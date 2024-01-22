@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.2](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.1...v1.5.2) (2024-01-22)
+
+
+### Bug Fixes
+
+* **deps:** update dependency bazel to v7.0.1 ([#84](https://github.com/loopingz/rules_k8s_cd/issues/84)) ([d724586](https://github.com/loopingz/rules_k8s_cd/commit/d72458692623b59cab3350544e7dcb0771cc2c8e))
+* **deps:** update dependency io_bazel_rules_go to v0.45.1 ([#86](https://github.com/loopingz/rules_k8s_cd/issues/86)) ([d241127](https://github.com/loopingz/rules_k8s_cd/commit/d24112712fefca6cb77f81a8b98eeb922fd91117))
+
 ## [1.5.1](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.0...v1.5.1) (2024-01-15)
 
 
