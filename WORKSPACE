@@ -54,7 +54,7 @@ load("@rules_oci//oci:pull.bzl", "oci_pull")
 
 oci_pull(
     name = "nginx",
-    digest = "sha256:b41c95c4080d503eac2e455a47280079c5905c6281a1a5ee8fe75b52a92b35a0",
+    digest = "sha256:05aa73005987caaed48ea8213696b0df761ccd600d2c53fc0a1a97a180301d71",
     image = "docker.io/library/nginx",
 )
 
