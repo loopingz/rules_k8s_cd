@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.6](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.5...v1.5.6) (2024-03-04)
+
+
+### Bug Fixes
+
+* **deps:** update dependency rules_oci to v1.7.4 ([#106](https://github.com/loopingz/rules_k8s_cd/issues/106)) ([531990e](https://github.com/loopingz/rules_k8s_cd/commit/531990eae5ab9b018f4031b9fa81bb17230a643b))
+
 ## [1.5.5](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.4...v1.5.5) (2024-02-15)
 
 
