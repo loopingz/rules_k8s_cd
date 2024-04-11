@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.7](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.6...v1.5.7) (2024-04-11)
+
+
+### Bug Fixes
+
+* **deps:** update dependencies ([ae89e69](https://github.com/loopingz/rules_k8s_cd/commit/ae89e69f605db77eb5a6e7ea8ff76940fd5da14e))
+
 ## [1.5.6](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.5...v1.5.6) (2024-03-04)
 
 
