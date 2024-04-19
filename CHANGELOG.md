@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.8](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.7...v1.5.8) (2024-04-19)
+
+
+### Bug Fixes
+
+* **deps:** update nginx docker digest to b5873c5 ([#125](https://github.com/loopingz/rules_k8s_cd/issues/125)) ([229bac1](https://github.com/loopingz/rules_k8s_cd/commit/229bac1b141d6b97d3fc1354216dd3070532ceed))
+
 ## [1.5.7](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.6...v1.5.7) (2024-04-11)
 
 
