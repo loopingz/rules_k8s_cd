@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.9](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.8...v1.5.9) (2024-04-26)
+
+
+### Bug Fixes
+
+* **deps:** update dependency aspect_rules_js to v1.41.2 ([#128](https://github.com/loopingz/rules_k8s_cd/issues/128)) ([08110ca](https://github.com/loopingz/rules_k8s_cd/commit/08110cab796840a4b9046144fcef84093a67ae25))
+
 ## [1.5.8](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.7...v1.5.8) (2024-04-19)
 
 
