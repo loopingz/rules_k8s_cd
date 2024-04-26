@@ -1,5 +1,5 @@
 # Add dep based on https://github.com/bazelbuild/rules_go/issues/3442
-bazel_dep(name="platforms", version="0.0.9")
+bazel_dep(name="platforms", version="0.0.10")
 
 bazel_dep(name = "bazel_skylib", version = "1.6.1")
 
