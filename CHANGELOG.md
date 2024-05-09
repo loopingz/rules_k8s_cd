@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.11](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.10...v1.5.11) (2024-05-09)
+
+
+### Bug Fixes
+
+* **deps:** update dependency aspect_bazel_lib to v2.7.2 ([#137](https://github.com/loopingz/rules_k8s_cd/issues/137)) ([c23fd12](https://github.com/loopingz/rules_k8s_cd/commit/c23fd127211d0e2578577753534ff2c577116331))
+* **deps:** update dependency aspect_bazel_lib to v2.7.3 ([#143](https://github.com/loopingz/rules_k8s_cd/issues/143)) ([cd51d1b](https://github.com/loopingz/rules_k8s_cd/commit/cd51d1b70ef53f97bb08255f2fb9f772257d1c0f))
+
 ## [1.5.10](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.9...v1.5.10) (2024-04-29)
 
 
