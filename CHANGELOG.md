@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.12](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.11...v1.5.12) (2024-05-14)
+
+
+### Bug Fixes
+
+* **deps:** update dependency grype to v0.77.4 ([#145](https://github.com/loopingz/rules_k8s_cd/issues/145)) ([0d86f33](https://github.com/loopingz/rules_k8s_cd/commit/0d86f33451d7905f5c5cd734086183d099fcae6c))
+
 ## [1.5.11](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.10...v1.5.11) (2024-05-09)
 
 
