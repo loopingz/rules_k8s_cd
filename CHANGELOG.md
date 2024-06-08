@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.14](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.13...v1.5.14) (2024-06-08)
+
+
+### Bug Fixes
+
+* **deps:** update dependency bazel_skylib to v1.7.1 ([#161](https://github.com/loopingz/rules_k8s_cd/issues/161)) ([e39a4cb](https://github.com/loopingz/rules_k8s_cd/commit/e39a4cb5c495cdbcc5f19566ec6649a7f68be83b))
+
 ## [1.5.13](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.12...v1.5.13) (2024-05-29)
 
 
