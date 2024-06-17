@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.15](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.14...v1.5.15) (2024-06-17)
+
+
+### Bug Fixes
+
+* **deps:** update deps ([176c970](https://github.com/loopingz/rules_k8s_cd/commit/176c9707bc6e75683398facfece8061f08e0fcd2))
+
 ## [1.5.14](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.13...v1.5.14) (2024-06-08)
 
 
