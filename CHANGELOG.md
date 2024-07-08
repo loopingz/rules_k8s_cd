@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.5.16](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.15...v1.5.16) (2024-07-08)
+
+
+### Bug Fixes
+
+* **deps:** update dependency aspect_bazel_lib to v2.7.8 ([#172](https://github.com/loopingz/rules_k8s_cd/issues/172)) ([23cda91](https://github.com/loopingz/rules_k8s_cd/commit/23cda912cd21f36cdf8f480d35170c48eb2f1ee9))
+* **deps:** update dependency bazel to v7.2.1 ([#173](https://github.com/loopingz/rules_k8s_cd/issues/173)) ([bfddab1](https://github.com/loopingz/rules_k8s_cd/commit/bfddab1245854ba37f80ee33dcf7636d4d06cccc))
+* **deps:** update dependency com_google_protobuf to v27.2 ([#174](https://github.com/loopingz/rules_k8s_cd/issues/174)) ([963e669](https://github.com/loopingz/rules_k8s_cd/commit/963e66965025a233c376aa6de9a886b4ce70f321))
+* **deps:** update dependency grype to v0.79.2 ([#169](https://github.com/loopingz/rules_k8s_cd/issues/169)) ([dec5ff9](https://github.com/loopingz/rules_k8s_cd/commit/dec5ff9606c5c2e74f87519c0ca0163ffe39ade5))
+* **deps:** update dependency io_bazel_rules_go to v0.48.1 ([#170](https://github.com/loopingz/rules_k8s_cd/issues/170)) ([738009a](https://github.com/loopingz/rules_k8s_cd/commit/738009a4fabf184920ebb6a40523405ab3d43b1c))
+
 ## [1.5.15](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.14...v1.5.15) (2024-06-17)
 
 
