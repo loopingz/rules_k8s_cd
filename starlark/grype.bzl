@@ -4,10 +4,10 @@ load("//starlark:utils.bzl", "download_binary")
 # https://dl.k8s.io/release/${version}/bin/darwin/arm64/kubectl https://dl.k8s.io/release/${version}/bin/darwin/arm64/kubectl.sha256
 
 _binaries = {
-    "darwin_amd64": ("https://github.com/anchore/grype/releases/download/v0.79.0/grype_0.79.0_darwin_amd64.tar.gz", "05f61d16d7fe3e0285790c7aed71194e664da204c79bcdce6b98cb424243f325"),
-    "darwin_arm64": ("https://github.com/anchore/grype/releases/download/v0.79.0/grype_0.79.0_darwin_arm64.tar.gz", "e0c01937d1dd94df61fa6601000021d3c229b1e1f43ac37a7d456d178ed889f3"),
-    "linux_amd64": ("https://github.com/anchore/grype/releases/download/v0.79.0/grype_0.79.0_linux_amd64.tar.gz", "9c11d2d4dcf3cd301f2aab144318d2df2ba0cb745bfd2fb183614ef7c786e605"),
-    "linux_arm64": ("https://github.com/anchore/grype/releases/download/v0.79.0/grype_0.79.0_linux_arm64.tar.gz", "58921ed2437992716cbc8f9f2b165d927c3eb8b1c4fbfa7488e93701f5cbf2fe"),
+    "darwin_amd64": ("https://github.com/anchore/grype/releases/download/v0.79.2/grype_0.79.2_darwin_amd64.tar.gz", "25ab900375805b21393707105066a42ea4bc85bedce0f6a0e747eaae220cc8c8"),
+    "darwin_arm64": ("https://github.com/anchore/grype/releases/download/v0.79.2/grype_0.79.2_darwin_arm64.tar.gz", "0fa570d9af6f13f581bcb851685c80d4ac389ecc26cfd5b33525f3aae468364c"),
+    "linux_amd64": ("https://github.com/anchore/grype/releases/download/v0.79.2/grype_0.79.2_linux_amd64.tar.gz", "db71e81178132d3e159f3ebe40de077e932499212997df587d8b534c19d98032"),
+    "linux_arm64": ("https://github.com/anchore/grype/releases/download/v0.79.2/grype_0.79.2_linux_arm64.tar.gz", "cbf746b69d24fb375e243170cecdb0f556fda443f879607f1ef4dfaa34cebd70"),
 }
 
 def grype_setup(name = "grype_bin", binaries = _binaries, bin = ""):
