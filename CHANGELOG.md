@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.17](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.16...v1.5.17) (2024-08-11)
+
+
+### Bug Fixes
+
+* **deps:** update dependency grype to v0.79.5 ([#183](https://github.com/loopingz/rules_k8s_cd/issues/183)) ([9dea3fe](https://github.com/loopingz/rules_k8s_cd/commit/9dea3fe466f86097d274e5c6d0cf6c7666659e48))
+* **deps:** update kubectl ([#179](https://github.com/loopingz/rules_k8s_cd/issues/179)) ([8be7841](https://github.com/loopingz/rules_k8s_cd/commit/8be78416c9d4cf1f80c95bf01138c5a3458dcb57))
+
 ## [1.5.16](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.15...v1.5.16) (2024-07-08)
 
 
