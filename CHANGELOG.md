@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.18](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.17...v1.5.18) (2024-08-21)
+
+
+### Bug Fixes
+
+* **deps:** update dependency bazel to v7.3.1 ([#187](https://github.com/loopingz/rules_k8s_cd/issues/187)) ([c02dd8c](https://github.com/loopingz/rules_k8s_cd/commit/c02dd8c505353a8acc5bcf54571ce8ace2ed5110))
+
 ## [1.5.17](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.16...v1.5.17) (2024-08-11)
 
 
