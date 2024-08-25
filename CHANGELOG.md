@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.19](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.18...v1.5.19) (2024-08-25)
+
+
+### Bug Fixes
+
+* add yq toolchain dep ([77385e4](https://github.com/loopingz/rules_k8s_cd/commit/77385e478c1d1c664b54bd572dc26cfdf54b434a))
+
 ## [1.5.18](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.17...v1.5.18) (2024-08-21)
 
 
