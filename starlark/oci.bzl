@@ -71,7 +71,7 @@ oci_push_info = rule(
         oci_push_lib.attrs,
         _oci_push_info_sh = attr.label(allow_single_file = True, default = "//starlark:oci_push_info.sh.tpl"),
     ),
-    toolchains = oci_push_lib.toolchains,
+    toolchains = oci_push_lib.toolchains + ["@aspect_bazel_lib//lib:yq_toolchain_type"],
     executable = True,
     outputs = {
         "digest": "%{name}.digest",
