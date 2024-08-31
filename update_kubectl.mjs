@@ -10,19 +10,18 @@ const platforms = [
 ];
 
 async function getVersionMap(version) {
-  let map;
+  let map = {};
   for (let platform of platforms) {
+    const bin = `kubectl${platform.startsWith("windows") ? ".exe" : ""}`;
     let digest = (
       await (
         await fetch(
-          `https://dl.k8s.io/release/v${version}/bin/${platform}/kubectl.sha256`
+          `https://dl.k8s.io/release/v${version}/bin/${platform}/${bin}.sha256`
         )
       ).text()
     ).trim();
     map[platform.replace("/", "_")] = [
-      `https://dl.k8s.io/release/v${version}/bin/${platform}/kubectl${
-        platform.startsWith("windows") ? ".exe" : ""
-      }`,
+      `https://dl.k8s.io/release/v${version}/bin/${platform}/${bin}`,
       digest,
     ];
   }
@@ -40,7 +39,6 @@ let stable = (
   .trim()
   .substring(1);
 
-let current = fileContent.match(/DEFAULT_KUBECTL_VERSION = "\d+\.\d+\.\d+"/)[1];
 let content = /_binaries\s*=(?<versions>(\s*{[^{]+{[^}]+})+[^}]+})/gm.exec(
   fileContent
 );
@@ -66,13 +64,17 @@ let updated = false;
 if (!info[stable]) {
   console.log("New latest version found:", stable);
   info[stable] = await getVersionMap(stable);
+  fileContent = fileContent.replace(
+    /DEFAULT_KUBECTL_VERSION = "\d+\.\d+\.\d+"/,
+    `DEFAULT_KUBECTL_VERSION = "${stable}"`
+  );
   updated = true;
 }
 for (let match of html.matchAll(re)) {
   let version = match.groups.version;
   if (!info[version]) {
     console.log("New version found:", version);
-    info[version] = addVersion(version);
+    info[version] = await getVersionMap(version);
     updated = true;
   }
 }
@@ -84,7 +86,7 @@ if (updated) {
     .replace(/\)(\s*)}/, "),$1}")
     .replace(/\}(\s*)}/, "},$1}");
 
-  fileContent.replace(
+  fileContent = fileContent.replace(
     /_binaries\s*=(\s*{[^{]+{[^}]+})+[^}]+}/gm,
     `_binaries = ${newContent}`
   );
