@@ -262,7 +262,7 @@ Example:
 """
 
 tar_filter = rule(
-    doc = _TAR_FILTER_DOC
+    doc = _TAR_FILTER_DOC,
     implementation = _tar_filter_impl,
     attrs = {
         "srcs": attr.label_list(

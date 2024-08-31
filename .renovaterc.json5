@@ -3,7 +3,7 @@
   customManagers: [
     {
       customType: "regex",
-      fileMatch: ["^starlark/grype.bzl$"],
+      fileMatch: ["^lib/private/grype_toolchain.bzl$"],
       matchStringsStrategy: "recursive",
       matchStrings: [
         "_binaries\\W=\\W({[^}]+)",
@@ -14,7 +14,7 @@
     },
     {
       customType: "regex",
-      fileMatch: ["^starlark/dive.bzl$"],
+      fileMatch: ["^lib/private/dive_toolchain.bzl$"],
       matchStringsStrategy: "recursive",
       matchStrings: [
         "_binaries\\W=\\W({[^}]+)",

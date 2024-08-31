@@ -1,23 +1,8 @@
-load("//starlark:utils.bzl", "download_binary")
 
-# version=https://dl.k8s.io/release/stable.txt
-# https://dl.k8s.io/release/${version}/bin/darwin/arm64/kubectl https://dl.k8s.io/release/${version}/bin/darwin/arm64/kubectl.sha256
-
-_binaries = {
-    "darwin_amd64": ("https://github.com/anchore/grype/releases/download/v0.80.0/grype_0.80.0_darwin_amd64.tar.gz", "c4d64bca02be4ff33dd1470726f827698cae4ec4b231de0a281fcfdb097f8ef4"),
-    "darwin_arm64": ("https://github.com/anchore/grype/releases/download/v0.80.0/grype_0.80.0_darwin_arm64.tar.gz", "f7aba1ecc0a75a8cd040f9a2ea31e0bbeab871ec8c5f8870a32170e8eb644ae7"),
-    "linux_amd64": ("https://github.com/anchore/grype/releases/download/v0.80.0/grype_0.80.0_linux_amd64.tar.gz", "a86a90074129cb72b47476f6ac3959eab95fba71f095521f5c8e58152463bd24"),
-    "linux_arm64": ("https://github.com/anchore/grype/releases/download/v0.80.0/grype_0.80.0_linux_arm64.tar.gz", "430365efd68e0c5a235ab57ed23622240d812e6b15b665f82a259f339136f895"),
-}
-
-def grype_setup(name = "grype_bin", binaries = _binaries, bin = ""):
-    if (bin == ""):
-        bin = name.replace("_bin", "")
-    download_binary(name = name, binaries = binaries, bin = bin)
-
-def _grype_test_impl(ctx):
+def _grype_impl(ctx):
+    grype_bin = ctx.toolchains["@rules_k8s_cd//lib:grype_toolchain_type"].grypeinfo.bin
     cmd = ""
-    command = [ctx.executable._grype.short_path]
+    command = [grype_bin.path]
     for f in ctx.files.srcs:
         cmd += "mkdir -p $BUILD_WORKSPACE_DIRECTORY/security/reports/" + f.short_path.replace("../", "") + "\n"
         parts = command + [f.short_path, "-o", "json", "--file", "$BUILD_WORKSPACE_DIRECTORY/security/reports/" + f.short_path.replace("../", "") + "/grype.json"]
@@ -36,13 +21,13 @@ def _grype_test_impl(ctx):
     return [DefaultInfo(
         executable = ctx.outputs.test,
         runfiles = ctx.runfiles(files = [
-            ctx.executable._grype,
+            grype_bin,
         ] + ctx.files.srcs + ctx.files.manifests),
     )]
 
 # Rule that tests whether a JSON file is valid.
 grype_scan = rule(
-    implementation = _grype_test_impl,
+    implementation = _grype_impl,
     attrs = {
         "srcs": attr.label_list(
             mandatory = False,
@@ -58,12 +43,8 @@ grype_scan = rule(
             allow_files = [".yaml"],
             doc = ("List of manifests. The test will scan all images defined inside manifests."),
         ),
-        "_grype": attr.label(
-            cfg = "host",
-            executable = True,
-            default = Label("@grype_bin//:grype"),
-        ),
     },
+    toolchains = ["@rules_k8s_cd//lib:grype_toolchain_type"],
     outputs = {"test": "%{name}.sh"},
     test = False,
     executable = True,
