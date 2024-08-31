@@ -12,5 +12,16 @@
       autoReplaceStringTemplate: 'https://github.com/{{packageName}}/releases/download/{{newValue}}/grype_{{replace "v" "" newValue}}{{depType}}", "{{newDigest}}"',
       datasourceTemplate: "github-release-attachments",
     },
+    {
+      customType: "regex",
+      fileMatch: ["^starlark/dive.bzl$"],
+      matchStringsStrategy: "recursive",
+      matchStrings: [
+        "_binaries\\W=\\W({[^}]+)",
+        'https://github.com/(?<packageName>[^/]+/(?<depName>[^/]+))/releases/download/(?<currentValue>[^/]+)/dive_\\d+\\.\\d+\\.\\d+(?<depType>[^"]*)",\\W"(?<currentDigest>[^"]+)"',
+      ],
+      autoReplaceStringTemplate: 'https://github.com/{{packageName}}/releases/download/{{newValue}}/dive_{{replace "v" "" newValue}}{{depType}}", "{{newDigest}}"',
+      datasourceTemplate: "github-release-attachments",
+    },
   ],
 }
