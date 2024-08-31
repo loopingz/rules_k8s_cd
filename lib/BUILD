@@ -1,5 +1,12 @@
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 
+exports_files([
+    "oci_push_info.sh.tpl",
+    "run_all.sh.tpl",
+    "kustomization.yaml.tpl",
+    "stamp.sh",
+])
+
 # Ensure that users building their own rules can dep on our bzl_library targets for their stardoc
 package(default_visibility = ["//visibility:public"])
 
