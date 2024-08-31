@@ -1,4 +1,4 @@
-load("@rules_k8s_cd//starlark:gitops.bzl", _gitops = "gitops")
+load("@rules_k8s_cd//lib:gitops.bzl", _gitops = "gitops")
 
 # Define the different environments
 environments = {

@@ -1,6 +1,6 @@
-load("//starlark:utils.bzl", "download_binary", "run_all", "show", "write_source_file")
-load("//starlark:kubectl.bzl", "kubectl", "kustomization_injector", "kustomize_gitops")
-load("//starlark:oci.bzl", "image_pushes")
+load(":utils.bzl", "download_binary", "run_all", "show", "write_source_file")
+load(":kubectl.bzl", "kubectl", "kustomization_injector", "kustomize_gitops")
+load(":oci.bzl", "image_pushes")
 load("@aspect_bazel_lib//lib:expand_template.bzl", "expand_template")
 
 # This method is one way of implementing - feel free to copy/paste and change to your liking
@@ -49,7 +49,7 @@ def gitops(images = {}, environments = {}):
             # Where to write the expanded file.
             out = "kustomization.yaml." + env + ".tpl",
             # The template file to expand.
-            template = Label("//starlark:kustomization.yaml.tpl"),
+            template = Label("//lib:kustomization.yaml.tpl"),
             substitutions = {
                 "{{environment}}": env,
                 "{{namespace}}": "bazel-" + env,

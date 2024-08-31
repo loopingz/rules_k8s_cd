@@ -1,5 +1,5 @@
-load("//starlark:utils.bzl", "download_binary", "run_all", "show", "write_source_file")
-load("//starlark:oci.bzl", "ContainerPushInfo")
+load(":utils.bzl", "download_binary", "run_all", "show", "write_source_file")
+load(":oci.bzl", "ContainerPushInfo")
 load("@aspect_bazel_lib//lib:stamping.bzl", "STAMP_ATTRS", "maybe_stamp")
 load("@aspect_bazel_lib//lib:paths.bzl", "relative_file")
 load("@bazel_skylib//lib:dicts.bzl", "dicts")

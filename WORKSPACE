@@ -52,19 +52,3 @@ kubeconfig(
     cluster = "loopkube",
     use_host_config = True,
 )
-
-load("//starlark:grype.bzl", "grype_setup")
-
-grype_setup()
-
-load("//starlark:kubeconfig.bzl", "kubeconfig")
-
-kubeconfig(
-    name = "loopkube",
-    cluster = "loopkube",
-    use_host_config = True,
-)
-
-load("//starlark:kubectl.bzl", "kubectl_setup")
-
-kubectl_setup()

@@ -1,7 +1,7 @@
 load("@aspect_bazel_lib//lib:stamping.bzl", "STAMP_ATTRS", "maybe_stamp")
 load(":kubectl.bzl", "kubectl", "kubectl_export")
-load("//starlark:utils.bzl", "write_source_file")
-load("//starlark:oci.bzl", "ContainerPushInfo")
+load(":utils.bzl", "write_source_file")
+load(":oci.bzl", "ContainerPushInfo")
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load("@bazel_skylib//lib:paths.bzl", "paths")
 
