@@ -226,3 +226,72 @@ write_source_file = rule(
     },
     executable = True,
 )
+
+def _tar_filter_impl(ctx):
+    out = ctx.actions.declare_file(ctx.attr.name + ".tar.gz")
+
+    args = [ "--input=%s" % f.path for f in ctx.files.srcs ] + [ "--output=%s" % out.path ] + ["--filter=%s" % r for r in ctx.attr.filters] + ["--substitution=%s" % r for r in ctx.attr.substitutions]
+    if ctx.attr.verbose:
+        args.append("--verbose")
+    ctx.actions.run(
+        executable = ctx.executable._tar_filter,
+        arguments = args,
+        outputs = [out],
+        inputs = ctx.files.srcs + [ctx.executable._tar_filter],
+    )
+    return [DefaultInfo(files = depset([out]))]
+
+_TAR_FILTER_DOC = """
+tar_filter creates a new tar.gz file from the input tar.gz file(s) with the specified filters and substitutions.
+
+You can use it to remove files from a tar.gz file, or to modify the paths of files in a tar.gz file.
+
+Example:
+    
+        tar_filter(
+            name = "filtered",
+            srcs = [":original"],
+            filters = [
+                '^(\\./)?usr',  # Remove all files in the usr directory
+            ],
+            substitutions = [
+                '^\\./:',  # Remove leading ./ from paths
+                '^bin/:usr/bin/',  # Move all files in bin to usr/bin
+            ],
+        )
+"""
+
+tar_filter = rule(
+    doc = _TAR_FILTER_DOC
+    implementation = _tar_filter_impl,
+    attrs = {
+        "srcs": attr.label_list(
+            doc = "Input file(s).",
+            mandatory = True,
+            # Add filter to tar or tar.gz
+            allow_files = [".tar", ".tar.gz"],
+        ),
+        "filters": attr.string_list(
+            mandatory = False,
+            default = [
+                "^(\\./)?usr/share/man/",
+                "^(\\./)?usr/share/doc/",
+            ],
+        ),
+        "substitutions": attr.string_list(
+            mandatory = False,
+            default = [
+                "^\\./:", # Remove leading ./ from paths
+            ],
+        ),
+        "verbose": attr.bool(
+            default = False,
+        ),
+        "_tar_filter": attr.label(
+            default = Label("//go/tar_filter:tar_filter"),
+            cfg = "exec",
+            executable = True,
+            allow_files = True,
+        ),
+    },
+)
