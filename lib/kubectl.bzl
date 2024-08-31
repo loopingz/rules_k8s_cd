@@ -15,7 +15,7 @@ def _kubectl_impl(ctx):
     args = [kubectl_bin.path] + ctx.attr.arguments
     for i in range(len(args)):
         if args[i] == "{{kubectl}}":
-            args[i] = kubectl_bin
+            args[i] = kubectl_bin.path
     
     for f in ctx.files.data:
         p = f.path
