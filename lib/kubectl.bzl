@@ -64,7 +64,7 @@ kubectl = rule(
 # Creating the resources and capturing the stdout with a comment
 def _kubectl_export_impl(ctx):
     launch = ctx.actions.declare_file(ctx.attr.name + ".sh")
-    kubectl_bin = ctx.toolchains["@rules_k8s_cd//lib:kubectl_toolchain_type"].grypeinfo.bin
+    kubectl_bin = ctx.toolchains["@rules_k8s_cd//lib:kubectl_toolchain_type"].kubectlinfo.bin
     command = ""
     output = ctx.outputs.out.path
     args = [kubectl_bin.path] + ctx.attr.arguments
@@ -104,7 +104,7 @@ def _kubectl_export_impl(ctx):
 # 
 # The rule has the following attributes:
 # - "arguments": a list of strings representing the arguments to pass to the "kubectl" command.
-# - "template": an output file representing the template file to use for generating the YAML file.
+# - "out": an output file representing the template file to use for generating the YAML file.
 # - "context": a list of labels representing the Kubernetes contexts to use for running the "kubectl" command.
 kubectl_export = rule(
     implementation = _kubectl_export_impl,

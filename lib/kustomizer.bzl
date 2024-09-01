@@ -3,16 +3,15 @@ load(":kubectl.bzl", "kubectl", "kubectl_export")
 load(":utils.bzl", "write_source_file")
 load(":oci.bzl", "ContainerPushInfo")
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
-load("@bazel_skylib//lib:paths.bzl", "paths")
 
-def kustomize(name, data = [], template = "", **kwargs):
-    if (template == ""):
-        template = name + ".yaml"
+def kustomize(name, data = [], out = "", **kwargs):
+    if (out == ""):
+        out = name + ".yaml"
     kubectl_export(
         name = name,
         arguments = ["kustomize", "--load-restrictor", "LoadRestrictionsNone", native.package_name() + "/"],
         data = data,
-        template = template,
+        out = out,
         **kwargs
     )
 
@@ -60,23 +59,23 @@ def kustomize_apply(name, context = None, data = [], **kwargs):
 # Args:
 # - name (str): The name of the kustomization.
 # - context (List[Label]): The context to use for kubectl.
-# - export_path (str): The path to export the kustomization to.
+# - out (str): The path to export the kustomization to.
 #
 # Returns:
 # - None
-def kustomize_gitops(name, data, export_path):
+def kustomize_gitops(name, data, out):
     # Generate the yaml file
     kustomize(
         name = "_" + name + ".kustomize",
         data = data,
-        out = paths.basename(export_path),
+        out = out,
         visibility = ["//visibility:private"],
     )
     # Copying the yaml file to the export path
     write_source_file(
         name = name,
         src = ":_" + name + ".kustomize",
-        target = paths.dirname(export_path),
+        target = out,
     )
 
 # Implementation of injector
