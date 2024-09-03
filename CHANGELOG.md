@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.0.0](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.19...v2.0.0) (2024-09-03)
+
+
+### ⚠ BREAKING CHANGES
+
+* move template argument to out for kustomize_gitops
+* moving all bzl into lib folder
+* move to toolchain
+
+### Features
+
+* add dive rule ([b2104b6](https://github.com/loopingz/rules_k8s_cd/commit/b2104b6bc1492e5d642bea961c5a940fe57407c6))
+* add tar_filter rule ([d107495](https://github.com/loopingz/rules_k8s_cd/commit/d1074953f367698356d4d07ee94266f61a391f69))
+* move to toolchain ([a8f4201](https://github.com/loopingz/rules_k8s_cd/commit/a8f4201e23850b92e0593bc7bc51347a5e0c9206))
+* moving all bzl into lib folder ([1707020](https://github.com/loopingz/rules_k8s_cd/commit/17070201435fe346423a419c69c1dd491b21249d))
+
+
+### Bug Fixes
+
+* move template argument to out for kustomize_gitops ([f78558d](https://github.com/loopingz/rules_k8s_cd/commit/f78558d40ddb3ef1e5de5e0080dba93ac50e5b96))
+
 ## [1.5.19](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.18...v1.5.19) (2024-08-25)
 
 
