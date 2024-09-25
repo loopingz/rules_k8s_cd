@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.0.1](https://github.com/loopingz/rules_k8s_cd/compare/v2.0.0...v2.0.1) (2024-09-25)
+
+
+### Bug Fixes
+
+* **deps:** update dependency grype to v0.80.1 ([#204](https://github.com/loopingz/rules_k8s_cd/issues/204)) ([aa98c07](https://github.com/loopingz/rules_k8s_cd/commit/aa98c076b453f2287d05fba3c78f4438696d90d5))
+* **deps:** update dependency grype to v0.80.2 ([#207](https://github.com/loopingz/rules_k8s_cd/issues/207)) ([299cb4f](https://github.com/loopingz/rules_k8s_cd/commit/299cb4f5e49500cbc3ab2bc7f14683778162a825))
+* **deps:** update dependency rules_go to v0.50.1 ([#201](https://github.com/loopingz/rules_k8s_cd/issues/201)) ([3ec25f3](https://github.com/loopingz/rules_k8s_cd/commit/3ec25f30258205d3ef270a73816118f15e04641f))
+* **deps:** update nginx docker digest to 88a0a06 ([#200](https://github.com/loopingz/rules_k8s_cd/issues/200)) ([09ddcbf](https://github.com/loopingz/rules_k8s_cd/commit/09ddcbfcf2c5f0e2657d294f59baad185cfca486))
+
 ## [2.0.0](https://github.com/loopingz/rules_k8s_cd/compare/v1.5.19...v2.0.0) (2024-09-03)
 
 
