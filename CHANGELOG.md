@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.0.4](https://github.com/loopingz/rules_k8s_cd/compare/v2.0.3...v2.0.4) (2024-12-19)
+
+
+### Bug Fixes
+
+* **deps:** update dependency aspect_bazel_lib to v2.10.0 ([#228](https://github.com/loopingz/rules_k8s_cd/issues/228)) ([1ce7383](https://github.com/loopingz/rules_k8s_cd/commit/1ce73837b3f328aab8f4350b5010fdd8c1a9f2a4))
+* **deps:** update dependency grype to v0.86.1 ([#224](https://github.com/loopingz/rules_k8s_cd/issues/224)) ([f6b8442](https://github.com/loopingz/rules_k8s_cd/commit/f6b844299f6f71e2695680b50933b7e6da8dbf35))
+
 ## [2.0.3](https://github.com/loopingz/rules_k8s_cd/compare/v2.0.2...v2.0.3) (2024-11-06)
 
 
