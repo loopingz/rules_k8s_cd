@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.0.5](https://github.com/loopingz/rules_k8s_cd/compare/v2.0.4...v2.0.5) (2025-03-22)
+
+
+### Bug Fixes
+
+* **deps:** update dependency bazel to v7.5.0 ([#239](https://github.com/loopingz/rules_k8s_cd/issues/239)) ([08d9ef9](https://github.com/loopingz/rules_k8s_cd/commit/08d9ef99ea784c3a2874970a1580bc85bd1aca95))
+* **deps:** update dependency grype to v0.87.0 ([#237](https://github.com/loopingz/rules_k8s_cd/issues/237)) ([cae4e55](https://github.com/loopingz/rules_k8s_cd/commit/cae4e55c57a8423d92b3e59314964057e06b0dde))
+
 ## [2.0.4](https://github.com/loopingz/rules_k8s_cd/compare/v2.0.3...v2.0.4) (2024-12-19)
 
 
