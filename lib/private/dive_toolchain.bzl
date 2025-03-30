@@ -2,10 +2,10 @@ load("//lib:repo_utils.bzl", "download_toolchain_binary")
 load('@aspect_bazel_lib//lib/private:repo_utils.bzl', 'repo_utils')
 
 _binaries = {
-    "darwin_amd64": ("https://github.com/wagoodman/dive/releases/download/v0.13.0/dive_0.13.0_darwin_amd64.tar.gz", "83b6c2653521e3f6e9f4cbfa6678fd9974a66d455b76a1696c2ce8c2d4403718"),
-    "darwin_arm64": ("https://github.com/wagoodman/dive/releases/download/v0.13.0/dive_0.13.0_darwin_arm64.tar.gz", "b70b20f5dfc8e27b3bf403f5c78f726dcb1aae37f5da18a832d11cae2873609b"),
-    "linux_amd64": ("https://github.com/wagoodman/dive/releases/download/v0.13.0/dive_0.13.0_linux_amd64.tar.gz", "19ed7a1cfc567897a0a1e0e47ed4bdf803b053519b4d3bec50663182495db716"),
-    "linux_arm64": ("https://github.com/wagoodman/dive/releases/download/v0.13.0/dive_0.13.0_linux_arm64.tar.gz", "2fd82611e7b3064769b02fc8b9d38e896b98b93c95bec6a80b5d306fd1469e51"),
+    "darwin_amd64": ("https://github.com/wagoodman/dive/releases/download/v0.13.1/dive_0.13.1_darwin_amd64.tar.gz", "04e4c1bac21be3aef99799cf0e470149a072ea4786be50718aa846cd13746523"),
+    "darwin_arm64": ("https://github.com/wagoodman/dive/releases/download/v0.13.1/dive_0.13.1_darwin_arm64.tar.gz", "38b7fa95a13e7f4d0b3060c875fe7427c2a0613ecff674bb45156eb34bca0b09"),
+    "linux_amd64": ("https://github.com/wagoodman/dive/releases/download/v0.13.1/dive_0.13.1_linux_amd64.tar.gz", "0970549eb4a306f8825a84145a2534153badb4d7dcf3febd1967c706367c3d0e"),
+    "linux_arm64": ("https://github.com/wagoodman/dive/releases/download/v0.13.1/dive_0.13.1_linux_arm64.tar.gz", "2fcd2cf20f634ccdb41efac44048b204bfc867c115641f37a7420693ed480a18"),
 }
 
 DEFAULT_DIVE_VERSION = "0.12.0"
