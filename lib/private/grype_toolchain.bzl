@@ -2,10 +2,10 @@ load("//lib:repo_utils.bzl", "download_toolchain_binary")
 load('@aspect_bazel_lib//lib/private:repo_utils.bzl', 'repo_utils')
 
 _binaries = {
-    "darwin_amd64": ("https://github.com/anchore/grype/releases/download/v0.91.2/grype_0.91.2_darwin_amd64.tar.gz", "2613e06952778a61ea494fef78e6867109a208ef08c42c572c73a11db4d46d96"),
-    "darwin_arm64": ("https://github.com/anchore/grype/releases/download/v0.91.2/grype_0.91.2_darwin_arm64.tar.gz", "e6b1e45289d588464afb96424edd4a4a4b14540729504792b449ef02d5ab100f"),
-    "linux_amd64": ("https://github.com/anchore/grype/releases/download/v0.91.2/grype_0.91.2_linux_amd64.tar.gz", "9cb14a9e9de4a73fa684ad51a137c8ffb5647ed62799ff2a56ddd2225c13fd62"),
-    "linux_arm64": ("https://github.com/anchore/grype/releases/download/v0.91.2/grype_0.91.2_linux_arm64.tar.gz", "221e5df38940e39ae74d19f72f1b49e8a89812a70b087037cd9a2b95d0352608"),
+    "darwin_amd64": ("https://github.com/anchore/grype/releases/download/v0.92.2/grype_0.92.2_darwin_amd64.tar.gz", "b59dc689268dba6ada9bfee477759ba9a63a552eac965a618d57fd65cbd41a94"),
+    "darwin_arm64": ("https://github.com/anchore/grype/releases/download/v0.92.2/grype_0.92.2_darwin_arm64.tar.gz", "e3458eb528b6734af937eb18aff7e58e52afbbd0e8b52635c215e84bfe8c5f19"),
+    "linux_amd64": ("https://github.com/anchore/grype/releases/download/v0.92.2/grype_0.92.2_linux_amd64.tar.gz", "0b378a8d4153aa71d9ce95a3597f241a90f98b957a5694041d0ec04c6600b115"),
+    "linux_arm64": ("https://github.com/anchore/grype/releases/download/v0.92.2/grype_0.92.2_linux_arm64.tar.gz", "da22daf543e84f6eefc00643e45aa555b9e53481f849823c5a3a8ede700b499a"),
 }
 
 DEFAULT_GRYPE_VERSION = "0.80.0"
