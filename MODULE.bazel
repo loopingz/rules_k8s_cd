@@ -1,6 +1,6 @@
 module(name="rules_k8s_cd", repo_name="rules_k8s_cd", version="1.5.19")
 # Add dep based on https://github.com/bazelbuild/rules_go/issues/3442
-bazel_dep(name="platforms", version="0.0.11")
+bazel_dep(name="platforms", version="1.0.0")
 
 bazel_dep(name = "bazel_skylib", version = "1.7.1")
 
