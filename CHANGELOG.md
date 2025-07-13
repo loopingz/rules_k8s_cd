@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.8](https://github.com/loopingz/rules_k8s_cd/compare/v2.0.7...v2.0.8) (2025-07-13)
+
+
+### Bug Fixes
+
+* use yq raw for digest export ([10461d3](https://github.com/loopingz/rules_k8s_cd/commit/10461d375ce3c4a8864300f4f0553f79da25185e))
+
 ## [2.0.7](https://github.com/loopingz/rules_k8s_cd/compare/v2.0.6...v2.0.7) (2025-06-28)
 
 
