@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.10](https://github.com/loopingz/rules_k8s_cd/compare/v2.0.9...v2.0.10) (2025-08-24)
+
+
+### Bug Fixes
+
+* **deps:** update dependency gazelle to v0.45.0 ([#278](https://github.com/loopingz/rules_k8s_cd/issues/278)) ([23b10d0](https://github.com/loopingz/rules_k8s_cd/commit/23b10d0ce6291eb09b7cd9865107c3898f98c6bb))
+
 ## [2.0.9](https://github.com/loopingz/rules_k8s_cd/compare/v2.0.8...v2.0.9) (2025-08-04)
 
 
