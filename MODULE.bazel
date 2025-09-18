@@ -1,25 +1,63 @@
-module(name="rules_k8s_cd", repo_name="rules_k8s_cd", version="1.5.19")
+module(name = "rules_k8s_cd", repo_name = "rules_k8s_cd", version = "1.5.19")
+
 # Add dep based on https://github.com/bazelbuild/rules_go/issues/3442
-bazel_dep(name="platforms", version="1.0.0")
+bazel_dep(name = "platforms", version = "1.0.0")
 
 bazel_dep(name = "bazel_skylib", version = "1.8.1")
 
 bazel_dep(name = "rules_oci", version = "2.2.6")
-bazel_dep(name = "aspect_bazel_lib",  version = "2.21.1")
+bazel_dep(name = "aspect_bazel_lib", version = "2.21.1")
 
 bazel_dep(name = "rules_go", version = "0.57.0")
 bazel_dep(name = "gazelle", version = "0.45.0")
-
 
 # Register all toolchains
 bazel_lib_toolchains = use_extension("@rules_k8s_cd//lib:extensions.bzl", "toolchains")
 bazel_lib_toolchains.grype()
 bazel_lib_toolchains.dive()
 bazel_lib_toolchains.kubectl()
-use_repo(bazel_lib_toolchains, "grype_toolchains", "dive_toolchains", "kubectl_toolchains")
+bazel_lib_toolchains.kyverno()
+bazel_lib_toolchains.trivy()
+use_repo(bazel_lib_toolchains, "grype_toolchains", "dive_toolchains", "kubectl_toolchains", "kyverno_toolchains", "trivy_toolchains")
 
 register_toolchains(
     "@grype_toolchains//:all",
     "@dive_toolchains//:all",
     "@kubectl_toolchains//:all",
+    "@kyverno_toolchains//:all",
+    "@trivy_toolchains//:all",
 )
+
+oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
+
+# Declare external images you need to pull, for example:
+oci.pull(
+    name = "nginx",
+    image = "docker.io/library/nginx",
+    digest = "sha256:d5f28ef21aabddd098f3dbc21fe5b7a7d7a184720bc07da0b6c9b9820e97f25e",
+    platforms = ["linux/amd64"],
+)
+
+# Adobe rules_gitops
+# http_archive(
+#     name = "com_adobe_rules_gitops",
+#     sha256 = "83124a8056b1e0f555c97adeef77ec6dff387eb3f5bc58f212b376ba06d070dd",
+#     strip_prefix = "rules_gitops-0.17.2",
+#     urls = ["https://github.com/adobe/rules_gitops/archive/refs/tags/v0.17.2.tar.gz"],
+# )
+
+# load("@com_adobe_rules_gitops//gitops:deps.bzl", "rules_gitops_dependencies")
+
+# rules_gitops_dependencies()
+
+# load("@com_adobe_rules_gitops//gitops:repositories.bzl", "rules_gitops_repositories")
+
+# rules_gitops_repositories()
+
+# load("@com_adobe_rules_gitops//skylib:k8s.bzl", "kubeconfig")
+
+# kubeconfig(
+#     name = "k8s_test",
+#     cluster = "loopkube",
+#     use_host_config = True,
+# )

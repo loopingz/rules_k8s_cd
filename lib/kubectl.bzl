@@ -1,9 +1,9 @@
-load(":utils.bzl", "download_binary", "run_all", "show", "write_source_file")
-load(":oci.bzl", "ContainerPushInfo")
-load("@aspect_bazel_lib//lib:stamping.bzl", "STAMP_ATTRS", "maybe_stamp")
 load("@aspect_bazel_lib//lib:paths.bzl", "relative_file")
+load("@aspect_bazel_lib//lib:stamping.bzl", "STAMP_ATTRS", "maybe_stamp")
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load("@bazel_skylib//lib:paths.bzl", "paths")
+load(":oci.bzl", "ContainerPushInfo")
+load(":utils.bzl", "download_binary", "run_all", "show", "write_source_file")
 
 def _kubectl_impl(ctx):
     inputs = []
@@ -12,11 +12,11 @@ def _kubectl_impl(ctx):
     kubectl_bin = ctx.toolchains["@rules_k8s_cd//lib:kubectl_toolchain_type"].kubectlinfo.bin
     command = ""
     launch = ctx.outputs.launch
-    args = [kubectl_bin.path] + ctx.attr.arguments
+    args = [kubectl_bin.short_path] + ctx.attr.arguments
     for i in range(len(args)):
         if args[i] == "{{kubectl}}":
             args[i] = kubectl_bin.path
-    
+
     for f in ctx.files.data:
         p = f.path
         if p.startswith("bazel-out"):
@@ -36,7 +36,7 @@ def _kubectl_impl(ctx):
     return [DefaultInfo(
         executable = ctx.outputs.launch,
         runfiles = ctx.runfiles(files = [
-            kubectl_bin
+            kubectl_bin,
         ] + inputs),
     )]
 
@@ -58,7 +58,6 @@ kubectl = rule(
     test = False,
     executable = True,
 )
-
 
 # Implementation of kubectl export
 # Creating the resources and capturing the stdout with a comment
@@ -101,7 +100,7 @@ def _kubectl_export_impl(ctx):
 # by running the "kubectl" command with the specified arguments and context.
 #
 # Can be used at build to generate resources
-# 
+#
 # The rule has the following attributes:
 # - "arguments": a list of strings representing the arguments to pass to the "kubectl" command.
 # - "out": an output file representing the template file to use for generating the YAML file.

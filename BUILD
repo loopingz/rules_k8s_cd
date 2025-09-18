@@ -1,9 +1,5 @@
-load("@com_github_bazelbuild_buildtools//buildifier:def.bzl", "buildifier")
-load("@bazel_gazelle//:def.bzl", "gazelle", "gazelle_binary")
-
-exports_files([
-    "WORKSPACE",
-])
+#load("@com_github_bazelbuild_buildtools//buildifier:def.bzl", "buildifier")
+load("@gazelle//:def.bzl", "gazelle")
 
 gazelle(name = "gazelle")
 
@@ -18,6 +14,6 @@ gazelle(
     command = "update-repos",
 )
 
-buildifier(
-    name = "buildifier",
-)
+# buildifier(
+#     name = "buildifier",
+# )
