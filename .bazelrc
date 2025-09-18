@@ -2,5 +2,5 @@
 
 common --enable_bzlmod
 # --@io_bazel_rules_docker//transitions:enable=false
-run --stamp --workspace_status_command=starlark/stamp.sh
-build --stamp --workspace_status_command=starlark/stamp.sh
+run --stamp --workspace_status_command=lib/stamp.sh
+build --stamp --workspace_status_command=lib/stamp.sh

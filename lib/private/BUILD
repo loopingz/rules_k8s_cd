@@ -23,3 +23,27 @@ bzl_library(
     deps = [
     ],
 )
+
+bzl_library(
+    name = "kyverno_toolchain",
+    srcs = ["kyverno_toolchain.bzl"],
+    visibility = ["//lib:__subpackages__"],
+    deps = [
+    ],
+)
+
+bzl_library(
+    name = "clair_toolchain",
+    srcs = ["clair_toolchain.bzl"],
+    visibility = ["//lib:__subpackages__"],
+    deps = [
+    ],
+)
+
+bzl_library(
+    name = "trivy_toolchain",
+    srcs = ["trivy_toolchain.bzl"],
+    visibility = ["//lib:__subpackages__"],
+    deps = [
+    ],
+)

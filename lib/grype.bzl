@@ -1,8 +1,7 @@
-
 def _grype_impl(ctx):
     grype_bin = ctx.toolchains["@rules_k8s_cd//lib:grype_toolchain_type"].grypeinfo.bin
     cmd = ""
-    command = [grype_bin.path]
+    command = [grype_bin.short_path]
     for f in ctx.files.srcs:
         cmd += "mkdir -p $BUILD_WORKSPACE_DIRECTORY/security/reports/" + f.short_path.replace("../", "") + "\n"
         parts = command + [f.short_path, "-o", "json", "--file", "$BUILD_WORKSPACE_DIRECTORY/security/reports/" + f.short_path.replace("../", "") + "/grype.json"]

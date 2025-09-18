@@ -1,13 +1,11 @@
-
 def _dive_impl(ctx):
     dive_bin = ctx.toolchains["@rules_k8s_cd//lib:dive_toolchain_type"].diveinfo.bin
     cmd = ""
-    command = [dive_bin.path]
+    command = [dive_bin.short_path]
     for f in ctx.files.srcs:
         parts = command + [f.short_path, "--source", "docker-archive"]
         cmd += " ".join(["echo", "Load in Docker: docker import", "$BUILD_WORKSPACE_DIRECTORY/%s" % f.path]) + "\n"
         cmd += " ".join([part for part in parts if part]) + "\n"
-        
 
     for f in ctx.attr.images:
         parts = command + [f]

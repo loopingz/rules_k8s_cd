@@ -14,6 +14,28 @@
     },
     {
       customType: "regex",
+      fileMatch: ["^lib/private/trivy_toolchain.bzl$"],
+      matchStringsStrategy: "recursive",
+      matchStrings: [
+        "_binaries\\W=\\W({[^}]+)",
+        'https://github.com/(?<packageName>[^/]+/(?<depName>[^/]+))/releases/download/(?<currentValue>[^/]+)/trivy_\\d+\\.\\d+\\.\\d+(?<depType>[^\"]*)",\\W"(?<currentDigest>[^\"]+)"',
+      ],
+      autoReplaceStringTemplate: 'https://github.com/{{packageName}}/releases/download/{{newValue}}/trivy_{{replace "v" "" newValue}}{{depType}}", "{{newDigest}}"',
+      datasourceTemplate: "github-release-attachments",
+    },
+    {
+      customType: "regex",
+      fileMatch: ["^lib/private/kyverno_toolchain.bzl$"],
+      matchStringsStrategy: "recursive",
+      matchStrings: [
+        "_binaries\\W=\\W({[^}]+)",
+        'https://github.com/(?<packageName>[^/]+/(?<depName>[^/]+))/releases/download/(?<currentValue>[^/]+)/kyverno_\\d+\\.\\d+\\.\\d+(?<depType>[^\"]*)",\\W"(?<currentDigest>[^\"]+)"',
+      ],
+      autoReplaceStringTemplate: 'https://github.com/{{packageName}}/releases/download/{{newValue}}/kyverno_{{replace "v" "" newValue}}{{depType}}", "{{newDigest}}"',
+      datasourceTemplate: "github-release-attachments",
+    },
+    {
+      customType: "regex",
       fileMatch: ["^lib/private/dive_toolchain.bzl$"],
       matchStringsStrategy: "recursive",
       matchStrings: [
