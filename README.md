@@ -121,12 +121,12 @@ use_repo(oci_plus, "renovate")
 Targets available
 
 In the enhanced repo (@renovate):
-	•	@renovate//:base → alias to @renovate_original//:renovate
-  •	@renovate//:dive → explore the image
-	•	@renovate//:load → oci_load target (loads into Docker/CRI)
-	•	@renovate//:grype → run Grype scan
-	•	@renovate//:trivy → run Trivy scan
-	•	@renovate//:sbom → generate a Trivy SBOM
+ - @renovate//:base → alias to @renovate_original//:renovate
+ - @renovate//:dive → explore the image
+ - @renovate//:load → oci_load target (loads into Docker/CRI)
+ - @renovate//:grype → run Grype scan
+ - @renovate//:trivy → run Trivy scan
+ - @renovate//:sbom → generate a Trivy SBOM
 
 
 ## How to use grype
