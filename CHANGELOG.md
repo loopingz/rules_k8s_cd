@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.0.0](https://github.com/loopingz/rules_k8s_cd/compare/v2.0.10...v3.0.0) (2025-09-20)
+
+
+### ⚠ BREAKING CHANGES
+
+* add trivy and kyberno and move to bazel8 ([#291](https://github.com/loopingz/rules_k8s_cd/issues/291))
+
+### Features
+
+* add oci extension ([b374500](https://github.com/loopingz/rules_k8s_cd/commit/b3745008705e6be55c7e404ebd5fdca27a2f0b25))
+* add trivy and kyberno and move to bazel8 ([#291](https://github.com/loopingz/rules_k8s_cd/issues/291)) ([2376f01](https://github.com/loopingz/rules_k8s_cd/commit/2376f01c6f64566b8e4ae90307a80495bb6e2267))
+
 ## [2.0.10](https://github.com/loopingz/rules_k8s_cd/compare/v2.0.9...v2.0.10) (2025-08-24)
 
 
