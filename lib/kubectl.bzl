@@ -66,7 +66,7 @@ def _kubectl_export_impl(ctx):
     kubectl_bin = ctx.toolchains["@rules_k8s_cd//lib:kubectl_toolchain_type"].kubectlinfo.bin
     command = ""
     output = ctx.outputs.out.path
-    args = [kubectl_bin.short_path] + ctx.attr.arguments
+    args = [kubectl_bin.path] + ctx.attr.arguments
 
     for f in ctx.files.data:
         p = f.path
