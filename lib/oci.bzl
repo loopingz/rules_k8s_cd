@@ -97,7 +97,11 @@ alias(
     actual = "%s",
     visibility = ["//visibility:public"],
 )
-
+alias(
+    name = "%s",
+    actual = "%s",
+    visibility = ["//visibility:public"],
+)
 # Load the image into your local Docker/CRI
 oci_load(
     name = "load",
@@ -133,7 +137,7 @@ trivy_sbom(
     srcs = [":tarball"],
     visibility = ["//visibility:public"],
 )
-""" % (image_label),
+""" % (image_label, repo_ctx.name.split("+")[-1], image_label),
     )
 
 extras_repo = repository_rule(
