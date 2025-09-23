@@ -15,7 +15,7 @@ def _kubectl_impl(ctx):
     args = [kubectl_bin.short_path] + ctx.attr.arguments
     for i in range(len(args)):
         if args[i] == "{{kubectl}}":
-            args[i] = kubectl_bin.path
+            args[i] = kubectl_bin.short_path
 
     for f in ctx.files.data:
         p = f.path
@@ -66,7 +66,7 @@ def _kubectl_export_impl(ctx):
     kubectl_bin = ctx.toolchains["@rules_k8s_cd//lib:kubectl_toolchain_type"].kubectlinfo.bin
     command = ""
     output = ctx.outputs.out.path
-    args = [kubectl_bin.path] + ctx.attr.arguments
+    args = [kubectl_bin.short_path] + ctx.attr.arguments
 
     for f in ctx.files.data:
         p = f.path
