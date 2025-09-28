@@ -152,15 +152,44 @@ def _oci_plus_impl(ctx):
     for mod in ctx.modules:  # ← module_ctx.modules is the right API
         for p in getattr(mod.tags, "pull", []):  # ← no ctx.tags at top-level
             raw_name = p.name + "_original"
+
+            # Call upstream oci_pull ONCE. Let rules_oci produce:
+            #  - For multi-arch: <name> (alias), and <name>_linux_amd64, etc.
+            #  - For single-arch: <name> (alias) and <name>_single
+            # We wrap only the alias by default plus each per-platform repo if multi-arch.
+
+            # If user passed exactly one platform we drop platforms to force single variant behavior
+            # so that rules_oci doesn't create a CPU-select alias that fails on other hosts.
+            effective_platforms = p.platforms
+            if p.platforms and len(p.platforms) == 1:
+                effective_platforms = None
+
             oci_pull(
                 name = raw_name,
                 image = p.image,
                 digest = p.digest,
                 tag = p.tag,
-                platforms = p.platforms,
+                platforms = effective_platforms,
             )
+            created.append(raw_name)
+
+            # Always wrap the alias (raw_name acts as the upstream alias name here)
             extras_repo(name = p.name, pulled_repo = raw_name)
-            created.extend([raw_name, p.name])
+            created.append(p.name)
+
+            # If multi-arch, add extras repos for each upstream-generated per-platform repo.
+            if effective_platforms:
+                for platform in effective_platforms:
+                    plat_norm = platform.replace("/", "_")
+                    upstream_repo = "{}_{}".format(raw_name, plat_norm)
+
+                    # upstream repo name pattern from rules_oci: <name>_<os>_<arch>[...]
+                    # We expose it via an extras repo named without the _original suffix.
+                    extras_name = "{}_{}".format(p.name, plat_norm)
+                    if upstream_repo not in created:
+                        created.append(upstream_repo)
+                    extras_repo(name = extras_name, pulled_repo = upstream_repo)
+                    created.append(extras_name)
 
     # Advertise to Bazel which repos the root module should import.
     # (Users still write use_repo(...) in MODULE.bazel, or run `bazel mod tidy`.)
