@@ -1,5 +1,28 @@
 # Changelog
 
+## [3.0.0](https://github.com/loopingz/rules_k8s_cd/compare/v2.0.10...v3.0.0) (2025-12-06)
+
+
+### ⚠ BREAKING CHANGES
+
+* add trivy and kyberno and move to bazel8 ([#291](https://github.com/loopingz/rules_k8s_cd/issues/291))
+
+### Features
+
+* add oci extension ([b374500](https://github.com/loopingz/rules_k8s_cd/commit/b3745008705e6be55c7e404ebd5fdca27a2f0b25))
+* add trivy and kyberno and move to bazel8 ([#291](https://github.com/loopingz/rules_k8s_cd/issues/291)) ([2376f01](https://github.com/loopingz/rules_k8s_cd/commit/2376f01c6f64566b8e4ae90307a80495bb6e2267))
+
+
+### Bug Fixes
+
+* add default alias ([c49ea25](https://github.com/loopingz/rules_k8s_cd/commit/c49ea25f6aa10c7f73a4a8ca9162d1a266f1222b))
+* add export for all architectures on oci_pull ([621125d](https://github.com/loopingz/rules_k8s_cd/commit/621125db9400ee43e86635d67ebad22343852a1e))
+* **deps:** update dependency grype to v0.104.1 ([#305](https://github.com/loopingz/rules_k8s_cd/issues/305)) ([4ecab30](https://github.com/loopingz/rules_k8s_cd/commit/4ecab3090b7063f3bba3f994dfcb91590f2a1674))
+* **deps:** update dependency trivy to v0.67.0 ([#296](https://github.com/loopingz/rules_k8s_cd/issues/296)) ([4ad3d1d](https://github.com/loopingz/rules_k8s_cd/commit/4ad3d1dcdea7e3b7374eee1d5af2f802b946b887))
+* **deps:** update dependency trivy to v0.68.1 ([#311](https://github.com/loopingz/rules_k8s_cd/issues/311)) ([308b448](https://github.com/loopingz/rules_k8s_cd/commit/308b4488d2fbb73ce17f18098559e1495ea5f32f))
+* kubectl path ([70a9b59](https://github.com/loopingz/rules_k8s_cd/commit/70a9b5911a20a1b9bbb727aef4fd3cf8f8bae8dd))
+* kubectl_export path ([395b1fa](https://github.com/loopingz/rules_k8s_cd/commit/395b1fa2b5bb63609fe7aff8a12c9842d2b11af4))
+
 ## [2.0.10](https://github.com/loopingz/rules_k8s_cd/compare/v2.0.9...v2.0.10) (2025-08-24)
 
 
