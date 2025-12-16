@@ -3,7 +3,7 @@ module(name = "rules_k8s_cd", repo_name = "rules_k8s_cd", version = "3.0.0")
 # Add dep based on https://github.com/bazelbuild/rules_go/issues/3442
 bazel_dep(name = "platforms", version = "1.0.0")
 
-bazel_dep(name = "bazel_skylib", version = "1.8.2")
+bazel_dep(name = "bazel_skylib", version = "1.9.0")
 
 bazel_dep(name = "rules_oci", version = "2.2.6")
 bazel_dep(name = "aspect_bazel_lib", version = "2.22.0")
