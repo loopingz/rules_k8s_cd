@@ -34,7 +34,7 @@ oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
 oci.pull(
     name = "nginx",
     image = "docker.io/library/nginx",
-    digest = "sha256:553f64aecdc31b5bf944521731cd70e35da4faed96b2b7548a3d8e2598c52a42",
+    digest = "sha256:c881927c4077710ac4b1da63b83aa163937fb47457950c267d92f7e4dedf4aec",
     platforms = ["linux/amd64"],
 )
 
