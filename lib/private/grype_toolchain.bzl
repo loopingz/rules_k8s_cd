@@ -2,13 +2,13 @@ load("//lib:repo_utils.bzl", "download_toolchain_binary")
 load('@aspect_bazel_lib//lib/private:repo_utils.bzl', 'repo_utils')
 
 _binaries = {
-    "darwin_amd64": ("https://github.com/anchore/grype/releases/download/v0.104.1/grype_0.104.1_darwin_amd64.tar.gz", "eaed1f6d45587c2164a161c13c55cda64930fd96ba02177d3bd31fbd5b7cf77d"),
-    "darwin_arm64": ("https://github.com/anchore/grype/releases/download/v0.104.1/grype_0.104.1_darwin_arm64.tar.gz", "8d6e3f677e923965c782582760b43b9691bc2e1ce9d55459ba304402b056d600"),
-    "linux_amd64": ("https://github.com/anchore/grype/releases/download/v0.104.1/grype_0.104.1_linux_amd64.tar.gz", "2cb820b6c81f88fd6aff3fb4ca5a7161e9ab70af0f27fc5e99cd16deb987cd5f"),
-    "linux_arm64": ("https://github.com/anchore/grype/releases/download/v0.104.1/grype_0.104.1_linux_arm64.tar.gz", "069197640efe80f2e6e473df39f7c0e2e290a688f097f5fe2b079f114bfb1b24"),
+    "darwin_amd64": ("https://github.com/anchore/grype/releases/download/v0.107.0/grype_0.107.0_darwin_amd64.tar.gz", "c619326c4f0fd4936d1721498b44f786c2dcb02239ed00e85017dca3835283be"),
+    "darwin_arm64": ("https://github.com/anchore/grype/releases/download/v0.107.0/grype_0.107.0_darwin_arm64.tar.gz", "7b07dc37d96fa34180a00ffeeef5c61f4c932d36373b8f9943bdc772d7b28b25"),
+    "linux_amd64": ("https://github.com/anchore/grype/releases/download/v0.107.0/grype_0.107.0_linux_amd64.tar.gz", "896075679eda2bb389527a7a94d0bd2a33d1a6b107c69e825f66a1ebb7bf10bf"),
+    "linux_arm64": ("https://github.com/anchore/grype/releases/download/v0.107.0/grype_0.107.0_linux_arm64.tar.gz", "34d21fb8929fe6c07adde9f105853185dfd04d7a24a6499118fedfd525d8ec45"),
 }
 
-DEFAULT_GRYPE_VERSION = "0.80.0"
+DEFAULT_GRYPE_VERSION = "0.106.0"
 DEFAULT_GRYPE_REPOSITORY = "grype"
 
 GRYPE_PLATFORMS = {
@@ -108,7 +108,6 @@ def _resolved_toolchain_impl(ctx):
 resolved_toolchain = rule(
     implementation = _resolved_toolchain_impl,
     toolchains = ["@rules_k8s_cd//lib:grype_toolchain_type"],
-    incompatible_use_toolchain_transition = True,
 )
 """
     rctx.file("defs.bzl", starlark_content)

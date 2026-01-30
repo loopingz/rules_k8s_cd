@@ -108,7 +108,6 @@ def _resolved_toolchain_impl(ctx):
 resolved_toolchain = rule(
     implementation = _resolved_toolchain_impl,
     toolchains = ["@rules_k8s_cd//lib:dive_toolchain_type"],
-    incompatible_use_toolchain_transition = True,
 )
 """
     rctx.file("defs.bzl", starlark_content)
