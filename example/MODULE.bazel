@@ -1,10 +1,10 @@
 # Add dep based on https://github.com/bazelbuild/rules_go/issues/3442
 bazel_dep(name="platforms", version="1.0.0")
 
-bazel_dep(name = "bazel_skylib", version = "1.8.2")
+bazel_dep(name = "bazel_skylib", version = "1.9.0")
 
 bazel_dep(name = "rules_oci", version = "2.2.7")
-bazel_dep(name = "aspect_bazel_lib",  version = "2.22.0")
+bazel_dep(name = "aspect_bazel_lib",  version = "2.22.5")
 bazel_dep(name = "aspect_rules_js", version = "2.9.2")
 
 
@@ -19,4 +19,4 @@ npm.npm_translate_lock(
 
 use_repo(npm, "npm-website")
 
-bazel_dep(name = "rules_k8s_cd", version = "1.5.19")
+bazel_dep(name = "rules_k8s_cd", version = "3.0.0")
