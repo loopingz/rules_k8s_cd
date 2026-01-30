@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.0.1](https://github.com/loopingz/rules_k8s_cd/compare/v3.0.0...v3.0.1) (2026-01-30)
+
+
+### Bug Fixes
+
+* **deps:** update dependency grype to v0.107.0 ([#324](https://github.com/loopingz/rules_k8s_cd/issues/324)) ([24c8cf8](https://github.com/loopingz/rules_k8s_cd/commit/24c8cf860bf2647a7d4753e103707bc5bcb8c440))
+* revert rules_oci 2.2.7 ([37d4fe4](https://github.com/loopingz/rules_k8s_cd/commit/37d4fe4e1dbb3399e6137d4778c7ade13042e153))
+* update kubectl and kubectl updater script ([2bd2791](https://github.com/loopingz/rules_k8s_cd/commit/2bd27917026d25ebe2e28eacd5e615ab6a76791b))
+* update to latest version ([33be495](https://github.com/loopingz/rules_k8s_cd/commit/33be495a69b6b10f88f7105a8a31f90258805dd4))
+
 ## [3.0.0](https://github.com/loopingz/rules_k8s_cd/compare/v2.0.10...v3.0.0) (2025-12-06)
 
 
