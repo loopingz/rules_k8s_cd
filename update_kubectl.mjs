@@ -45,13 +45,13 @@ let content = /_binaries\s*=(?<versions>(\s*{[^{]+{[^}]+})+[^}]+})/gm.exec(
 if (!content) {
   throw new Error("Could not find _binaries in kubectl.bzl");
 }
-const json = content.groups.versions
+let json = content.groups.versions
   .replace(/\(/g, "[")
   .replace(/\)/g, "]")
   .replace(/},\s*}/g, "}}")
   .replace(/],\s*}/g, "]}");
-console.log(json);
-
+json += "}";
+fs.writeFileSync(".kubectl.json", json);
 let info = JSON.parse(json);
 
 // Read current versions from https://kubernetes.io/releases/
