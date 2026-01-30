@@ -8,7 +8,7 @@ _binaries = {
     "linux_arm64": ("https://github.com/aquasecurity/trivy/releases/download/v0.68.2/trivy_0.68.2_Linux-64bit.tar.gz", "3d933bbc3685f95ec15280f620583d05d97ee3affb66944d14481d5d6d567064"),
 }
 
-DEFAULT_TRIVY_VERSION = "0.67.0"
+DEFAULT_TRIVY_VERSION = "0.68.2"
 DEFAULT_TRIVY_REPOSITORY = "trivy"
 
 TRIVY_PLATFORMS = {
@@ -99,7 +99,6 @@ def _resolved_toolchain_impl(ctx):
 resolved_toolchain = rule(
     implementation = _resolved_toolchain_impl,
     toolchains = ["@rules_k8s_cd//lib:trivy_toolchain_type"],
-    incompatible_use_toolchain_transition = True,
 )
 """
     rctx.file("defs.bzl", starlark_content)

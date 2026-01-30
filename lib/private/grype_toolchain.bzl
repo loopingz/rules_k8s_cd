@@ -8,7 +8,7 @@ _binaries = {
     "linux_arm64": ("https://github.com/anchore/grype/releases/download/v0.106.0/grype_0.106.0_linux_arm64.tar.gz", "f8e2398da4f7e261d2a08434c048500fd0b861c5839cd5e7ab217313849db3bd"),
 }
 
-DEFAULT_GRYPE_VERSION = "0.80.0"
+DEFAULT_GRYPE_VERSION = "0.106.0"
 DEFAULT_GRYPE_REPOSITORY = "grype"
 
 GRYPE_PLATFORMS = {
@@ -108,7 +108,6 @@ def _resolved_toolchain_impl(ctx):
 resolved_toolchain = rule(
     implementation = _resolved_toolchain_impl,
     toolchains = ["@rules_k8s_cd//lib:grype_toolchain_type"],
-    incompatible_use_toolchain_transition = True,
 )
 """
     rctx.file("defs.bzl", starlark_content)
