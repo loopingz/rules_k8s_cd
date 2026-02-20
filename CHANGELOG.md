@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.2](https://github.com/loopingz/rules_k8s_cd/compare/v3.0.1...v3.0.2) (2026-02-20)
+
+
+### Bug Fixes
+
+* runtools ([7c3a398](https://github.com/loopingz/rules_k8s_cd/commit/7c3a398bed0ffe6813cd4c47f875eba0a135a0de))
+
 ## [3.0.1](https://github.com/loopingz/rules_k8s_cd/compare/v3.0.0...v3.0.1) (2026-01-30)
 
 
