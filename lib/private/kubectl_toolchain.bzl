@@ -1,5 +1,5 @@
+load("@aspect_bazel_lib//lib/private:repo_utils.bzl", "repo_utils")
 load("//lib:repo_utils.bzl", "download_toolchain_binary")
-load('@aspect_bazel_lib//lib/private:repo_utils.bzl', 'repo_utils')
 
 # version=https://dl.k8s.io/release/stable.txt
 # https://dl.k8s.io/release/${version}/bin/darwin/arm64/kubectl https://dl.k8s.io/release/${version}/bin/darwin/arm64/kubectl.sha256
@@ -1703,7 +1703,7 @@ _binaries = {
       "https://dl.k8s.io/release/v1.28.13/bin/windows/amd64/kubectl.exe",
       "99afa16f9d4ccd47daa473dbe255d3b4f1f142e3e877db1b4ee33023717bdd8c"
     )
-  },
+  }
 }
 
 DEFAULT_KUBECTL_VERSION = "1.35.0"
@@ -1867,7 +1867,6 @@ kubectl_platform_repo = repository_rule(
         "version": attr.string(mandatory = False, default = DEFAULT_KUBECTL_VERSION, values = _binaries.keys()),
     },
 )
-
 
 def _kubectl_host_alias_repo(rctx):
     ext = ".exe" if repo_utils.is_windows(rctx) else ""
