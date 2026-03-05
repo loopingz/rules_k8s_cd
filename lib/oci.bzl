@@ -2,6 +2,20 @@ load("@rules_oci//oci:extensions.bzl", "oci")  # we'll call oci.pull from our ex
 load("@rules_oci//oci:pull.bzl", "oci_pull")
 load("@rules_oci//oci/private:push.bzl", "oci_push_lib")
 
+# Transition that resets extra_execution_platforms to empty, ensuring crane/jq are
+# resolved against the HOST (exec) platform rather than the image's target platform.
+# This fixes cross-platform builds (e.g. mac/arm64 building linux/amd64 images) where
+# oci_push_lib's _transition_to_target would otherwise embed linux/amd64 crane/jq
+# binaries in the push script, making it fail on the host machine.
+def _reset_exec_platforms_impl(settings, _attr):
+    return {"//command_line_option:extra_execution_platforms": []}
+
+_reset_exec_platforms = transition(
+    implementation = _reset_exec_platforms_impl,
+    inputs = [],
+    outputs = ["//command_line_option:extra_execution_platforms"],
+)
+
 ContainerPushInfo = provider(fields = ["registry", "repository", "digestfile", "tags", "name"])
 
 def image_pushes(images, image_repository, name_suffix = ".push"):
@@ -76,9 +90,11 @@ oci_push_info = rule(
         # even on darwin/arm64, causing push scripts to fail when run on the host machine.
         {k: v for k, v in oci_push_lib.attrs.items() if k != "_allowlist_function_transition"},
         _crane = attr.label(
+            cfg = _reset_exec_platforms,
             default = "@oci_crane_toolchains//:current_toolchain",
         ),
         _jq = attr.label(
+            cfg = _reset_exec_platforms,
             default = "@jq_toolchains//:resolved_toolchain",
         ),
         _oci_push_info_sh = attr.label(allow_single_file = True, default = "//lib:oci_push_info.sh.tpl"),

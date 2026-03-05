@@ -37,6 +37,12 @@ oci.pull(
     digest = "sha256:c881927c4077710ac4b1da63b83aa163937fb47457950c267d92f7e4dedf4aec",
     platforms = ["linux/amd64"],
 )
+use_repo(oci, "oci_crane_toolchains")
+
+# Make jq_toolchains visible so oci_push_info can reference exec-platform-resolved jq
+bazel_lib = use_extension("@aspect_bazel_lib//lib:extensions.bzl", "toolchains")
+bazel_lib.jq()
+use_repo(bazel_lib, "jq_toolchains")
 
 # Adobe rules_gitops
 # http_archive(
