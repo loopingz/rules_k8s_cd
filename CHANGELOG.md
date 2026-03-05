@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.0.3](https://github.com/loopingz/rules_k8s_cd/compare/v3.0.2...v3.0.3) (2026-03-05)
+
+
+### Bug Fixes
+
+* cross-platform build ([478236a](https://github.com/loopingz/rules_k8s_cd/commit/478236a0cffa1035d3af31149b31f107829b658b))
+* **deps:** update kubectl ([#328](https://github.com/loopingz/rules_k8s_cd/issues/328)) ([b6b493e](https://github.com/loopingz/rules_k8s_cd/commit/b6b493eb1d62323658f36c314845ec6c87e8fee0))
+* kubectl toolchain fix and its update script ([6d9523f](https://github.com/loopingz/rules_k8s_cd/commit/6d9523ff08111365a60e340108780ee163181a73))
+
 ## [3.0.2](https://github.com/loopingz/rules_k8s_cd/compare/v3.0.1...v3.0.2) (2026-02-20)
 
 
