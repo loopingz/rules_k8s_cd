@@ -70,7 +70,17 @@ def _oci_push_info(ctx):
 oci_push_info = rule(
     implementation = _oci_push_info,
     attrs = dict(
-        oci_push_lib.attrs,
+        # Exclude _allowlist_function_transition (only needed with Starlark transitions)
+        # and override _crane/_jq to use the exec (host) platform instead of the target platform.
+        # oci_push_lib.attrs applies cfg=_transition_to_target which forces linux/amd64 tools
+        # even on darwin/arm64, causing push scripts to fail when run on the host machine.
+        {k: v for k, v in oci_push_lib.attrs.items() if k != "_allowlist_function_transition"},
+        _crane = attr.label(
+            default = "@oci_crane_toolchains//:current_toolchain",
+        ),
+        _jq = attr.label(
+            default = "@jq_toolchains//:resolved_toolchain",
+        ),
         _oci_push_info_sh = attr.label(allow_single_file = True, default = "//lib:oci_push_info.sh.tpl"),
     ),
     toolchains = oci_push_lib.toolchains + ["@aspect_bazel_lib//lib:yq_toolchain_type"],
