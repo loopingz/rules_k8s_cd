@@ -28,10 +28,6 @@ toolchain_type(
 )
 
 toolchain_type(
-    name = "clair_toolchain_type",
-)
-
-toolchain_type(
     name = "trivy_toolchain_type",
 )
 
@@ -43,7 +39,6 @@ bzl_library(
         "//lib/private:dive_toolchain",
         "//lib/private:kubectl_toolchain",
         "//lib/private:kyverno_toolchain",
-        "//lib/private:clair_toolchain",
         "//lib/private:trivy_toolchain",
     ],
 )
