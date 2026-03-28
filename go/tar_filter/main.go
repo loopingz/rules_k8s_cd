@@ -112,24 +112,23 @@ func main() {
 
 	// Process all inputs
 	for _, input := range inputs {
-		var f io.Reader
-
 		if verbose {
 			log.Println("Processing", input)
 		}
-		f, err := os.Open(input)
+		file, err := os.Open(input)
 		if err != nil {
 			log.Fatal(err)
 		}
+		var f io.Reader = file
 		if strings.HasSuffix(input, ".gz") {
-			gz, err := gzip.NewReader(f)
+			gz, err := gzip.NewReader(file)
 			if err != nil {
 				log.Fatal(err)
 			}
 			defer gz.Close()
 			f = gz
 		} else {
-			defer f.(*os.File).Close()
+			defer file.Close()
 		}
 
 		// Open and iterate through the files in the archive.
