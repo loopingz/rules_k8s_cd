@@ -222,7 +222,12 @@ func main() {
 			img.NewName = digest[0]
 			img.Digest = digest[1]
 		}
-		data["images"] = append(data["images"].([]Image), img)
+		switch imgs := data["images"].(type) {
+		case []Image:
+			data["images"] = append(imgs, img)
+		default:
+			data["images"] = []Image{img}
+		}
 	}
 
 	result, err := yaml.Marshal(&data)
