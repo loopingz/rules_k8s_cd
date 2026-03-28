@@ -24,7 +24,7 @@ def _dive_impl(ctx):
         ] + ctx.files.srcs + ctx.files.manifests),
     )]
 
-# Rule that tests whether a JSON file is valid.
+# Rule that inspects container image layers using Dive.
 dive = rule(
     implementation = _dive_impl,
     attrs = {

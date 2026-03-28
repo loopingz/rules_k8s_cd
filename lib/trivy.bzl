@@ -26,7 +26,7 @@ def _trivy_impl(ctx):
         ] + ctx.files.srcs + ctx.files.manifests),
     )]
 
-# Rule that tests whether a JSON file is valid.
+# Rule that scans container images for vulnerabilities using Trivy.
 trivy_scan = rule(
     implementation = _trivy_impl,
     attrs = {
@@ -77,7 +77,7 @@ def _trivy_sbom_impl(ctx):
         ] + ctx.files.srcs + ctx.files.manifests),
     )]
 
-# Rule that tests whether a JSON file is valid.
+# Rule that generates an SBOM (Software Bill of Materials) using Trivy.
 trivy_sbom = rule(
     implementation = _trivy_sbom_impl,
     attrs = {

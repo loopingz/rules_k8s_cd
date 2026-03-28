@@ -1,16 +1,7 @@
 def _kyverno_impl(ctx):
     kyverno_bin = ctx.toolchains["@rules_k8s_cd//lib:kyverno_toolchain_type"].kyvernoinfo.bin
-    cmd = ""  #"mkdir -p policies && mkdir -p manifests"
+    cmd = ""
     command = [kyverno_bin.short_path, "apply"]
-    # for f in ctx.files.manifests:
-    #     #parts = command + [f.short_path, "-o", "json", "--file", "$BUILD_WORKSPACE_DIRECTORY/security/reports/" + f.short_path.replace("../", "") + "/kyverno.json"]
-    #     parts = ["cp", f.short_path, "policies/"]
-    #     cmd += " ".join([part for part in parts if part]) + "\n"
-
-    # for f in ctx.files.manifests:
-    #     #parts = command + [f.short_path, "-o", "json", "--file", "$BUILD_WORKSPACE_DIRECTORY/security/reports/" + f.short_path.replace("../", "") + "/kyverno.json"]
-    #     parts = ["cp", f.short_path, "manifests/"]
-    #     cmd += " ".join([part for part in parts if part]) + "\n"
     args = []
     for f in ctx.files.manifests:
         args.append("-r")
@@ -31,7 +22,7 @@ def _kyverno_impl(ctx):
         ] + ctx.files.policies + ctx.files.manifests),
     )]
 
-# Rule that tests whether a JSON file is valid.
+# Rule that validates Kubernetes manifests against Kyverno policies.
 kyverno_test = rule(
     implementation = _kyverno_impl,
     attrs = {

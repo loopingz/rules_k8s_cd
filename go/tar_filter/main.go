@@ -107,10 +107,6 @@ func main() {
 	}
 	tw := tar.NewWriter(w)
 
-	var list io.Writer
-	list, err = os.Create("/tmp/tar-list.txt")
-	defer list.(*os.File).Close()
-
 	// Keep track of what we have copied
 	copied := []string{}
 
