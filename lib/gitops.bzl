@@ -1,7 +1,7 @@
-load(":utils.bzl", "download_binary", "run_all", "show", "write_source_file")
+load("@aspect_bazel_lib//lib:expand_template.bzl", "expand_template")
 load(":kubectl.bzl", "kubectl", "kustomization_injector", "kustomize_gitops")
 load(":oci.bzl", "image_pushes")
-load("@aspect_bazel_lib//lib:expand_template.bzl", "expand_template")
+load(":utils.bzl", "download_binary", "run_all", "show", "write_source_file")
 
 # This method is one way of implementing - feel free to copy/paste and change to your liking
 def gitops(images = {}, environments = {}):

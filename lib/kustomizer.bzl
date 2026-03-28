@@ -1,8 +1,8 @@
 load("@aspect_bazel_lib//lib:stamping.bzl", "STAMP_ATTRS", "maybe_stamp")
-load(":kubectl.bzl", "kubectl", "kubectl_export")
-load(":utils.bzl", "write_source_file")
-load(":oci.bzl", "ContainerPushInfo")
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
+load(":kubectl.bzl", "kubectl", "kubectl_export")
+load(":oci.bzl", "ContainerPushInfo")
+load(":utils.bzl", "write_source_file")
 
 def kustomize(name, data = [], out = "", **kwargs):
     if (out == ""):
@@ -55,7 +55,7 @@ def kustomize_apply(name, context = None, data = [], **kwargs):
 
 # Creates a kustomization for GitOps deployment using kubectl.
 # And export its result to a file in the given path.
-# 
+#
 # Args:
 # - name (str): The name of the kustomization.
 # - context (List[Label]): The context to use for kubectl.
@@ -71,6 +71,7 @@ def kustomize_gitops(name, data, out):
         out = out,
         visibility = ["//visibility:private"],
     )
+
     # Copying the yaml file to the export path
     write_source_file(
         name = name,
@@ -113,13 +114,14 @@ def _kustomization_injector_impl(ctx):
         arguments.append("--repository=%s" % ctx.attr.repository)
 
     inputs = ctx.files.input + ctx.files.images + ctx.files.resources + ctx.files.crds + ctx.files.configMapGenerator + ctx.files.secretGenerator + ctx.files.patchesStrategicMerge + ctx.files.patchesJson6902
+
     # Add stamps to substitution
     stamp = maybe_stamp(ctx)
     if stamp:
         arguments.append("--path=stamp:%s" % stamp.volatile_status_file.path)
         arguments.append("--path=stamp:%s" % stamp.stable_status_file.path)
         inputs = inputs + [stamp.volatile_status_file, stamp.stable_status_file]
-    
+
     if ctx.outputs.combine:
         arguments.append("--combine=%s" % ctx.outputs.combine.path)
 
@@ -132,7 +134,7 @@ def _kustomization_injector_impl(ctx):
     return [DefaultInfo(files = depset([out, ctx.outputs.combine] if ctx.outputs.combine else [out]))]
 
 # Rule to inject images, resources, patches, config maps, secrets and substitutions into a kustomization file.
-# 
+#
 # Args:
 # - input (label, mandatory): Input kustomization file.
 # - combine (output): Output combined manifest files into a single file and replace variables.
@@ -187,7 +189,7 @@ kustomization_injector = rule(
             doc = "List of secrets to inject in the kustomization file",
         ),
         "substitutions": attr.string_dict(
-            doc = "Replace variables within the kustomization file (after all other operations)"
+            doc = "Replace variables within the kustomization file (after all other operations)",
         ),
         "_kustomizer": attr.label(
             default = Label("//go/kustomizer:kustomizer"),
