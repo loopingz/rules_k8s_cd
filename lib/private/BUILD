@@ -49,6 +49,14 @@ bzl_library(
 )
 
 bzl_library(
+    name = "buildifier_toolchain",
+    srcs = ["buildifier_toolchain.bzl"],
+    visibility = ["//lib:__subpackages__"],
+    deps = [
+    ],
+)
+
+bzl_library(
     name = "scanner_factory",
     srcs = ["scanner_factory.bzl"],
     visibility = ["//lib:__subpackages__"],

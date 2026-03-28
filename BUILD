@@ -1,4 +1,3 @@
-#load("@com_github_bazelbuild_buildtools//buildifier:def.bzl", "buildifier")
 load("@gazelle//:def.bzl", "gazelle")
 
 gazelle(name = "gazelle")
@@ -13,7 +12,3 @@ gazelle(
     ],
     command = "update-repos",
 )
-
-# buildifier(
-#     name = "buildifier",
-# )

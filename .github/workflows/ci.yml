@@ -26,10 +26,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - name: Install buildifier
-        run: |
-          wget -q -O /usr/local/bin/buildifier https://github.com/bazelbuild/buildtools/releases/download/v8.5.1/buildifier-linux-amd64
-          echo "887377fc64d23a850f4d18a077b5db05b19913f4b99b270d193f3c7334b5a9a7  /usr/local/bin/buildifier" | sha256sum -c
-          chmod +x /usr/local/bin/buildifier
       - name: Check Starlark formatting
-        run: buildifier --mode=check -r .
+        run: bazel run @buildifier//:buildifier -- --mode=check -r $PWD

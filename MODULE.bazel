@@ -19,7 +19,8 @@ bazel_lib_toolchains.dive()
 bazel_lib_toolchains.kubectl()
 bazel_lib_toolchains.kyverno()
 bazel_lib_toolchains.trivy()
-use_repo(bazel_lib_toolchains, "dive_toolchains", "grype_toolchains", "kubectl_toolchains", "kyverno_toolchains", "trivy_toolchains")
+bazel_lib_toolchains.buildifier()
+use_repo(bazel_lib_toolchains, "buildifier", "buildifier_toolchains", "dive_toolchains", "grype_toolchains", "kubectl_toolchains", "kyverno_toolchains", "trivy_toolchains")
 
 register_toolchains(
     "@grype_toolchains//:all",
@@ -27,6 +28,7 @@ register_toolchains(
     "@kubectl_toolchains//:all",
     "@kyverno_toolchains//:all",
     "@trivy_toolchains//:all",
+    "@buildifier_toolchains//:all",
 )
 
 oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
