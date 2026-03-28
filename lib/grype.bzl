@@ -24,7 +24,7 @@ def _grype_impl(ctx):
         ] + ctx.files.srcs + ctx.files.manifests),
     )]
 
-# Rule that tests whether a JSON file is valid.
+# Rule that scans container images for vulnerabilities using Grype.
 grype_scan = rule(
     implementation = _grype_impl,
     attrs = {
