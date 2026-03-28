@@ -1,3 +1,4 @@
+load("//lib/private:buildifier_toolchain.bzl", "BUILDIFIER_PLATFORMS", "buildifier_host_alias_repo", "buildifier_platform_repo", "buildifier_toolchains_repo")
 load("//lib/private:dive_toolchain.bzl", "DIVE_PLATFORMS", "dive_host_alias_repo", "dive_platform_repo", "dive_toolchains_repo")
 load("//lib/private:grype_toolchain.bzl", "GRYPE_PLATFORMS", "grype_host_alias_repo", "grype_platform_repo", "grype_toolchains_repo")
 load("//lib/private:kubectl_toolchain.bzl", "KUBECTL_PLATFORMS", "kubectl_host_alias_repo", "kubectl_platform_repo", "kubectl_toolchains_repo")
@@ -120,6 +121,30 @@ def register_kyverno_toolchains(name = "kyverno", register = True):
     kyverno_host_alias_repo(name = name)
 
     kyverno_toolchains_repo(
+        name = "%s_toolchains" % name,
+        user_repository_name = name,
+    )
+
+def register_buildifier_toolchains(name = "buildifier", register = True):
+    """Registers buildifier toolchain and repositories
+
+    Args:
+        name: override the prefix for the generated toolchain repositories
+        register: whether to call through to native.register_toolchains.
+            Should be True for WORKSPACE users, but false when used under bzlmod extension
+    """
+    for [platform, _] in BUILDIFIER_PLATFORMS.items():
+        buildifier_platform_repo(
+            name = "%s_%s" % (name, platform),
+            platform = platform,
+        )
+
+        if register:
+            native.register_toolchains("@%s_toolchains//:%s_toolchain" % (name, platform))
+
+    buildifier_host_alias_repo(name = name)
+
+    buildifier_toolchains_repo(
         name = "%s_toolchains" % name,
         user_repository_name = name,
     )

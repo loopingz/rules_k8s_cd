@@ -3,12 +3,14 @@
 load("@aspect_bazel_lib//lib/private:extension_utils.bzl", "extension_utils")
 load(
     "@rules_k8s_cd//lib:repositories.bzl",
+    "register_buildifier_toolchains",
     "register_dive_toolchains",
     "register_grype_toolchains",
     "register_kubectl_toolchains",
     "register_kyverno_toolchains",
     "register_trivy_toolchains",
 )
+load("@rules_k8s_cd//lib/private:buildifier_toolchain.bzl", "DEFAULT_BUILDIFIER_REPOSITORY", "DEFAULT_BUILDIFIER_VERSION")
 load("@rules_k8s_cd//lib/private:dive_toolchain.bzl", "DEFAULT_DIVE_REPOSITORY", "DEFAULT_DIVE_VERSION")
 load("@rules_k8s_cd//lib/private:grype_toolchain.bzl", "DEFAULT_GRYPE_REPOSITORY", "DEFAULT_GRYPE_VERSION")
 load("@rules_k8s_cd//lib/private:kubectl_toolchain.bzl", "DEFAULT_KUBECTL_REPOSITORY", "DEFAULT_KUBECTL_VERSION")
@@ -51,6 +53,13 @@ def _toolchains_extension_impl(mctx):
         toolchain_repos_fn = lambda name, version: register_kyverno_toolchains(name = name, register = False),
     )
 
+    extension_utils.toolchain_repos_bfs(
+        mctx = mctx,
+        get_tag_fn = lambda tags: tags.buildifier,
+        toolchain_name = "buildifier",
+        toolchain_repos_fn = lambda name, version: register_buildifier_toolchains(name = name, register = False),
+    )
+
 toolchains = module_extension(
     implementation = _toolchains_extension_impl,
     tag_classes = {
@@ -59,5 +68,6 @@ toolchains = module_extension(
         "kubectl": tag_class(attrs = {"name": attr.string(default = DEFAULT_KUBECTL_REPOSITORY), "version": attr.string(default = DEFAULT_KUBECTL_VERSION)}),
         "trivy": tag_class(attrs = {"name": attr.string(default = DEFAULT_TRIVY_REPOSITORY), "version": attr.string(default = DEFAULT_TRIVY_VERSION)}),
         "kyverno": tag_class(attrs = {"name": attr.string(default = DEFAULT_KYVERNO_REPOSITORY), "version": attr.string(default = DEFAULT_KYVERNO_VERSION)}),
+        "buildifier": tag_class(attrs = {"name": attr.string(default = DEFAULT_BUILDIFIER_REPOSITORY), "version": attr.string(default = DEFAULT_BUILDIFIER_VERSION)}),
     },
 )

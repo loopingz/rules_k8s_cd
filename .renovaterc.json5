@@ -45,5 +45,16 @@
       autoReplaceStringTemplate: 'https://github.com/{{packageName}}/releases/download/{{newValue}}/dive_{{replace "v" "" newValue}}{{depType}}", "{{newDigest}}"',
       datasourceTemplate: "github-release-attachments",
     },
+    {
+      customType: "regex",
+      fileMatch: ["^lib/private/buildifier_toolchain.bzl$"],
+      matchStringsStrategy: "recursive",
+      matchStrings: [
+        "_binaries\\W=\\W({[^}]+)",
+        'https://github.com/(?<packageName>[^/]+/(?<depName>[^/]+))/releases/download/(?<currentValue>[^/]+)/buildifier-(?<depType>[^"]*)",\\W"(?<currentDigest>[^"]+)"',
+      ],
+      autoReplaceStringTemplate: 'https://github.com/{{packageName}}/releases/download/{{newValue}}/buildifier-{{depType}}", "{{newDigest}}"',
+      datasourceTemplate: "github-release-attachments",
+    },
   ],
 }
