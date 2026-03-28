@@ -85,13 +85,9 @@ func replaceVars(data []byte) []byte {
 	return []byte(content)
 }
 
-/**
- *
- */
-func main() {
+func process() {
 	var err error
 	var combineStream *os.File
-	flag.Parse()
 
 	yfile, err := os.ReadFile(input)
 
@@ -236,5 +232,10 @@ func main() {
 		log.Fatal(err)
 	}
 
-	err = os.WriteFile(output, replaceVars(result), 0)
+	err = os.WriteFile(output, replaceVars(result), 0644)
+}
+
+func main() {
+	flag.Parse()
+	process()
 }
