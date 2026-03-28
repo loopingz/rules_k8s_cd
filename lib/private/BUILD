@@ -33,16 +33,24 @@ bzl_library(
 )
 
 bzl_library(
-    name = "clair_toolchain",
-    srcs = ["clair_toolchain.bzl"],
+    name = "trivy_toolchain",
+    srcs = ["trivy_toolchain.bzl"],
     visibility = ["//lib:__subpackages__"],
     deps = [
     ],
 )
 
 bzl_library(
-    name = "trivy_toolchain",
-    srcs = ["trivy_toolchain.bzl"],
+    name = "toolchain_factory",
+    srcs = ["toolchain_factory.bzl"],
+    visibility = ["//lib:__subpackages__"],
+    deps = [
+    ],
+)
+
+bzl_library(
+    name = "scanner_factory",
+    srcs = ["scanner_factory.bzl"],
     visibility = ["//lib:__subpackages__"],
     deps = [
     ],
