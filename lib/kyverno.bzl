@@ -29,11 +29,12 @@ kyverno_test = rule(
         "policies": attr.label_list(
             mandatory = True,
             allow_files = [".yaml"],
+            doc = "Kyverno policy YAML files to validate against.",
         ),
         "manifests": attr.label_list(
             mandatory = True,
-            #allow_files = [".yaml"],
-            doc = ("List of manifests. The test will scan all images defined inside manifests."),
+            allow_files = [".yaml"],
+            doc = "Kubernetes manifest files to validate.",
         ),
     },
     toolchains = ["@rules_k8s_cd//lib:kyverno_toolchain_type"],

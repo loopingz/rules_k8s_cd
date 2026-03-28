@@ -50,8 +50,13 @@ def _kubectl_impl(ctx):
 kubectl = rule(
     implementation = _kubectl_impl,
     attrs = {
-        "arguments": attr.string_list(),
-        "data": attr.label_list(allow_files = True),
+        "arguments": attr.string_list(
+            doc = "Arguments to pass to kubectl. Use {{kubectl}} as a placeholder for the kubectl binary path.",
+        ),
+        "data": attr.label_list(
+            allow_files = True,
+            doc = "Data files to make available at runtime (e.g., YAML manifests, configs).",
+        ),
     },
     toolchains = ["@rules_k8s_cd//lib:kubectl_toolchain_type"],
     outputs = {"launch": "%{name}.sh"},
@@ -108,9 +113,15 @@ def _kubectl_export_impl(ctx):
 kubectl_export = rule(
     implementation = _kubectl_export_impl,
     attrs = {
-        "arguments": attr.string_list(),
-        "out": attr.output(),
-        "data": attr.label_list(),
+        "arguments": attr.string_list(
+            doc = "Arguments to pass to kubectl.",
+        ),
+        "out": attr.output(
+            doc = "Output file to write the kubectl command output to.",
+        ),
+        "data": attr.label_list(
+            doc = "Data files to make available during build (e.g., YAML manifests, configs).",
+        ),
     },
     toolchains = ["@rules_k8s_cd//lib:kubectl_toolchain_type"],
     test = False,
