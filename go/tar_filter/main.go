@@ -80,9 +80,7 @@ func init() {
 	flag.BoolVar(&verbose, "verbose", false, "Verbose output")
 }
 
-func main() {
-	flag.Parse()
-
+func process() {
 	if verbose {
 		log.Println("Output", output)
 		log.Println("Inputs", inputs)
@@ -210,4 +208,9 @@ func main() {
 		// 24906730
 		log.Println("Final tar size", s.Size())
 	}
+}
+
+func main() {
+	flag.Parse()
+	process()
 }
