@@ -230,7 +230,7 @@ write_source_file = rule(
 def _tar_filter_impl(ctx):
     out = ctx.actions.declare_file(ctx.attr.name + ".tar.gz")
 
-    args = [ "--input=%s" % f.path for f in ctx.files.srcs ] + [ "--output=%s" % out.path ] + ["--filter=%s" % r for r in ctx.attr.filters] + ["--substitution=%s" % r for r in ctx.attr.substitutions]
+    args = ["--input=%s" % f.path for f in ctx.files.srcs] + ["--output=%s" % out.path] + ["--filter=%s" % r for r in ctx.attr.filters] + ["--substitution=%s" % r for r in ctx.attr.substitutions]
     if ctx.attr.verbose:
         args.append("--verbose")
     ctx.actions.run(
@@ -281,7 +281,7 @@ tar_filter = rule(
         "substitutions": attr.string_list(
             mandatory = False,
             default = [
-                "^\\./:", # Remove leading ./ from paths
+                "^\\./:",  # Remove leading ./ from paths
             ],
         ),
         "verbose": attr.bool(
