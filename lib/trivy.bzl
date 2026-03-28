@@ -1,7 +1,8 @@
-def _trivy_impl(ctx):
-    trivy_bin = ctx.toolchains["@rules_k8s_cd//lib:trivy_toolchain_type"].trivyinfo.bin
+load("//lib/private:scanner_factory.bzl", "create_scanner_rule")
+
+def _trivy_scan_commands(bin_short_path, ctx):
     cmd = ""
-    command = [trivy_bin.short_path]
+    command = [bin_short_path]
     for f in ctx.files.srcs:
         cmd += "mkdir -p $BUILD_WORKSPACE_DIRECTORY/security/reports/" + f.short_path.replace("../", "") + "\n"
         parts = command + ["image", "--input", "./" + f.short_path, "-f", "json", "--output", "$BUILD_WORKSPACE_DIRECTORY/security/reports/" + f.short_path.replace("../", "") + "/trivy.json"]
@@ -13,48 +14,11 @@ def _trivy_impl(ctx):
         parts = command + [f]
         cmd += " ".join([part for part in parts if part]) + "\n"
 
-    # Write the file that will be executed by 'bazel test'.
-    ctx.actions.write(
-        output = ctx.outputs.test,
-        content = cmd,
-    )
+    return cmd
 
-    return [DefaultInfo(
-        executable = ctx.outputs.test,
-        runfiles = ctx.runfiles(files = [
-            trivy_bin,
-        ] + ctx.files.srcs + ctx.files.manifests),
-    )]
-
-# Rule that scans container images for vulnerabilities using Trivy.
-trivy_scan = rule(
-    implementation = _trivy_impl,
-    attrs = {
-        "srcs": attr.label_list(
-            mandatory = False,
-            allow_files = [".tar"],
-            doc = ("List of inputs. The test will scan all images passed as srcs."),
-        ),
-        "images": attr.string_list(
-            mandatory = False,
-            doc = ("List of images. The test will scan all images passed as srcs."),
-        ),
-        "manifests": attr.label_list(
-            mandatory = False,
-            allow_files = [".yaml"],
-            doc = ("List of manifests. The test will scan all images defined inside manifests."),
-        ),
-    },
-    toolchains = ["@rules_k8s_cd//lib:trivy_toolchain_type"],
-    outputs = {"test": "%{name}.sh"},
-    test = False,
-    executable = True,
-)
-
-def _trivy_sbom_impl(ctx):
-    trivy_bin = ctx.toolchains["@rules_k8s_cd//lib:trivy_toolchain_type"].trivyinfo.bin
+def _trivy_sbom_commands(bin_short_path, ctx):
     cmd = ""
-    command = [trivy_bin.short_path]
+    command = [bin_short_path]
     for f in ctx.files.srcs:
         cmd += "mkdir -p $BUILD_WORKSPACE_DIRECTORY/security/reports/" + f.short_path.replace("../", "") + "\n"
         parts = command + ["image", "--input", "./" + f.short_path, "--format", "spdx-json", "--output", "$BUILD_WORKSPACE_DIRECTORY/security/reports/" + f.short_path.replace("../", "") + "/sbom-spdx.json"]
@@ -64,40 +28,20 @@ def _trivy_sbom_impl(ctx):
         parts = command + [f]
         cmd += " ".join([part for part in parts if part]) + "\n"
 
-    # Write the file that will be executed by 'bazel test'.
-    ctx.actions.write(
-        output = ctx.outputs.test,
-        content = cmd,
-    )
+    return cmd
 
-    return [DefaultInfo(
-        executable = ctx.outputs.test,
-        runfiles = ctx.runfiles(files = [
-            trivy_bin,
-        ] + ctx.files.srcs + ctx.files.manifests),
-    )]
+# Rule that scans container images for vulnerabilities using Trivy.
+trivy_scan = create_scanner_rule(
+    toolchain_type = "@rules_k8s_cd//lib:trivy_toolchain_type",
+    info_field = "trivyinfo",
+    build_commands = _trivy_scan_commands,
+    doc = "Rule that scans container images for vulnerabilities using Trivy.",
+)
 
 # Rule that generates an SBOM (Software Bill of Materials) using Trivy.
-trivy_sbom = rule(
-    implementation = _trivy_sbom_impl,
-    attrs = {
-        "srcs": attr.label_list(
-            mandatory = False,
-            allow_files = [".tar"],
-            doc = ("List of inputs. The test will scan all images passed as srcs."),
-        ),
-        "images": attr.string_list(
-            mandatory = False,
-            doc = ("List of images. The test will scan all images passed as srcs."),
-        ),
-        "manifests": attr.label_list(
-            mandatory = False,
-            allow_files = [".yaml"],
-            doc = ("List of manifests. The test will scan all images defined inside manifests."),
-        ),
-    },
-    toolchains = ["@rules_k8s_cd//lib:trivy_toolchain_type"],
-    outputs = {"test": "%{name}.sh"},
-    test = False,
-    executable = True,
+trivy_sbom = create_scanner_rule(
+    toolchain_type = "@rules_k8s_cd//lib:trivy_toolchain_type",
+    info_field = "trivyinfo",
+    build_commands = _trivy_sbom_commands,
+    doc = "Rule that generates an SBOM (Software Bill of Materials) using Trivy.",
 )
