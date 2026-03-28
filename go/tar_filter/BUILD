@@ -8,7 +8,7 @@
 # OF ANY KIND, either express or implied. See the License for the specific language
 # governing permissions and limitations under the License.
 
-load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 
 go_library(
     name = "go_default_library",
@@ -22,4 +22,10 @@ go_binary(
     name = "tar_filter",
     embed = [":go_default_library"],
     visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "tar_filter_test",
+    srcs = ["main_test.go"],
+    embed = [":go_default_library"],
 )
