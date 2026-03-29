@@ -171,6 +171,6 @@ download_binary(<a href="#download_binary-name">name</a>, <a href="#download_bin
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="download_binary-name"></a>name |  A unique name for this repository.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
 | <a id="download_binary-bin"></a>bin |  -   | String | optional |  `""`  |
-| <a id="download_binary-binaries"></a>binaries |  -   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> List of strings</a> | optional |  `{}`  |
+| <a id="download_binary-binaries"></a>binaries |  -   | <a href="https://bazel.build/rules/lib/core/dict">Dictionary: String -> List of strings</a> | optional |  `{}`  |
 
 
