@@ -16,6 +16,54 @@ Bazel rules for building, deploying, scanning, and managing Kubernetes resources
 
 `kyverno_test`: Validate Kubernetes manifests against Kyverno policies
 
+### Kyverno Policy Presets
+
+Three convenience macros validate manifests against curated policy sets:
+
+`kyverno_baseline`: Validates against [Kubernetes Pod Security Standards - Baseline](https://kubernetes.io/docs/concepts/security/pod-security-standards/#baseline) (disallow privileged containers, host namespaces, host ports)
+
+`kyverno_restricted`: Validates against [Kubernetes Pod Security Standards - Restricted](https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted) (all baseline + disallow privilege escalation, require run as non-root)
+
+`kyverno_best_practices`: Validates against operational best practices (require labels, resource limits, disallow latest tag)
+
+Usage:
+
+```python
+load("@rules_k8s_cd//lib:kyverno.bzl", "kyverno_baseline", "kyverno_best_practices", "kyverno_restricted")
+
+kyverno_baseline(
+    name = "security_baseline",
+    manifests = glob(["*.yaml"]),
+)
+
+kyverno_restricted(
+    name = "security_restricted",
+    manifests = glob(["*.yaml"]),
+)
+
+kyverno_best_practices(
+    name = "best_practices",
+    manifests = glob(["*.yaml"]),
+)
+```
+
+### Importing Kyverno Policies
+
+Import policies from the [official Kyverno policy library](https://kyverno.io/policies/):
+
+```bash
+bazel run @rules_k8s_cd//go/kyverno_import -- best-practices/require-labels
+bazel run @rules_k8s_cd//go/kyverno_import -- pod-security/restricted/disallow-privilege-escalation
+```
+
+Configure the output directory in `MODULE.bazel`:
+
+```python
+bazel_lib_toolchains.kyverno(
+    policies_dir = "infra/policies",  # default: "kyverno/policies"
+)
+```
+
 `dive`: Analyze OCI image layers using Dive
 
 ## Macros
