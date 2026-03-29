@@ -4,17 +4,15 @@ Bazel rules for building, deploying, scanning, and managing Kubernetes resources
 
 ## Rules
 
-`kubectl`: Run kubectl commands via `bazel run`
-
-`kubectl_export`: Capture kubectl output to a file at build time
-
-`grype_scan`: Scan OCI images for vulnerabilities using Grype
-
-`trivy_scan`: Scan OCI images for vulnerabilities using Trivy
-
-`trivy_sbom`: Generate an SBOM for an OCI image using Trivy
-
-`kyverno_test`: Validate Kubernetes manifests against Kyverno policies
+| Rule | Description | API Docs |
+|------|-------------|----------|
+| `kubectl` | Run kubectl commands via `bazel run` | |
+| `kubectl_export` | Capture kubectl output to a file at build time | |
+| `grype_scan` | Scan OCI images for vulnerabilities using Grype | [docs/grype.md](docs/grype.md) |
+| `trivy_scan` | Scan OCI images for vulnerabilities using Trivy | [docs/trivy.md](docs/trivy.md) |
+| `trivy_sbom` | Generate an SBOM for an OCI image using Trivy | [docs/trivy.md](docs/trivy.md) |
+| `kyverno_test` | Validate Kubernetes manifests against Kyverno policies | [docs/kyverno.md](docs/kyverno.md) |
+| `dive` | Analyze OCI image layers using Dive | [docs/dive.md](docs/dive.md) |
 
 ### Kyverno Policy Presets
 
@@ -64,8 +62,6 @@ bazel_lib_toolchains.kyverno(
 )
 ```
 
-`dive`: Analyze OCI image layers using Dive
-
 ## Macros
 
 `kustomize`: Build a kustomize overlay and export the rendered YAML
@@ -79,6 +75,8 @@ bazel_lib_toolchains.kyverno(
 `kustomization_injector`: Rule that injects images and patches into a kustomization.yaml
 
 ## Utils
+
+See [docs/utils.md](docs/utils.md) for full API reference.
 
 Rules:
 

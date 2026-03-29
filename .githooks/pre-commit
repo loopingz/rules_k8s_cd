@@ -17,3 +17,14 @@ if ! bazel run @buildifier//:buildifier -- --mode=check $STARLARK_FILES 2>/dev/n
     echo "$STARLARK_FILES" | xargs git add
     echo "Files reformatted and staged."
 fi
+
+# Regenerate stardoc if any rule .bzl files changed
+RULE_FILES=$(echo "$STARLARK_FILES" | grep -E '^lib/[^/]+\.bzl$' || true)
+
+if [ -n "$RULE_FILES" ]; then
+    echo "Regenerating stardoc API docs..."
+    bazel build //docs/... 2>/dev/null
+    cp bazel-bin/docs/*.md docs/ 2>/dev/null || true
+    git add docs/*.md 2>/dev/null || true
+    echo "Docs regenerated and staged."
+fi
