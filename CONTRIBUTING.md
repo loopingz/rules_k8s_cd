@@ -11,6 +11,9 @@
 ### Getting Started
 
 ```bash
+# Enable pre-commit hooks (runs buildifier on staged files)
+git config core.hooksPath .githooks
+
 # Build everything
 bazel build //...
 
