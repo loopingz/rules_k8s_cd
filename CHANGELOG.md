@@ -1,5 +1,23 @@
 # Changelog
 
+## [3.1.0](https://github.com/loopingz/rules_k8s_cd/compare/v3.0.4...v3.1.0) (2026-03-29)
+
+
+### Features
+
+* add buildifier as a toolchain ([6404583](https://github.com/loopingz/rules_k8s_cd/commit/640458378ac8d5cbba5124976979cf4da01cab0c))
+* kyverno presets, buildifier toolchain, and CI fixes ([#349](https://github.com/loopingz/rules_k8s_cd/issues/349)) ([eca6db4](https://github.com/loopingz/rules_k8s_cd/commit/eca6db47991d2cde7b3abbda3168822803e79f55))
+
+
+### Bug Fixes
+
+* **ci:** use buildifier --mode=check instead of --lint=warn ([824f6b8](https://github.com/loopingz/rules_k8s_cd/commit/824f6b8b597624f6e4d0b0264cfcacb8bd2d4709))
+* remove debug print, dead code, and fix copy-paste docstrings ([867f0e4](https://github.com/loopingz/rules_k8s_cd/commit/867f0e4fcbb5c35690cc96f2341f30b628d6c070))
+* remove stale clair references from lib/BUILD and pin buildifier version ([b256043](https://github.com/loopingz/rules_k8s_cd/commit/b256043afc474d318951fbe47f693d85b74389e0))
+* remove stale clair_toolchain target and add factory bzl_library entries ([82d2de4](https://github.com/loopingz/rules_k8s_cd/commit/82d2de4e0445f8c13dcdd9caddf7733e7c6f404b))
+* resolve unsafe type assertions and variable shadowing in Go code ([cc547f3](https://github.com/loopingz/rules_k8s_cd/commit/cc547f3f0c6454b540337d8acf245e875ead394b))
+* trivy URL swap, stardoc generation, kyverno examples ([#350](https://github.com/loopingz/rules_k8s_cd/issues/350)) ([c305f12](https://github.com/loopingz/rules_k8s_cd/commit/c305f1216d4e0e59811b94d88ae53754b9f4cdf5))
+
 ## [3.0.4](https://github.com/loopingz/rules_k8s_cd/compare/v3.0.3...v3.0.4) (2026-03-21)
 
 
