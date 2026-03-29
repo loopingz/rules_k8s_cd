@@ -12,10 +12,8 @@ echo "Running buildifier on staged Starlark files..."
 
 # Run buildifier in check mode first
 if ! bazel run @buildifier//:buildifier -- --mode=check $STARLARK_FILES 2>/dev/null; then
-    echo ""
-    echo "Buildifier found formatting issues. Fixing..."
+    echo "Buildifier found formatting issues. Fixing and re-staging..."
     bazel run @buildifier//:buildifier -- $STARLARK_FILES
-    echo ""
-    echo "Files reformatted. Please stage the changes and commit again."
-    exit 1
+    echo "$STARLARK_FILES" | xargs git add
+    echo "Files reformatted and staged."
 fi
