@@ -67,7 +67,7 @@ toolchains = module_extension(
         "dive": tag_class(attrs = {"name": attr.string(default = DEFAULT_DIVE_REPOSITORY), "version": attr.string(default = DEFAULT_DIVE_VERSION)}),
         "kubectl": tag_class(attrs = {"name": attr.string(default = DEFAULT_KUBECTL_REPOSITORY), "version": attr.string(default = DEFAULT_KUBECTL_VERSION)}),
         "trivy": tag_class(attrs = {"name": attr.string(default = DEFAULT_TRIVY_REPOSITORY), "version": attr.string(default = DEFAULT_TRIVY_VERSION)}),
-        "kyverno": tag_class(attrs = {"name": attr.string(default = DEFAULT_KYVERNO_REPOSITORY), "version": attr.string(default = DEFAULT_KYVERNO_VERSION)}),
+        "kyverno": tag_class(attrs = {"name": attr.string(default = DEFAULT_KYVERNO_REPOSITORY), "version": attr.string(default = DEFAULT_KYVERNO_VERSION), "policies_dir": attr.string(default = "kyverno/policies")}),
         "buildifier": tag_class(attrs = {"name": attr.string(default = DEFAULT_BUILDIFIER_REPOSITORY), "version": attr.string(default = DEFAULT_BUILDIFIER_VERSION)}),
     },
 )
