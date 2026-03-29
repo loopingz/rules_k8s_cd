@@ -8,7 +8,10 @@ filegroup(
 # Restricted is a superset of baseline per Kubernetes Pod Security Standards.
 filegroup(
     name = "restricted",
-    srcs = glob(["baseline/*.yaml", "restricted/*.yaml"]),
+    srcs = glob([
+        "baseline/*.yaml",
+        "restricted/*.yaml",
+    ]),
 )
 
 filegroup(
