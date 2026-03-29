@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Get staged .bzl, BUILD, BUILD.bazel, WORKSPACE, MODULE.bazel files
+STARLARK_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(bzl)$|^BUILD$|^BUILD\.bazel$|/BUILD$|/BUILD\.bazel$|^WORKSPACE$|^MODULE\.bazel$' || true)
+
+if [ -z "$STARLARK_FILES" ]; then
+    exit 0
+fi
+
+echo "Running buildifier on staged Starlark files..."
+
+# Run buildifier in check mode first
+if ! bazel run @buildifier//:buildifier -- --mode=check $STARLARK_FILES 2>/dev/null; then
+    echo ""
+    echo "Buildifier found formatting issues. Fixing..."
+    bazel run @buildifier//:buildifier -- $STARLARK_FILES
+    echo ""
+    echo "Files reformatted. Please stage the changes and commit again."
+    exit 1
+fi
