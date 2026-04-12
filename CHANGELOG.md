@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.1.1](https://github.com/loopingz/rules_k8s_cd/compare/v3.1.0...v3.1.1) (2026-04-12)
+
+
+### Bug Fixes
+
+* add package_metadata dep and fix oci_push_info crane cfg ([9d0d52f](https://github.com/loopingz/rules_k8s_cd/commit/9d0d52fad572e22f8ba92a648321b83eb23008e2))
+
 ## [3.1.0](https://github.com/loopingz/rules_k8s_cd/compare/v3.0.4...v3.1.0) (2026-03-29)
 
 
