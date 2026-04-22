@@ -111,3 +111,73 @@ spec:
 		t.Errorf("color = %v, want blue", c)
 	}
 }
+
+func TestApplyJSON6902_replacesField(t *testing.T) {
+	doc := map[string]any{
+		"apiVersion": "apps/v1",
+		"kind":       "Deployment",
+		"metadata":   map[string]any{"name": "web"},
+		"spec":       map[string]any{"replicas": float64(1)},
+	}
+	patch := []byte(`target:
+  apiVersion: apps/v1
+  kind: Deployment
+  name: web
+patch:
+  - op: replace
+    path: /spec/replicas
+    value: 5
+`)
+	out, err := ApplyJSON6902([]map[string]any{doc}, "p.yaml", patch)
+	if err != nil {
+		t.Fatalf("ApplyJSON6902: %v", err)
+	}
+	got := out[0]["spec"].(map[string]any)["replicas"]
+	if f, ok := got.(float64); !ok || f != 5 {
+		t.Errorf("replicas = %v, want 5", got)
+	}
+}
+
+func TestApplyJSON6902_addOp(t *testing.T) {
+	doc := map[string]any{
+		"apiVersion": "v1",
+		"kind":       "Service",
+		"metadata":   map[string]any{"name": "s", "labels": map[string]any{"a": "1"}},
+	}
+	patch := []byte(`target:
+  apiVersion: v1
+  kind: Service
+  name: s
+patch:
+  - op: add
+    path: /metadata/labels/b
+    value: "2"
+`)
+	out, err := ApplyJSON6902([]map[string]any{doc}, "p.yaml", patch)
+	if err != nil {
+		t.Fatalf("ApplyJSON6902: %v", err)
+	}
+	got := out[0]["metadata"].(map[string]any)["labels"].(map[string]any)["b"]
+	if got != "2" {
+		t.Errorf("label b = %v, want 2", got)
+	}
+}
+
+func TestApplyJSON6902_unmatchedTargetErrors(t *testing.T) {
+	doc := map[string]any{
+		"apiVersion": "v1", "kind": "Service",
+		"metadata": map[string]any{"name": "s"},
+	}
+	patch := []byte(`target:
+  apiVersion: v1
+  kind: Service
+  name: missing
+patch:
+  - op: replace
+    path: /metadata/name
+    value: x
+`)
+	if _, err := ApplyJSON6902([]map[string]any{doc}, "p.yaml", patch); err == nil {
+		t.Error("expected error for unmatched target")
+	}
+}

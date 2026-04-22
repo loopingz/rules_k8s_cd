@@ -128,3 +128,51 @@ func findDoc(docs []map[string]any, target map[string]string) int {
 	}
 	return -1
 }
+
+type json6902File struct {
+	Target map[string]string `json:"target"`
+	Patch  []any             `json:"patch"`
+}
+
+// ApplyJSON6902 applies a single JSON6902 patch file (YAML with top-level
+// `target:` and `patch:` keys) to the matching document.
+func ApplyJSON6902(docs []map[string]any, patchPath string, patchBytes []byte) ([]map[string]any, error) {
+	var f json6902File
+	if err := yaml.Unmarshal(patchBytes, &f); err != nil {
+		return nil, fmt.Errorf("parse patch %s: %w", patchPath, err)
+	}
+	if f.Target["apiVersion"] == "" || f.Target["kind"] == "" || f.Target["name"] == "" {
+		return nil, fmt.Errorf("patch %s: target missing apiVersion/kind/name", patchPath)
+	}
+	idx := findDoc(docs, f.Target)
+	if idx < 0 {
+		return nil, fmt.Errorf("patch %s: target %s/%s name=%q namespace=%q does not match any rendered resource",
+			patchPath, f.Target["apiVersion"], f.Target["kind"], f.Target["name"], f.Target["namespace"])
+	}
+
+	opsJSON, err := json.Marshal(f.Patch)
+	if err != nil {
+		return nil, fmt.Errorf("patch %s: marshal ops: %w", patchPath, err)
+	}
+	patch, err := jsonpatch.DecodePatch(opsJSON)
+	if err != nil {
+		return nil, fmt.Errorf("patch %s: decode: %w", patchPath, err)
+	}
+	origJSON, err := json.Marshal(docs[idx])
+	if err != nil {
+		return nil, fmt.Errorf("patch %s: marshal original: %w", patchPath, err)
+	}
+	modifiedJSON, err := patch.Apply(origJSON)
+	if err != nil {
+		return nil, fmt.Errorf("patch %s: apply: %w", patchPath, err)
+	}
+	var merged map[string]any
+	if err := json.Unmarshal(modifiedJSON, &merged); err != nil {
+		return nil, fmt.Errorf("patch %s: unmarshal merged: %w", patchPath, err)
+	}
+
+	out := make([]map[string]any, len(docs))
+	copy(out, docs)
+	out[idx] = merged
+	return out, nil
+}
