@@ -86,3 +86,119 @@ helm_pull = module_extension(
         }),
     },
 )
+
+# ---------- helm_template rule ----------
+
+# HelmInfo provider is exposed by the toolchain defined in lib/private/helm_toolchain.bzl.
+# The helm binary is available via the toolchain at `@rules_k8s_cd//lib:helm_toolchain_type`.
+
+def _helm_template_impl(ctx):
+    chart_files = ctx.files.chart
+    if not chart_files:
+        fail("helm_template: `chart` has no files")
+
+    # The chart directory is the parent of Chart.yaml. Accept either a
+    # filegroup covering all chart files or a single directory label.
+    chart_root = None
+    for f in chart_files:
+        if f.basename == "Chart.yaml":
+            chart_root = f.dirname
+            break
+    if chart_root == None:
+        chart_root = chart_files[0].dirname
+
+    rendered = ctx.actions.declare_file(ctx.label.name + "_rendered.yaml")
+
+    helm_toolchain = ctx.toolchains["@rules_k8s_cd//lib:helm_toolchain_type"]
+    helm_bin = helm_toolchain.helminfo.helm
+
+    release = ctx.attr.release_name if ctx.attr.release_name else ctx.label.name
+
+    # Action 1: helm template -> rendered.yaml (via shell wrapper for stdout redirect).
+    helm_cmd_args = [helm_bin.path, "template", release, chart_root, "--namespace", ctx.attr.namespace]
+    for v in ctx.files.values:
+        helm_cmd_args += ["-f", v.path]
+
+    ctx.actions.run_shell(
+        outputs = [rendered],
+        inputs = chart_files + ctx.files.values,
+        tools = [helm_bin],
+        command = '"$@" > "%s"' % rendered.path,
+        arguments = helm_cmd_args,
+        mnemonic = "HelmTemplate",
+        progress_message = "helm template %s" % ctx.label,
+    )
+
+    # Action 2: helm_postrender -> final output.
+    out = ctx.outputs.out
+    postrender = ctx.executable._postrender
+
+    pr_args = ctx.actions.args()
+    pr_args.add("--in", rendered.path)
+    pr_args.add("--out", out.path)
+    for s in ctx.attr.exclude:
+        pr_args.add("--exclude", s)
+    for p in ctx.files.patchesStrategicMerge:
+        pr_args.add("--patch-sm", p.path)
+    for p in ctx.files.patchesJson6902:
+        pr_args.add("--patch-json6902", p.path)
+
+    ctx.actions.run(
+        executable = postrender,
+        arguments = [pr_args],
+        inputs = [rendered] + ctx.files.patchesStrategicMerge + ctx.files.patchesJson6902,
+        outputs = [out],
+        mnemonic = "HelmPostRender",
+        progress_message = "helm_postrender %s" % ctx.label,
+    )
+
+    return [DefaultInfo(files = depset([out]))]
+
+_helm_template = rule(
+    implementation = _helm_template_impl,
+    attrs = {
+        "chart": attr.label(mandatory = True, allow_files = True, doc = "Chart directory (typically `@name//:chart` from helm_pull) or a filegroup covering a local chart"),
+        "values": attr.label_list(allow_files = True, doc = "Values YAML files, merged in order (later overrides earlier)"),
+        "release_name": attr.string(default = "", doc = "Helm release name; defaults to target name"),
+        "namespace": attr.string(default = "default", doc = "Namespace for rendering"),
+        "exclude": attr.string_list(doc = "Pre-serialized exclude selectors (set by the helm_template macro)"),
+        "patchesStrategicMerge": attr.label_list(allow_files = True, doc = "Strategic-merge patch files"),
+        "patchesJson6902": attr.label_list(allow_files = True, doc = "JSON6902 patch files (target + patch format)"),
+        "out": attr.output(mandatory = True, doc = "Output YAML file path"),
+        "_postrender": attr.label(
+            default = Label("//go/helm_postrender:helm_postrender"),
+            cfg = "exec",
+            executable = True,
+        ),
+    },
+    toolchains = ["@rules_k8s_cd//lib:helm_toolchain_type"],
+)
+
+def helm_template(name, exclude = None, out = None, **kwargs):
+    """Render a Helm chart, then optionally filter and patch the output.
+
+    Args:
+      name: Target name.
+      exclude: List of selector dicts (each with optional keys apiVersion/kind/name/namespace).
+               Resources matching ANY selector are dropped. Empty/None disables filtering.
+      out: Output YAML file name (defaults to <name>.yaml).
+      **kwargs: Passed through: chart, values, release_name, namespace,
+                patchesStrategicMerge, patchesJson6902.
+    """
+    serialized = []
+    if exclude:
+        for sel in exclude:
+            parts = []
+            for k in ("apiVersion", "kind", "name", "namespace"):
+                if k in sel:
+                    parts.append("%s=%s" % (k, sel[k]))
+            if not parts:
+                fail("helm_template: exclude dict must contain at least one of apiVersion/kind/name/namespace")
+            serialized.append(",".join(parts))
+
+    _helm_template(
+        name = name,
+        exclude = serialized,
+        out = out if out else (name + ".yaml"),
+        **kwargs
+    )
