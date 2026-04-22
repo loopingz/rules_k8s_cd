@@ -62,6 +62,11 @@ bzl_library(
 )
 
 bzl_library(
+    name = "helm",
+    srcs = ["helm.bzl"],
+)
+
+bzl_library(
     name = "kubectl",
     srcs = ["kubectl.bzl"],
     deps = [

@@ -14,3 +14,18 @@ npm.npm_translate_lock(
 use_repo(npm, "npm-website")
 
 bazel_dep(name = "rules_k8s_cd", version = "3.0.0")
+
+local_path_override(
+    module_name = "rules_k8s_cd",
+    path = "..",
+)
+
+helm_pull = use_extension("@rules_k8s_cd//lib:helm.bzl", "helm_pull")
+helm_pull.chart(
+    name    = "podinfo",
+    repo    = "https://stefanprodan.github.io/podinfo",
+    chart   = "podinfo",
+    version = "6.7.1",
+    sha256  = "887ba6bdf74e24c1499b044fa395bad97a142e1d3e7ffc28278dcab112c50632",
+)
+use_repo(helm_pull, "podinfo")
