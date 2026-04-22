@@ -34,6 +34,10 @@ toolchain_type(
     name = "buildifier_toolchain_type",
 )
 
+toolchain_type(
+    name = "helm_toolchain_type",
+)
+
 bzl_library(
     name = "repositories",
     srcs = ["repositories.bzl"],
@@ -41,6 +45,7 @@ bzl_library(
         "//lib/private:buildifier_toolchain",
         "//lib/private:dive_toolchain",
         "//lib/private:grype_toolchain",
+        "//lib/private:helm_toolchain",
         "//lib/private:kubectl_toolchain",
         "//lib/private:kyverno_toolchain",
         "//lib/private:trivy_toolchain",

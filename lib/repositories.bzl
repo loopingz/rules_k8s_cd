@@ -1,6 +1,7 @@
 load("//lib/private:buildifier_toolchain.bzl", "BUILDIFIER_PLATFORMS", "buildifier_host_alias_repo", "buildifier_platform_repo", "buildifier_toolchains_repo")
 load("//lib/private:dive_toolchain.bzl", "DIVE_PLATFORMS", "dive_host_alias_repo", "dive_platform_repo", "dive_toolchains_repo")
 load("//lib/private:grype_toolchain.bzl", "GRYPE_PLATFORMS", "grype_host_alias_repo", "grype_platform_repo", "grype_toolchains_repo")
+load("//lib/private:helm_toolchain.bzl", "HELM_PLATFORMS", "helm_host_alias_repo", "helm_platform_repo", "helm_toolchains_repo")
 load("//lib/private:kubectl_toolchain.bzl", "KUBECTL_PLATFORMS", "kubectl_host_alias_repo", "kubectl_platform_repo", "kubectl_toolchains_repo")
 load("//lib/private:kyverno_toolchain.bzl", "KYVERNO_PLATFORMS", "kyverno_host_alias_repo", "kyverno_platform_repo", "kyverno_toolchains_repo")
 load("//lib/private:trivy_toolchain.bzl", "TRIVY_PLATFORMS", "trivy_host_alias_repo", "trivy_platform_repo", "trivy_toolchains_repo")
@@ -145,6 +146,30 @@ def register_buildifier_toolchains(name = "buildifier", register = True):
     buildifier_host_alias_repo(name = name)
 
     buildifier_toolchains_repo(
+        name = "%s_toolchains" % name,
+        user_repository_name = name,
+    )
+
+def register_helm_toolchains(name = "helm", register = True):
+    """Registers helm toolchain and repositories
+
+    Args:
+        name: override the prefix for the generated toolchain repositories
+        register: whether to call through to native.register_toolchains.
+            Should be True for WORKSPACE users, but false when used under bzlmod extension
+    """
+    for [platform, _] in HELM_PLATFORMS.items():
+        helm_platform_repo(
+            name = "%s_%s" % (name, platform),
+            platform = platform,
+        )
+
+        if register:
+            native.register_toolchains("@%s_toolchains//:%s_toolchain" % (name, platform))
+
+    helm_host_alias_repo(name = name)
+
+    helm_toolchains_repo(
         name = "%s_toolchains" % name,
         user_repository_name = name,
     )
