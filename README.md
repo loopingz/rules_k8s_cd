@@ -15,6 +15,7 @@ Bazel rules for building, deploying, scanning, and managing Kubernetes resources
 | `dive` | Analyze OCI image layers using Dive | [docs/dive.md](docs/dive.md) |
 | `oci_push_info` | Push OCI image and expose registry/digest metadata | |
 | `kustomization_injector` | Inject images, patches, and resources into a kustomization.yaml | |
+| `helm_template` | Render a Helm chart with values, filter resources, apply strategic-merge and JSON6902 patches | [docs/helm.md](docs/helm.md) |
 
 ### Kyverno Policy Presets
 
@@ -259,6 +260,27 @@ overlays/            # strategic merge patches (and per-env subdirectories)
 patches/             # JSON 6902 patches (and per-env subdirectories)
 ```
 
+## Helm
+
+Render charts from classic Helm repositories, with optional post-render filtering and strategic-merge / JSON6902 patching. See [docs/helm.md](docs/helm.md).
+
+```python
+load("@rules_k8s_cd//lib:helm.bzl", "helm_template")
+
+helm_template(
+    name         = "ingress_nginx_prod",
+    chart        = "@ingress_nginx//:chart",
+    values       = ["values.yaml"],
+    release_name = "ingress-nginx",
+    namespace    = "ingress-system",
+    exclude = [
+        {"kind": "NetworkPolicy"},
+    ],
+    patchesStrategicMerge = ["patches/resources.yaml"],
+    patchesJson6902       = ["patches/tolerations.yaml"],
+)
+```
+
 ## OCI Push Info
 
 The `oci_push_info` rule wraps `oci_push` and exposes a `ContainerPushInfo` provider, making image metadata (registry, repository, digest) available to downstream rules like `kustomization_injector`.
@@ -288,6 +310,7 @@ All toolchains are managed via the `toolchains` module extension and support the
 | dive | `bazel_lib_toolchains.dive()` | `@dive//:dive` |
 | kyverno | `bazel_lib_toolchains.kyverno()` | `@kyverno//:kyverno` |
 | buildifier | `bazel_lib_toolchains.buildifier()` | `@buildifier//:buildifier` |
+| helm | `bazel_lib_toolchains.helm()` | `@helm//:helm` |
 
 Each tag accepts optional `name` and `version` attributes to override defaults.
 
