@@ -17,6 +17,14 @@ bzl_library(
 )
 
 bzl_library(
+    name = "helm_toolchain",
+    srcs = ["helm_toolchain.bzl"],
+    visibility = ["//lib:__subpackages__"],
+    deps = [
+    ],
+)
+
+bzl_library(
     name = "kubectl_toolchain",
     srcs = ["kubectl_toolchain.bzl"],
     visibility = ["//lib:__subpackages__"],
