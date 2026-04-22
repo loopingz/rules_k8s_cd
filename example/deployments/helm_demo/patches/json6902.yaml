@@ -1,0 +1,9 @@
+target:
+  apiVersion: v1
+  kind: Service
+  name: demo
+patch:
+  - op: add
+    path: /metadata/labels
+    value:
+      team: platform
