@@ -1,3 +1,4 @@
 bazel-*
 .kubectl.json
 docs/superpowers
+MODULE.bazel.lock
