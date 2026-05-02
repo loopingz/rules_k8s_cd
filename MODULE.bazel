@@ -5,7 +5,7 @@ module(
 )
 
 # Add dep based on https://github.com/bazelbuild/rules_go/issues/3442
-bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
 bazel_dep(name = "rules_oci", version = "2.3.0")
 bazel_dep(name = "package_metadata", version = "0.0.7")
