@@ -7,7 +7,6 @@ _binaries = {
     "linux_arm64": ("https://github.com/kyverno/kyverno/releases/download/v1.15.1/kyverno-cli-v1.15.1_linux_arm64.tar.gz", "de2a9398cd9d75747e0fd50ce824a31389663a0e50e62481ddf8f52a40172d24"),
 }
 
-DEFAULT_KYVERNO_VERSION = "1.9.0"
 DEFAULT_KYVERNO_REPOSITORY = "kyverno"
 
 KYVERNO_PLATFORMS = {

@@ -7,7 +7,6 @@ _binaries = {
     "linux_arm64": ("https://github.com/anchore/grype/releases/download/v0.111.0/grype_0.111.0_linux_arm64.tar.gz", "1a8b9bd691ce274e44056e7572cdf8c6970bdf9ec694001f7b4b17962b121b43"),
 }
 
-DEFAULT_GRYPE_VERSION = "0.106.0"
 DEFAULT_GRYPE_REPOSITORY = "grype"
 
 GRYPE_PLATFORMS = {

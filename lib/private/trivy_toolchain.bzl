@@ -7,7 +7,6 @@ _binaries = {
     "linux_arm64": ("https://github.com/aquasecurity/trivy/releases/download/v0.70.0/trivy_0.70.0_Linux-ARM64.tar.gz", "2f6bb988b553a1bbac6bdd1ce890f5e412439564e17522b88a4541b4f364fc8d"),
 }
 
-DEFAULT_TRIVY_VERSION = "0.68.2"
 DEFAULT_TRIVY_REPOSITORY = "trivy"
 
 TRIVY_PLATFORMS = {

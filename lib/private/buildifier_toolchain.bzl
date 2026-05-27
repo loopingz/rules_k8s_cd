@@ -7,7 +7,6 @@ _binaries = {
     "linux_arm64": ("https://github.com/bazelbuild/buildtools/releases/download/v8.5.1/buildifier-linux-arm64", "947bf6700d708026b2057b09bea09abbc3cafc15d9ecea35bb3885c4b09ccd04"),
 }
 
-DEFAULT_BUILDIFIER_VERSION = "8.5.1"
 DEFAULT_BUILDIFIER_REPOSITORY = "buildifier"
 
 BUILDIFIER_PLATFORMS = {

@@ -7,7 +7,6 @@ _binaries = {
     "linux_arm64": ("https://github.com/wagoodman/dive/releases/download/v0.13.1/dive_0.13.1_linux_arm64.tar.gz", "2fcd2cf20f634ccdb41efac44048b204bfc867c115641f37a7420693ed480a18"),
 }
 
-DEFAULT_DIVE_VERSION = "0.12.0"
 DEFAULT_DIVE_REPOSITORY = "dive"
 
 DIVE_PLATFORMS = {
