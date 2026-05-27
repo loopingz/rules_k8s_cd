@@ -1,5 +1,27 @@
 # Changelog
 
+## [4.0.0](https://github.com/loopingz/rules_k8s_cd/compare/v3.1.1...v4.0.0) (2026-05-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* **deps:** the version attribute is no longer accepted on the trivy, grype, dive, kyverno and buildifier toolchain tag classes. Remove any version="..." argument from these calls in MODULE.bazel; it was previously ignored.
+
+### Features
+
+* **deps:** remove attr version for binaries ([7063f4d](https://github.com/loopingz/rules_k8s_cd/commit/7063f4dd3aeb172a330177a997c79d63361ef556))
+
+
+### Bug Fixes
+
+* **deps:** update dependency aspect_rules_js to v3.1.2 ([#365](https://github.com/loopingz/rules_k8s_cd/issues/365)) ([dd80859](https://github.com/loopingz/rules_k8s_cd/commit/dd8085935388a38d621eeffbf6808f298aa19bdc))
+* **deps:** update dependency bazel to v9.1.0 ([#360](https://github.com/loopingz/rules_k8s_cd/issues/360)) ([fe26826](https://github.com/loopingz/rules_k8s_cd/commit/fe268263db493302e549e619a540c2509ce5f7ef))
+* **deps:** update dependency grype to v0.112.0 ([#362](https://github.com/loopingz/rules_k8s_cd/issues/362)) ([583a2dc](https://github.com/loopingz/rules_k8s_cd/commit/583a2dca26a183299ebc353439d02c065ade0649))
+* **deps:** update dependency package_metadata to v0.0.10 ([#363](https://github.com/loopingz/rules_k8s_cd/issues/363)) ([84b6b58](https://github.com/loopingz/rules_k8s_cd/commit/84b6b581bf7dc0042a7c450f4ebf2a8c272d44ba))
+* **deps:** update dependency platforms to v1.1.0 ([#364](https://github.com/loopingz/rules_k8s_cd/issues/364)) ([3507cdf](https://github.com/loopingz/rules_k8s_cd/commit/3507cdfc51ae5c706a349213e409ef55a3dd3adf))
+* **deps:** update kubectl ([#358](https://github.com/loopingz/rules_k8s_cd/issues/358)) ([9b81de5](https://github.com/loopingz/rules_k8s_cd/commit/9b81de575fb56bc52ceee203bf71ae8afe54fc53))
+* **deps:** update nginx docker digest to 5aca995 ([#361](https://github.com/loopingz/rules_k8s_cd/issues/361)) ([dbd7e4d](https://github.com/loopingz/rules_k8s_cd/commit/dbd7e4dc66e31160894fc8d74abc719c80c7c459))
+
 ## [3.1.1](https://github.com/loopingz/rules_k8s_cd/compare/v3.1.0...v3.1.1) (2026-04-12)
 
 
