@@ -1,60 +1,70 @@
 {
-  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
   customManagers: [
     {
-      customType: "regex",
-      fileMatch: ["^lib/private/grype_toolchain.bzl$"],
-      matchStringsStrategy: "recursive",
+      customType: 'regex',
+      managerFilePatterns: [
+        '/^lib/private/grype_toolchain.bzl$/',
+      ],
+      matchStringsStrategy: 'recursive',
       matchStrings: [
-        "_binaries\\W=\\W({[^}]+)",
+        '_binaries\\W=\\W({[^}]+)',
         'https://github.com/(?<packageName>[^/]+/(?<depName>[^/]+))/releases/download/(?<currentValue>[^/]+)/grype_\\d+\\.\\d+\\.\\d+(?<depType>[^"]*)",\\W"(?<currentDigest>[^"]+)"',
       ],
       autoReplaceStringTemplate: 'https://github.com/{{packageName}}/releases/download/{{newValue}}/grype_{{replace "v" "" newValue}}{{depType}}", "{{newDigest}}"',
-      datasourceTemplate: "github-release-attachments",
+      datasourceTemplate: 'github-release-attachments',
     },
     {
-      customType: "regex",
-      fileMatch: ["^lib/private/trivy_toolchain.bzl$"],
-      matchStringsStrategy: "recursive",
+      customType: 'regex',
+      managerFilePatterns: [
+        '/^lib/private/trivy_toolchain.bzl$/',
+      ],
+      matchStringsStrategy: 'recursive',
       matchStrings: [
-        "_binaries\\W=\\W({[^}]+)",
-        'https://github.com/(?<packageName>[^/]+/(?<depName>[^/]+))/releases/download/(?<currentValue>[^/]+)/trivy_\\d+\\.\\d+\\.\\d+(?<depType>[^\"]*)",\\W"(?<currentDigest>[^\"]+)"',
+        '_binaries\\W=\\W({[^}]+)',
+        'https://github.com/(?<packageName>[^/]+/(?<depName>[^/]+))/releases/download/(?<currentValue>[^/]+)/trivy_\\d+\\.\\d+\\.\\d+(?<depType>[^"]*)",\\W"(?<currentDigest>[^"]+)"',
       ],
       autoReplaceStringTemplate: 'https://github.com/{{packageName}}/releases/download/{{newValue}}/trivy_{{replace "v" "" newValue}}{{depType}}", "{{newDigest}}"',
-      datasourceTemplate: "github-release-attachments",
+      datasourceTemplate: 'github-release-attachments',
     },
     {
-      customType: "regex",
-      fileMatch: ["^lib/private/kyverno_toolchain.bzl$"],
-      matchStringsStrategy: "recursive",
+      customType: 'regex',
+      managerFilePatterns: [
+        '/^lib/private/kyverno_toolchain.bzl$/',
+      ],
+      matchStringsStrategy: 'recursive',
       matchStrings: [
-        "_binaries\\W=\\W({[^}]+)",
-        'https://github.com/(?<packageName>[^/]+/(?<depName>[^/]+))/releases/download/(?<currentValue>[^/]+)/kyverno_\\d+\\.\\d+\\.\\d+(?<depType>[^\"]*)",\\W"(?<currentDigest>[^\"]+)"',
+        '_binaries\\W=\\W({[^}]+)',
+        'https://github.com/(?<packageName>[^/]+/(?<depName>[^/]+))/releases/download/(?<currentValue>[^/]+)/kyverno_\\d+\\.\\d+\\.\\d+(?<depType>[^"]*)",\\W"(?<currentDigest>[^"]+)"',
       ],
       autoReplaceStringTemplate: 'https://github.com/{{packageName}}/releases/download/{{newValue}}/kyverno_{{replace "v" "" newValue}}{{depType}}", "{{newDigest}}"',
-      datasourceTemplate: "github-release-attachments",
+      datasourceTemplate: 'github-release-attachments',
     },
     {
-      customType: "regex",
-      fileMatch: ["^lib/private/dive_toolchain.bzl$"],
-      matchStringsStrategy: "recursive",
+      customType: 'regex',
+      managerFilePatterns: [
+        '/^lib/private/dive_toolchain.bzl$/',
+      ],
+      matchStringsStrategy: 'recursive',
       matchStrings: [
-        "_binaries\\W=\\W({[^}]+)",
+        '_binaries\\W=\\W({[^}]+)',
         'https://github.com/(?<packageName>[^/]+/(?<depName>[^/]+))/releases/download/(?<currentValue>[^/]+)/dive_\\d+\\.\\d+\\.\\d+(?<depType>[^"]*)",\\W"(?<currentDigest>[^"]+)"',
       ],
       autoReplaceStringTemplate: 'https://github.com/{{packageName}}/releases/download/{{newValue}}/dive_{{replace "v" "" newValue}}{{depType}}", "{{newDigest}}"',
-      datasourceTemplate: "github-release-attachments",
+      datasourceTemplate: 'github-release-attachments',
     },
     {
-      customType: "regex",
-      fileMatch: ["^lib/private/buildifier_toolchain.bzl$"],
-      matchStringsStrategy: "recursive",
+      customType: 'regex',
+      managerFilePatterns: [
+        '/^lib/private/buildifier_toolchain.bzl$/',
+      ],
+      matchStringsStrategy: 'recursive',
       matchStrings: [
-        "_binaries\\W=\\W({[^}]+)",
+        '_binaries\\W=\\W({[^}]+)',
         'https://github.com/(?<packageName>[^/]+/(?<depName>[^/]+))/releases/download/(?<currentValue>[^/]+)/buildifier-(?<depType>[^"]*)",\\W"(?<currentDigest>[^"]+)"',
       ],
       autoReplaceStringTemplate: 'https://github.com/{{packageName}}/releases/download/{{newValue}}/buildifier-{{depType}}", "{{newDigest}}"',
-      datasourceTemplate: "github-release-attachments",
+      datasourceTemplate: 'github-release-attachments',
     },
   ],
 }
