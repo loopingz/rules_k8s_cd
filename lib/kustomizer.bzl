@@ -4,12 +4,12 @@ load(":kubectl.bzl", "kubectl", "kubectl_export")
 load(":oci.bzl", "ContainerPushInfo")
 load(":utils.bzl", "write_source_file")
 
-def kustomize(name, data = [], out = "", **kwargs):
+def kustomize(name, data = [], out = "", dir = "", **kwargs):
     if (out == ""):
         out = name + ".yaml"
     kubectl_export(
         name = name,
-        arguments = ["kustomize", "--load-restrictor", "LoadRestrictionsNone", native.package_name() + "/"],
+        arguments = ["kustomize", "--load-restrictor", "LoadRestrictionsNone", native.package_name() + "/" + dir],
         data = data,
         out = out,
         **kwargs
@@ -22,10 +22,10 @@ def kustomize(name, data = [], out = "", **kwargs):
 # data: The Kubernetes context to use. Defaults to the current context.
 # template: The name of the template file to use. Defaults to the resource name with a .yaml extension.
 # kwargs: Additional arguments to pass to the kubectl command.
-def kustomize_show(name, data = [], **kwargs):
+def kustomize_show(name, data = [], dir = "", **kwargs):
     kubectl(
         name = name,
-        arguments = ["kustomize", "--load-restrictor", "LoadRestrictionsNone", native.package_name()],
+        arguments = ["kustomize", "--load-restrictor", "LoadRestrictionsNone", native.package_name() + ("/" + dir if dir else "")],
         data = data,
         **kwargs
     )
@@ -38,11 +38,11 @@ def kustomize_show(name, data = [], **kwargs):
 # data: The Kustomize directory to use1.
 # template: The name of the template file to use. Defaults to the resource name with a .yaml extension.
 # kwargs: Additional arguments to pass to the kubectl command.
-def kustomize_apply(name, context = None, data = [], **kwargs):
+def kustomize_apply(name, context = None, data = [], dir = "", **kwargs):
     args = ["kustomize"]
     if context != None:
         args.extend(["--context", context])
-    args.extend(["--load-restrictor", "LoadRestrictionsNone", native.package_name(), "|", "{{kubectl}}"])
+    args.extend(["--load-restrictor", "LoadRestrictionsNone", native.package_name() + ("/" + dir if dir else ""), "|", "{{kubectl}}"])
     if context != None:
         args.extend(["--context", context])
     args.extend(["apply", "-f", "-"])
@@ -63,12 +63,13 @@ def kustomize_apply(name, context = None, data = [], **kwargs):
 #
 # Returns:
 # - None
-def kustomize_gitops(name, data, out):
+def kustomize_gitops(name, data, out, dir = ""):
     # Generate the yaml file
     kustomize(
         name = "_" + name + ".kustomize",
         data = data,
         out = out,
+        dir = dir,
         visibility = ["//visibility:private"],
     )
 
@@ -82,7 +83,9 @@ def kustomize_gitops(name, data, out):
 # Implementation of injector
 #  - preparing inputs/outputs for the go binary //go/kustomizer:kustomizer
 def _kustomization_injector_impl(ctx):
-    out = ctx.actions.declare_file("kustomization.yaml")
+    # Nest the kustomization.yaml in a directory named after the target so
+    # several kustomization_injector targets can coexist in the same package.
+    out = ctx.actions.declare_file(ctx.attr.name + "/kustomization.yaml")
     builddir = ctx.build_file_path.split("/")
     builddir.pop()
     builddir = "/".join(builddir) + "/"
@@ -90,6 +93,9 @@ def _kustomization_injector_impl(ctx):
         "--input=%s" % ctx.files.input[0].path,
         "--output=%s" % out.path,
         "--relativePath=%s" % builddir,
+        # Paths in the generated file must be relative to its directory,
+        # which is one level below the package directory.
+        "--pathPrefix=../",
     ]
     for img in ctx.attr.images:
         arguments.append("--image=%s:oci_push_info://%s" % (img[ContainerPushInfo].name, img.files.to_list()[0].path))
