@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.0.1](https://github.com/loopingz/rules_k8s_cd/compare/v4.0.0...v4.0.1) (2026-09-17)
+
+
+### Bug Fixes
+
+* allow multiple kustomization_injector targets per package ([#384](https://github.com/loopingz/rules_k8s_cd/issues/384)) ([2f1d635](https://github.com/loopingz/rules_k8s_cd/commit/2f1d635dc8f81d0a6788ba574af9f84a910116ea))
+* **deps:** update dependencies ([4159adc](https://github.com/loopingz/rules_k8s_cd/commit/4159adc5060ac77a9ccb6d0219c349119a0bae64))
+
 ## [4.0.0](https://github.com/loopingz/rules_k8s_cd/compare/v3.1.1...v4.0.0) (2026-05-27)
 
 
