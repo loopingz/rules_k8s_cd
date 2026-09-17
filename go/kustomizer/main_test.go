@@ -208,6 +208,61 @@ resources: []
 	}
 }
 
+// TestResourcePathPrefix verifies that pathPrefix is prepended to relative
+// resource paths, used when the kustomization.yaml is nested one directory
+// below the package (per-target directory).
+func TestResourcePathPrefix(t *testing.T) {
+	dir := t.TempDir()
+
+	inputPath := writeFile(t, dir, "kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources: []
+`)
+	outputPath := filepath.Join(dir, "out.yaml")
+
+	resetGlobals()
+	input = inputPath
+	output = outputPath
+	relativePath = "/some/prefix/"
+	pathPrefix = "../"
+	paths = arrayFlags{"resources:/some/prefix/deployment.yaml"}
+
+	process()
+
+	m := readYAML(t, outputPath)
+	resList := m["resources"].([]interface{})
+	if resList[0] != "../deployment.yaml" {
+		t.Errorf("expected prefixed path ../deployment.yaml, got %v", resList[0])
+	}
+}
+
+// TestCombinePathPrefix verifies that the combine resource entry also gets the prefix.
+func TestCombinePathPrefix(t *testing.T) {
+	dir := t.TempDir()
+
+	inputPath := writeFile(t, dir, "kustomization.yaml", `
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+`)
+	outputPath := filepath.Join(dir, "out.yaml")
+	combinePath := filepath.Join(dir, "combined.yaml")
+
+	resetGlobals()
+	input = inputPath
+	output = outputPath
+	combine = combinePath
+	pathPrefix = "../"
+
+	process()
+
+	m := readYAML(t, outputPath)
+	resList := m["resources"].([]interface{})
+	if resList[0] != "../combined.yaml" {
+		t.Errorf("expected prefixed combine path ../combined.yaml, got %v", resList[0])
+	}
+}
+
 // TestVarSubstitutionEndToEnd verifies that vars are substituted in the final output.
 func TestVarSubstitutionEndToEnd(t *testing.T) {
 	dir := t.TempDir()

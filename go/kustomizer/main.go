@@ -29,6 +29,7 @@ var (
 	input        string
 	repository   string
 	relativePath string
+	pathPrefix   string
 )
 
 // https://github.com/kubernetes-sigs/kustomize/blob/master/api/types/image.go#L8
@@ -68,6 +69,7 @@ func init() {
 	flag.StringVar(&output, "output", "", "The output file")
 	flag.StringVar(&combine, "combine", "", "The combined manifests file")
 	flag.StringVar(&relativePath, "relativePath", "", "The relative path for resources")
+	flag.StringVar(&pathPrefix, "pathPrefix", "", "Prefix added to relative resource paths (e.g. ../ when the kustomization file is nested one level below the package)")
 	flag.StringVar(&input, "input", "", "The input file")
 	flag.StringVar(&repository, "repository", "", "Repository prefix for images")
 	flag.Var(&images, "image", "The image file (can be used multiple times)")
@@ -106,7 +108,7 @@ func process() {
 	if combine != "" {
 		// Get only filename
 		tmp := strings.Split(combine, "/")
-		data["resources"] = []interface{}{tmp[len(tmp)-1]}
+		data["resources"] = []interface{}{pathPrefix + tmp[len(tmp)-1]}
 		combineStream, err = os.OpenFile(combine, os.O_CREATE|os.O_WRONLY, 0644)
 		defer combineStream.Close()
 		if err != nil {
@@ -117,7 +119,7 @@ func process() {
 		info := strings.SplitN(p, ":", 2)
 		var value interface{} = info[1]
 		if strings.HasPrefix(info[1], relativePath) {
-			value = info[1][len(relativePath):]
+			value = pathPrefix + info[1][len(relativePath):]
 		}
 		// Specific case as patchJson6902 need to be replaced by inline
 		if info[0] == "patchesJson6902" {
