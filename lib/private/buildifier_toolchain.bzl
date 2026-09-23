@@ -1,10 +1,10 @@
 load("//lib/private:toolchain_factory.bzl", "create_toolchain")
 
 _binaries = {
-    "darwin_amd64": ("https://github.com/bazelbuild/buildtools/releases/download/v10.0.1/buildifier-darwin-amd64", "1d02bb9148cadf2cbee330f9bd657352c765b52b68a03d970e10e47706bdc436"),
-    "darwin_arm64": ("https://github.com/bazelbuild/buildtools/releases/download/v10.0.1/buildifier-darwin-arm64", "afb78f350319b59cc51d6add3a5f3ba68e63e5d88f68c5a9ea6328a07084d319"),
-    "linux_amd64": ("https://github.com/bazelbuild/buildtools/releases/download/v10.0.1/buildifier-linux-amd64", "e0ea28e2d639347724435ebafe0531fd764fbf20eec6a23000c81edd0d58e51d"),
-    "linux_arm64": ("https://github.com/bazelbuild/buildtools/releases/download/v10.0.1/buildifier-linux-arm64", "6d7aebd23aa85847a66d517bb6220d95f24a2752e62cce0f089145b680b539c7"),
+    "darwin_amd64": ("https://github.com/bazelbuild/buildtools/releases/download/v10.1.0/buildifier-darwin-amd64", "e9e10ff52ec8786fcabccd251c8109ebf31ef7be1f667e27c6e069b96dbdc1f6"),
+    "darwin_arm64": ("https://github.com/bazelbuild/buildtools/releases/download/v10.1.0/buildifier-darwin-arm64", "e9804864c407f920f5ecbf03a5e056a8145e11a6ae6b90d2438a3fd106d34473"),
+    "linux_amd64": ("https://github.com/bazelbuild/buildtools/releases/download/v10.1.0/buildifier-linux-amd64", "31b6a8aa1e5c746696788f428729701770ad91925873d8256cb885c60e12c77e"),
+    "linux_arm64": ("https://github.com/bazelbuild/buildtools/releases/download/v10.1.0/buildifier-linux-arm64", "38d2ed845f560b4a16ddee41de906508a95f8dc85b04e0851b0a71e3a70d3890"),
 }
 
 DEFAULT_BUILDIFIER_REPOSITORY = "buildifier"
