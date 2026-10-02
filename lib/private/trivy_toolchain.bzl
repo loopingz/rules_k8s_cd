@@ -1,10 +1,10 @@
 load("//lib/private:toolchain_factory.bzl", "create_toolchain")
 
 _binaries = {
-    "darwin_amd64": ("https://github.com/aquasecurity/trivy/releases/download/v0.74.0/trivy_0.74.0_macOS-64bit.tar.gz", "472816f6888dda689d075c30254d4210b4d1035acf365aa72332f584c2f60485"),
-    "darwin_arm64": ("https://github.com/aquasecurity/trivy/releases/download/v0.74.0/trivy_0.74.0_macOS-ARM64.tar.gz", "1caada5e0e2091909357c7525d3aa76f4b660b13821bc143b190c7483e31cc11"),
-    "linux_amd64": ("https://github.com/aquasecurity/trivy/releases/download/v0.74.0/trivy_0.74.0_Linux-64bit.tar.gz", "2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a"),
-    "linux_arm64": ("https://github.com/aquasecurity/trivy/releases/download/v0.74.0/trivy_0.74.0_Linux-ARM64.tar.gz", "b94ce1976bbf3c15b514b605ee88be7c6d94a29be2302847ff01cb794d47aad5"),
+    "darwin_amd64": ("https://github.com/aquasecurity/trivy/releases/download/v0.75.0/trivy_0.75.0_macOS-64bit.tar.gz", "291edaa9778acbe4693d067b5ad60ee11570e5ac68296e85595417528ca641e4"),
+    "darwin_arm64": ("https://github.com/aquasecurity/trivy/releases/download/v0.75.0/trivy_0.75.0_macOS-ARM64.tar.gz", "4a77108cccf8e55c8d6823e1e759939a622277e66cd0daa3c1fc621ed69e4568"),
+    "linux_amd64": ("https://github.com/aquasecurity/trivy/releases/download/v0.75.0/trivy_0.75.0_Linux-64bit.tar.gz", "c6e65abddb348e25f10549df887045629cf28cc72453cd1c63acb717316b3f3f"),
+    "linux_arm64": ("https://github.com/aquasecurity/trivy/releases/download/v0.75.0/trivy_0.75.0_Linux-ARM64.tar.gz", "a1ee9f6ffb7d112b64ff726a2a0717c21175c1114361391f4a132956751a13b3"),
 }
 
 DEFAULT_TRIVY_REPOSITORY = "trivy"
