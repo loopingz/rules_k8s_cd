@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.0.2](https://github.com/loopingz/rules_k8s_cd/compare/v4.0.1...v4.0.2) (2026-10-06)
+
+
+### Bug Fixes
+
+* **deps:** update dependency rules_go to v0.64.1 ([#390](https://github.com/loopingz/rules_k8s_cd/issues/390)) ([d04513a](https://github.com/loopingz/rules_k8s_cd/commit/d04513a2e2b23f3c533f92ce87ffc9935af2e30a))
+* **deps:** update dependency trivy to v0.75.0 ([#391](https://github.com/loopingz/rules_k8s_cd/issues/391)) ([955aa90](https://github.com/loopingz/rules_k8s_cd/commit/955aa90ce2b2629c8a5ec0cd689ef269ef716e09))
+
 ## [4.0.1](https://github.com/loopingz/rules_k8s_cd/compare/v4.0.0...v4.0.1) (2026-09-17)
 
 
