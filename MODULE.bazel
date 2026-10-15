@@ -38,7 +38,7 @@ oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
 # Declare external images you need to pull, for example:
 oci.pull(
     name = "nginx",
-    digest = "sha256:f9ea18bfa4fad859e1ed38259d711da7ccad2c3516e875cec3351a57c859f571",
+    digest = "sha256:332d0beea97cff8c0d5d27976c0778a4b00345b9d74c2feaaf8efde548314948",
     image = "docker.io/library/nginx",
     platforms = ["linux/amd64"],
 )
