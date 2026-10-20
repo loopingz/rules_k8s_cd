@@ -67,4 +67,14 @@
       datasourceTemplate: 'github-release-attachments',
     },
   ],
+  packageRules: [
+    {
+      description: 'Scanner updates ship new vulnerability detection, release them as fixes',
+      matchDepNames: [
+        'grype',
+        'trivy',
+      ],
+      semanticCommitType: 'fix',
+    },
+  ],
 }
