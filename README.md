@@ -8,6 +8,7 @@ Bazel rules for building, deploying, scanning, and managing Kubernetes resources
 |------|-------------|----------|
 | `kubectl` | Run kubectl commands via `bazel run` | |
 | `kubectl_export` | Capture kubectl output to a file at build time | |
+| `helm_template` | Render a local Helm chart to YAML with optional resource exclusions | [docs/helm.md](docs/helm.md) |
 | `grype_scan` | Scan OCI images for vulnerabilities using Grype | [docs/grype.md](docs/grype.md) |
 | `trivy_scan` | Scan OCI images for vulnerabilities using Trivy | [docs/trivy.md](docs/trivy.md) |
 | `trivy_sbom` | Generate an SBOM for an OCI image using Trivy | [docs/trivy.md](docs/trivy.md) |
@@ -15,6 +16,44 @@ Bazel rules for building, deploying, scanning, and managing Kubernetes resources
 | `dive` | Analyze OCI image layers using Dive | [docs/dive.md](docs/dive.md) |
 | `oci_push_info` | Push OCI image and expose registry/digest metadata | |
 | `kustomization_injector` | Inject images, patches, and resources into a kustomization.yaml | |
+
+### Helm rendering
+
+Render a local chart with managed Helm (no local installation required):
+
+```python
+load("@rules_k8s_cd//lib:helm.bzl", "helm_template")
+
+helm_template(
+    name = "app",
+    chart = "chart/Chart.yaml",
+    data = glob(["chart/**"]),
+    release_name = "my-app",
+    namespace = "production",
+    values = ["values-production.yaml"],
+    set = {"replicaCount": "3"},
+    exclude_kinds = ["Secret"],
+    exclude_resources = [
+        "Service/my-app-metrics",          # Match this name in any namespace.
+        "Job/production/my-app-migration", # Match this namespace and name.
+    ],
+)
+```
+
+`bazel build //path:app` produces `bazel-bin/path/app.yaml`. Use `:app` as an input to `kustomization_injector`, `kyverno_test`, or other manifest rules. Set `out` to choose the output filename. The `chart` attribute also accepts a local `.tgz` or `.tar.gz` chart archive, or a generated directory containing a chart. Include all chart files and vendored dependencies in `data` when using `Chart.yaml`.
+
+Filters remove matching resources after rendering; exclusions are combined with OR. Kinds match exactly and are case sensitive. Resource patterns use `Kind/name` or `Kind/namespace/name`, with shell style globs (`*`, `?`, `[abc]`) within each component. Namespace matches the rendered `metadata.namespace`; `Kind//name` matches resources with no namespace specified. Resources inside Kubernetes `List` objects are filtered too, and empty Lists are removed. Filters do not update references to removed resources.
+
+Values files apply in order, followed by `set` and `set_string` overrides. `set_string` preserves strings such as `"00123"`. `include_crds = True` includes chart CRDs; `skip_tests = True` omits Helm test hooks. `kube_version` and `api_versions` configure Helm capabilities. Charts render with isolated Helm configuration; vendor chart dependencies before building. Templates using randomness or the current time retain Helm's normal behavior.
+
+The Helm toolchain is registered by this module. For explicit extension setup:
+
+```python
+tools = use_extension("@rules_k8s_cd//lib:extensions.bzl", "toolchains")
+tools.helm()
+use_repo(tools, "helm_toolchains")
+register_toolchains("@helm_toolchains//:all")
+```
 
 ### Kyverno Policy Presets
 

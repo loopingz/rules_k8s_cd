@@ -3,6 +3,13 @@ load("@stardoc//stardoc:stardoc.bzl", "stardoc")
 package(default_visibility = ["//visibility:private"])
 
 stardoc(
+    name = "helm_doc",
+    out = "helm.md",
+    input = "//lib:helm.bzl",
+    deps = ["//lib:helm"],
+)
+
+stardoc(
     name = "kyverno_doc",
     out = "kyverno.md",
     input = "//lib:kyverno.bzl",
