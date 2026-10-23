@@ -6,6 +6,7 @@ load(
     "register_buildifier_toolchains",
     "register_dive_toolchains",
     "register_grype_toolchains",
+    "register_helm_toolchains",
     "register_kubectl_toolchains",
     "register_kyverno_toolchains",
     "register_trivy_toolchains",
@@ -13,11 +14,20 @@ load(
 load("@rules_k8s_cd//lib/private:buildifier_toolchain.bzl", "DEFAULT_BUILDIFIER_REPOSITORY")
 load("@rules_k8s_cd//lib/private:dive_toolchain.bzl", "DEFAULT_DIVE_REPOSITORY")
 load("@rules_k8s_cd//lib/private:grype_toolchain.bzl", "DEFAULT_GRYPE_REPOSITORY")
+load("@rules_k8s_cd//lib/private:helm_toolchain.bzl", "DEFAULT_HELM_REPOSITORY")
 load("@rules_k8s_cd//lib/private:kubectl_toolchain.bzl", "DEFAULT_KUBECTL_REPOSITORY", "DEFAULT_KUBECTL_VERSION")
 load("@rules_k8s_cd//lib/private:kyverno_toolchain.bzl", "DEFAULT_KYVERNO_REPOSITORY")
 load("@rules_k8s_cd//lib/private:trivy_toolchain.bzl", "DEFAULT_TRIVY_REPOSITORY")
 
 def _toolchains_extension_impl(mctx):
+    extension_utils.toolchain_repos_bfs(
+        mctx = mctx,
+        get_tag_fn = lambda tags: tags.helm,
+        toolchain_name = "helm",
+        toolchain_repos_fn = lambda name, version: register_helm_toolchains(name = name, register = False),
+        get_version_fn = lambda attr: None,
+    )
+
     extension_utils.toolchain_repos_bfs(
         mctx = mctx,
         get_tag_fn = lambda tags: tags.grype,
@@ -68,6 +78,7 @@ def _toolchains_extension_impl(mctx):
 toolchains = module_extension(
     implementation = _toolchains_extension_impl,
     tag_classes = {
+        "helm": tag_class(attrs = {"name": attr.string(default = DEFAULT_HELM_REPOSITORY)}),
         "grype": tag_class(attrs = {"name": attr.string(default = DEFAULT_GRYPE_REPOSITORY)}),
         "dive": tag_class(attrs = {"name": attr.string(default = DEFAULT_DIVE_REPOSITORY)}),
         "kubectl": tag_class(attrs = {"name": attr.string(default = DEFAULT_KUBECTL_REPOSITORY), "version": attr.string(default = DEFAULT_KUBECTL_VERSION)}),

@@ -10,6 +10,8 @@ exports_files([
 # Ensure that users building their own rules can dep on our bzl_library targets for their stardoc
 package(default_visibility = ["//visibility:public"])
 
+toolchain_type(name = "helm_toolchain_type")
+
 toolchain_type(
     name = "grype_toolchain_type",
 )
@@ -41,6 +43,7 @@ bzl_library(
         "//lib/private:buildifier_toolchain",
         "//lib/private:dive_toolchain",
         "//lib/private:grype_toolchain",
+        "//lib/private:helm_toolchain",
         "//lib/private:kubectl_toolchain",
         "//lib/private:kyverno_toolchain",
         "//lib/private:trivy_toolchain",
@@ -113,4 +116,9 @@ bzl_library(
         "@aspect_bazel_lib//lib:stamping",
         "@bazel_skylib//lib:dicts",
     ],
+)
+
+bzl_library(
+    name = "helm",
+    srcs = ["helm.bzl"],
 )

@@ -18,15 +18,17 @@ bazel_dep(name = "stardoc", version = "0.8.1")
 bazel_lib_toolchains = use_extension("@rules_k8s_cd//lib:extensions.bzl", "toolchains")
 bazel_lib_toolchains.grype()
 bazel_lib_toolchains.dive()
+bazel_lib_toolchains.helm()
 bazel_lib_toolchains.kubectl()
 bazel_lib_toolchains.kyverno()
 bazel_lib_toolchains.trivy()
 bazel_lib_toolchains.buildifier()
-use_repo(bazel_lib_toolchains, "buildifier", "buildifier_toolchains", "dive_toolchains", "grype_toolchains", "kubectl_toolchains", "kyverno_toolchains", "trivy_toolchains")
+use_repo(bazel_lib_toolchains, "buildifier", "buildifier_toolchains", "dive_toolchains", "grype_toolchains", "helm_toolchains", "kubectl_toolchains", "kyverno_toolchains", "trivy_toolchains")
 
 register_toolchains(
     "@grype_toolchains//:all",
     "@dive_toolchains//:all",
+    "@helm_toolchains//:all",
     "@kubectl_toolchains//:all",
     "@kyverno_toolchains//:all",
     "@trivy_toolchains//:all",

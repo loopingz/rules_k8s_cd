@@ -63,3 +63,10 @@ bzl_library(
     deps = [
     ],
 )
+
+bzl_library(
+    name = "helm_toolchain",
+    srcs = ["helm_toolchain.bzl"],
+    visibility = ["//lib:__subpackages__"],
+    deps = [":toolchain_factory"],
+)

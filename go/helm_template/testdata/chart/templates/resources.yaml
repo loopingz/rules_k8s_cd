@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    kubeVersion: {{ .Capabilities.KubeVersion.Version | quote }}
+spec:
+  replicas: {{ .Values.replicas }}
+  template:
+    metadata:
+      annotations:
+        code: {{ .Values.code | quote }}
+        message: {{ .Values.message | quote }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Release.Name }}-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-metrics
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ .Release.Name }}-test
+  annotations:
+    helm.sh/hook: test
