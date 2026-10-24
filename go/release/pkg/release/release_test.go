@@ -480,6 +480,29 @@ func TestPRRequiresMainTip(t *testing.T) {
 	}
 }
 
+func TestPRSkipsWhenMainMoved(t *testing.T) {
+	f := setup(t)
+	f.commit("fix: a", map[string]string{"a/x.go": "x\n"})
+	// Someone pushes to main after this checkout.
+	other := t.TempDir()
+	git(t, other, "clone", "-q", f.origin, ".")
+	write(t, other, "a/z.go", "z\n")
+	git(t, other, "add", "-A")
+	git(t, other, "commit", "-q", "-m", "fix: later")
+	git(t, other, "push", "-q", "origin", "HEAD:main")
+	git(t, f.dir, "fetch", "-q", "origin")
+
+	if err := PR(f.env(), comps()); err != nil {
+		t.Fatalf("err = %v, want pr skipped", err)
+	}
+	if !contains(f.warns, "main moved since checkout; skipping pr (the next run will update PRs)") {
+		t.Errorf("warns = %v", f.warns)
+	}
+	if len(f.forge.calls) != 0 || f.remoteRef("refs/heads/release/a") != "" {
+		t.Errorf("pr ran on a stale checkout: calls %v", f.forge.calls)
+	}
+}
+
 func TestPRDryRun(t *testing.T) {
 	f := setup(t)
 	f.forge.prs["release/b"] = &forge.PR{Number: 3, Head: "release/b", Body: "<!-- rules_k8s_cd:release b -->"}

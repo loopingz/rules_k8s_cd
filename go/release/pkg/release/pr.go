@@ -19,7 +19,8 @@ import (
 // and an open PR for it; a component with nothing to release has its open
 // release PR closed. A component whose release is merged but not tagged yet
 // is left alone, so the untagged version is never overwritten. HEAD must be
-// the tip of the main branch. Errors of one component do not stop the
+// the tip of the main branch; when main moved on since the checkout, pr is
+// skipped with a warning (see checkMainTip). Errors of one component do not stop the
 // others; they are joined.
 func PR(e Env, comps []component.Component) error {
 	if e.Remote == "" || e.MainBranch == "" {
@@ -28,7 +29,7 @@ func PR(e Env, comps []component.Component) error {
 	if e.Forge == nil && !e.DryRun {
 		return errors.New("release pr: no forge configured")
 	}
-	if err := checkMainTip(e); err != nil {
+	if skip, err := checkMainTip(e); err != nil || skip {
 		return err
 	}
 	plans, err := Status(e, comps)
@@ -41,23 +42,31 @@ func PR(e Env, comps []component.Component) error {
 	return errors.Join(errs...)
 }
 
-// checkMainTip errors when HEAD is not the tip of <remote>/<main>; it only
-// warns when that remote-tracking ref is unknown.
-func checkMainTip(e Env) error {
+// checkMainTip errors when HEAD is not the tip of <remote>/<main> and has
+// diverged from it. When main only moved on since the checkout (HEAD is an
+// ancestor of the tip) it warns and returns skip: the run triggered by the
+// newer commits updates the PRs. It only warns when the remote-tracking ref
+// is unknown.
+func checkMainTip(e Env) (skip bool, err error) {
 	head, err := e.Repo.RevParse("HEAD")
 	if err != nil {
-		return err
+		return false, err
 	}
 	ref := "refs/remotes/" + e.Remote + "/" + e.MainBranch
 	out, err := e.Repo.Git("rev-parse", "--verify", "--quiet", "--end-of-options", ref+"^{commit}")
 	if err != nil {
 		e.warn("cannot check that HEAD is the tip of %s/%s: %s not found", e.Remote, e.MainBranch, ref)
-		return nil
+		return false, nil
 	}
-	if tip := strings.TrimSpace(string(out)); tip != head {
-		return fmt.Errorf("release pr: HEAD %s is not the tip of %s/%s (%s); check out the main branch", head, e.Remote, e.MainBranch, tip)
+	tip := strings.TrimSpace(string(out))
+	if tip == head {
+		return false, nil
 	}
-	return nil
+	if _, err := e.Repo.Git("merge-base", "--is-ancestor", head, tip); err == nil {
+		e.warn("%s moved since checkout; skipping pr (the next run will update PRs)", e.MainBranch)
+		return true, nil
+	}
+	return false, fmt.Errorf("release pr: HEAD %s is not the tip of %s/%s (%s); check out the main branch", head, e.Remote, e.MainBranch, tip)
 }
 
 func prOne(e Env, p Plan) error {
