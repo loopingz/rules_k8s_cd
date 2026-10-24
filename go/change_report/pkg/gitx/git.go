@@ -161,15 +161,26 @@ func (r Repo) CommitURLTemplate() string {
 }
 
 func commitURLFromRemote(remote string) string {
-	var host, path string
-	scheme := "https"
+	scheme, host, path, ok := ParseRemote(remote)
+	if !ok {
+		return ""
+	}
+	return scheme + "://" + host + "/" + path + "/commit/{sha}"
+}
+
+// ParseRemote splits a git remote URL (https, http, ssh:// or scp-like
+// user@host:path forms) into the web scheme, host and "owner/repo" path
+// (".git" suffix stripped). ssh remotes map to the "https" scheme and lose
+// their port. ok is false when the remote is not of that shape.
+func ParseRemote(remote string) (scheme, host, path string, ok bool) {
+	scheme = "https"
 	switch {
 	case strings.HasPrefix(remote, "https://") || strings.HasPrefix(remote, "http://") || strings.HasPrefix(remote, "ssh://"):
 		sep := strings.Index(remote, "://")
 		rest := remote[sep+3:]
 		slash := strings.IndexByte(rest, '/')
 		if slash < 0 {
-			return ""
+			return "", "", "", false
 		}
 		host, path = rest[:slash], rest[slash+1:]
 		if at := strings.LastIndexByte(host, '@'); at >= 0 {
@@ -189,13 +200,13 @@ func commitURLFromRemote(remote string) string {
 		colon := strings.IndexByte(rest, ':')
 		host, path = rest[:colon], rest[colon+1:]
 	default:
-		return ""
+		return "", "", "", false
 	}
 	path = strings.TrimSuffix(strings.Trim(path, "/"), ".git")
 	if host == "" || path == "" || !strings.Contains(path, "/") {
-		return ""
+		return "", "", "", false
 	}
-	return scheme + "://" + host + "/" + path + "/commit/{sha}"
+	return scheme, host, path, true
 }
 
 // Dirty reports whether the working tree under Dir has uncommitted changes,

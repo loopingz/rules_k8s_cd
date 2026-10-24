@@ -313,3 +313,24 @@ func TestTagsAndTagCommit(t *testing.T) {
 		t.Errorf("missing tag: ok=%v err=%v", ok, err)
 	}
 }
+
+func TestParseRemote(t *testing.T) {
+	tests := []struct {
+		in                 string
+		scheme, host, path string
+		ok                 bool
+	}{
+		{"https://h.com/o/r.git", "https", "h.com", "o/r", true},
+		{"http://u:p@h.com:3000/o/r/", "http", "h.com:3000", "o/r", true},
+		{"ssh://git@h.com:2222/o/r.git", "https", "h.com", "o/r", true},
+		{"git@h.com:o/r.git", "https", "h.com", "o/r", true},
+		{"/local/path", "", "", "", false},
+		{"https://h.com/solo", "", "", "", false},
+	}
+	for _, tt := range tests {
+		s, h, p, ok := ParseRemote(tt.in)
+		if s != tt.scheme || h != tt.host || p != tt.path || ok != tt.ok {
+			t.Errorf("ParseRemote(%q) = %q %q %q %v", tt.in, s, h, p, ok)
+		}
+	}
+}
