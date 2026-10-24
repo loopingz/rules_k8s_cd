@@ -1,6 +1,7 @@
 package bazelq
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -36,9 +37,6 @@ func TestParse(t *testing.T) {
 		{Label: "@@//pkg:viamacro", Kind: "rule", RuleClass: "filegroup", Inputs: []string{"@@//pkg:manifests/a.yaml", "@@//pkg:manifests/b.yaml"}},
 		{Label: "@@//sub:g", Kind: "rule", RuleClass: "genrule", Inputs: []string{"@@//pkg:viamacro", "@@bazel_tools//tools/genrule:genrule-setup.sh"}},
 		{Label: "@@//sub:o.txt", Kind: "generated", GeneratingRule: "@@//sub:g"},
-	}
-	for i := range nodes {
-		nodes[i].Attrs = nil // covered by TestParseAttrs
 	}
 	if !reflect.DeepEqual(nodes, want) {
 		t.Errorf("got %+v\nwant %+v", nodes, want)
@@ -145,7 +143,7 @@ func TestParseAttrs(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer f.Close()
-	nodes, err := Parse(f)
+	nodes, err := ParseWithAttrs(f)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,8 +174,53 @@ func TestParseAttrs(t *testing.T) {
 	if _, ok := a["exec_group_compatible_with"]; ok {
 		t.Error("non-explicit LABEL_LIST_DICT should be skipped")
 	}
-	if got, ok := a["tags"]; !ok || got.Type != "STRING_LIST" || got.StringList != nil {
+	if got, ok := a["tags"]; !ok || got.Type != "STRING_LIST" || got.StringList != nil || got.Explicit {
 		t.Errorf("tags = %+v, %v", got, ok)
+	}
+	if got := a["el"]; got.Type != "LABEL_LIST" || !got.Explicit || len(got.StringList) != 0 {
+		t.Errorf("el (explicit empty) = %+v", got)
+	}
+	if got := a["dl"]; got.Type != "STRING_LIST" || got.Explicit || len(got.StringList) != 0 {
+		t.Errorf("dl (defaulted) = %+v", got)
+	}
+	if !a["s"].Explicit || !a["b"].Explicit {
+		t.Error("s and b should be Explicit")
+	}
+}
+
+func TestParseLeavesAttrsNil(t *testing.T) {
+	f, err := os.Open("testdata/attrs.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	nodes, err := Parse(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(nodes) != 1 || nodes[0].Attrs != nil {
+		t.Errorf("Parse must not fill Attrs: %+v", nodes)
+	}
+}
+
+func TestQueryWithAttrs(t *testing.T) {
+	b, err := os.ReadFile("testdata/attrs.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, err := QueryWithAttrs(&fakeRunner{out: string(b)}, "//pkg:x")
+	if err != nil || len(nodes) != 1 || nodes[0].Attrs["s"].String != "hello" {
+		t.Errorf("nodes=%+v err=%v", nodes, err)
+	}
+}
+
+func TestNodeAttrsNotSerialized(t *testing.T) {
+	b, err := json.Marshal(Node{Label: "x", Attrs: map[string]Attr{"s": {Type: "STRING", String: "v"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), "Attrs") || strings.Contains(string(b), "hello") || strings.Contains(string(b), `"v"`) {
+		t.Errorf("Attrs serialized: %s", b)
 	}
 }
 
