@@ -1,0 +1,210 @@
+package extdeps
+
+import (
+	"fmt"
+	"os"
+	"path"
+	"path/filepath"
+	"regexp"
+	"strings"
+
+	"loopingz.com/rules_k8s_cd/change_report/pkg/bazelq"
+)
+
+var quotedRe = regexp.MustCompile(`"([^"\\]*)"`)
+
+// companionGroups lists files that are read together; mapping one maps all
+// siblings in the same directory.
+var companionGroups = [][]string{
+	{"go.mod", "go.sum"},
+	{"go.work", "go.work.sum"},
+	{"package.json", "pnpm-lock.yaml", "package-lock.json", "yarn.lock"},
+}
+
+func addWithCompanions(files map[string]bool, p string) {
+	files[p] = true
+	dir, base := path.Split(p)
+	for _, g := range companionGroups {
+		for _, n := range g {
+			if n == base {
+				for _, s := range g {
+					files[dir+s] = true
+				}
+			}
+		}
+	}
+}
+
+// FromShowExtension parses `bazel mod show_extension` output. Files come from
+// main-repo labels in the root module's tag lines; repos from each extension's
+// "Fetched repositories:" list, mapped to canonical names.
+func FromShowExtension(out []byte) Mapping {
+	m := Mapping{FileRepos: map[string][]string{}}
+	var (
+		repos   []string // current extension's canonical repos
+		prefix  string
+		inRepos bool
+		inRoot  bool
+		inUse   bool
+		files   = map[string]bool{}
+	)
+	flush := func() {
+		for f := range files {
+			m.FileRepos[f] = append(m.FileRepos[f], repos...)
+		}
+		files = map[string]bool{}
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimRight(line, "\r")
+		switch {
+		case strings.HasPrefix(line, "## Usage in "):
+			inRepos, inUse = false, false
+			inRoot = strings.HasPrefix(line, "## Usage in <root>")
+			continue
+		case strings.HasPrefix(line, "## "):
+			flush()
+			id := strings.TrimSuffix(strings.TrimSpace(line[3:]), ":")
+			prefix, _ = canonicalPrefix(id)
+			repos = nil
+			inRepos, inRoot, inUse = false, false, false
+			continue
+		case strings.HasPrefix(line, "Fetched repositories:"):
+			inRepos = true
+			continue
+		}
+		if inRepos {
+			t := strings.TrimSpace(line)
+			if rest, ok := strings.CutPrefix(t, "- "); ok {
+				if f := strings.Fields(rest); len(f) > 0 {
+					repos = append(repos, prefix+f[0])
+				}
+			} else if t != "" {
+				inRepos = false
+			}
+			continue
+		}
+		if !inRoot {
+			continue
+		}
+		t := strings.TrimSpace(line)
+		if inUse {
+			if strings.HasPrefix(t, ")") {
+				inUse = false
+			}
+			continue
+		}
+		if strings.HasPrefix(t, "use_repo(") {
+			inUse = !strings.Contains(t, ")")
+			continue
+		}
+		for _, q := range quotedRe.FindAllStringSubmatch(t, -1) {
+			if p, ok := labelPath(q[1]); ok {
+				addWithCompanions(files, p)
+			}
+		}
+	}
+	flush()
+	for f := range m.FileRepos {
+		m.FileRepos[f] = uniqSorted(m.FileRepos[f])
+	}
+	return m
+}
+
+var useExtRe = regexp.MustCompile(`use_extension\(\s*(?:\w+\s*=\s*)?"([^"]+)"\s*,\s*(?:\w+\s*=\s*)?"([^"]+)"`)
+
+func stripComments(mb []byte) string {
+	var b strings.Builder
+	for _, l := range strings.Split(string(mb), "\n") {
+		if strings.HasPrefix(strings.TrimSpace(l), "#") {
+			continue
+		}
+		b.WriteString(l)
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
+
+// RootExtensions returns "<bzl>%<name>" ids for the use_extension calls in
+// MODULE.bazel, in the apparent-label form `bazel mod show_extension` accepts.
+func RootExtensions(moduleBazel []byte) []string {
+	var ids []string
+	seen := map[string]bool{}
+	for _, m := range useExtRe.FindAllStringSubmatch(stripComments(moduleBazel), -1) {
+		id := m[1] + "%" + m[2]
+		if !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
+var (
+	localRe  = regexp.MustCompile(`(?s)\b(?:local_path_override|local_repository)\(([^)]*)\)`)
+	pathAttr = regexp.MustCompile(`\bpath\s*=\s*"([^"]*)"`)
+	depRe    = regexp.MustCompile(`\bbazel_dep\(\s*name\s*=\s*"([^"]+)"`)
+)
+
+// LocalPaths returns the `path` of local_path_override and local_repository calls.
+func LocalPaths(moduleBazel []byte) []string {
+	var out []string
+	for _, m := range localRe.FindAllStringSubmatch(stripComments(moduleBazel), -1) {
+		if p := pathAttr.FindStringSubmatch(m[1]); p != nil {
+			out = append(out, p[1])
+		}
+	}
+	return uniqSorted(out)
+}
+
+// ModuleRepos returns the canonical repos ("<name>+") of bazel_dep modules.
+func ModuleRepos(moduleBazel []byte) []string {
+	var out []string
+	for _, m := range depRe.FindAllStringSubmatch(stripComments(moduleBazel), -1) {
+		out = append(out, m[1]+"+")
+	}
+	return uniqSorted(out)
+}
+
+// Load combines the lockfile mapping with `bazel mod show_extension` for the
+// root module's extensions. If lockfile is empty it first runs
+// `bazel mod deps --lockfile_mode=update` and reads <ws>/MODULE.bazel.lock.
+// Extension ids for which show_extension fails are skipped and returned as
+// warnings (the caller's unmapped-dependency-file safety net covers them).
+func Load(ws string, run bazelq.Runner, lockfile []byte, moduleBazel []byte) (Mapping, []string, error) {
+	if len(lockfile) == 0 {
+		if _, err := run.Run("mod", "deps", "--lockfile_mode=update"); err != nil {
+			return Mapping{}, nil, fmt.Errorf("generating lockfile: %w", err)
+		}
+		var err error
+		if lockfile, err = os.ReadFile(filepath.Join(ws, "MODULE.bazel.lock")); err != nil {
+			return Mapping{}, nil, fmt.Errorf("reading lockfile: %w", err)
+		}
+	}
+	m, err := FromLockfile(lockfile)
+	if err != nil {
+		return Mapping{}, nil, fmt.Errorf("parsing lockfile: %w", err)
+	}
+	var warns []string
+	if ids := RootExtensions(moduleBazel); len(ids) > 0 {
+		out, err := run.Run(append([]string{"mod", "show_extension"}, ids...)...)
+		if err == nil {
+			m = m.Merge(FromShowExtension(out))
+		} else if len(ids) == 1 {
+			warns = append(warns, ids[0])
+		} else {
+			for _, id := range ids {
+				if out, err := run.Run("mod", "show_extension", id); err != nil {
+					warns = append(warns, id)
+				} else {
+					m = m.Merge(FromShowExtension(out))
+				}
+			}
+		}
+	}
+	m.ModuleRepos = ModuleRepos(moduleBazel)
+	m.LocalPaths = LocalPaths(moduleBazel)
+	if m.FileRepos == nil {
+		m.FileRepos = map[string][]string{}
+	}
+	return m, warns, nil
+}
