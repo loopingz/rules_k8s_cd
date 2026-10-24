@@ -16,6 +16,7 @@ Bazel rules for building, deploying, scanning, and managing Kubernetes resources
 | `dive` | Analyze OCI image layers using Dive | [docs/dive.md](docs/dive.md) |
 | `oci_push_info` | Push OCI image and expose registry/digest metadata | |
 | `kustomization_injector` | Inject images, patches, and resources into a kustomization.yaml | |
+| `change_report` | CLI reporting which targets changed since a baseline commit, with a commit changelog and removed gitops targets | [docs/change_report.md](docs/change_report.md) |
 
 ### Helm rendering
 
