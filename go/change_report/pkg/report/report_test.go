@@ -482,3 +482,15 @@ func TestModuleBzlFileGlobal(t *testing.T) {
 		}
 	}
 }
+
+// A source directory used as a label (srcs = ["chart"]) covers its contents.
+func TestSourceDirectoryInClosure(t *testing.T) {
+	in := input(map[string]graph.Closure{
+		"//a:a": cl([]string{"a/BUILD", "a/chart"}, []string{"a"}, nil),
+	}, commit("c2", fc('M', "a/chartx/v.yaml")), commit("c1", fc('M', "a/chart/templates/x.yaml")))
+	r := Build(in)
+	tg := expect(t, r, "//a:a", Changed, "c1")
+	if !reflect.DeepEqual(tg.Files, []string{"a/chart/templates/x.yaml"}) {
+		t.Errorf("files %v", tg.Files)
+	}
+}

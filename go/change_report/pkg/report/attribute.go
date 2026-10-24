@@ -124,8 +124,15 @@ func (cc classified) hits(cl graph.Closure, f gitx.FileChange) bool {
 	if groups, ok := cc.scoped[p]; ok && reposMatch(cl.Repos, groups) {
 		return true
 	}
-	if i := sort.SearchStrings(cl.Files, p); i < len(cl.Files) && cl.Files[i] == p {
-		return true
+	// Exact match, or p is under a source directory used as a label
+	// (srcs = ["chart"]).
+	for q := p; q != "."; q = path.Dir(q) {
+		if i := sort.SearchStrings(cl.Files, q); i < len(cl.Files) && cl.Files[i] == q {
+			return true
+		}
+		if !strings.Contains(q, "/") {
+			break
+		}
 	}
 	// An added or deleted file can change a glob in its package.
 	if f.Status == 'A' || f.Status == 'D' {
