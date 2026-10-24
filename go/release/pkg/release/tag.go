@@ -22,9 +22,9 @@ import (
 //
 // An existing tag is never created again. The forge release and the release
 // targets follow only a tag published in this run; with RetryTargets they
-// also follow the already published tag of the current VERSION, provided it
-// points at that version's release commit (the forge release is then created
-// if missing and every target re-runs). A failure after tagging is reported
+// also follow the already published tag of the current VERSION when that
+// version was set by a release commit (the forge release is then created if
+// missing and every target re-runs); a tag at another commit is an error. A failure after tagging is reported
 // with a warning to rerun with --retry-targets. Errors of one component do
 // not stop the others.
 func Tag(e Env, comps []component.Component) error {
@@ -70,9 +70,12 @@ func tagOne(e Env, c component.Component) error {
 	}
 	isRelease := ok && isReleaseOf(last.Subject, c.Name, v)
 	if published {
-		if !isRelease || last.SHA != sha {
-			e.out("%s: %s is not at the release commit of %s; nothing to retry", c.Name, tag, c.VersionFile)
+		if !isRelease {
+			e.out("%s: %s was not set by a release commit; nothing to retry", c.Name, c.VersionFile)
 			return nil
+		}
+		if last.SHA != sha {
+			return fmt.Errorf("%s points at %s, not release commit %s; refusing to retry", tag, sha, last.SHA)
 		}
 	} else {
 		if !isRelease {

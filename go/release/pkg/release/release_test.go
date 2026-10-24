@@ -802,3 +802,19 @@ func TestBazelRunTarget(t *testing.T) {
 		t.Errorf("bazel invoked as %q", got)
 	}
 }
+
+func TestTagRetryRefusesMisplacedTag(t *testing.T) {
+	f := setup(t)
+	rc := f.release()
+	parent := git(t, f.dir, "rev-parse", rc+"^")
+	git(t, f.dir, "tag", "-a", "a@v1.1.0", "-m", "x", parent)
+	git(t, f.dir, "push", "-q", "origin", "a@v1.1.0")
+	f.retryTargets = true
+	err := Tag(f.env(), comps())
+	if err == nil || !strings.Contains(err.Error(), "a: a@v1.1.0 points at "+parent+", not release commit "+rc+"; refusing to retry") {
+		t.Fatalf("err = %v", err)
+	}
+	if len(f.runs) != 0 || len(f.forge.writes()) != 0 {
+		t.Errorf("retried a misplaced tag: writes %v runs %+v", f.forge.writes(), f.runs)
+	}
+}
