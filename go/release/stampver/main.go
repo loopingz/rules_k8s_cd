@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"loopingz.com/rules_k8s_cd/release/pkg/semver"
+	"loopingz.com/rules_k8s_cd/release/pkg/tagfmt"
 )
 
 const unknown = "unknown"
@@ -157,13 +158,11 @@ func runVersion(args []string, stderr io.Writer) error {
 		in.Date = t.Format("20060102")
 	}
 
-	if !strings.Contains(*tagFormat, "{version}") {
-		return fmt.Errorf("--tag-format %q must contain {version}", *tagFormat)
+	if err := tagfmt.Validate(*tagFormat, *component); err != nil {
+		return fmt.Errorf("--tag-format: %w", err)
 	}
-	if expand((*tagFormat)[:strings.Index(*tagFormat, "{version}")], map[string]string{"name": *component}) == "" {
-		return fmt.Errorf("--tag-format %q has an empty literal prefix before {version}", *tagFormat)
-	}
-	owns := ownership(*tagFormat, *component)
+	parse := tagfmt.Parser(*tagFormat, *component)
+	owns := func(tag string) bool { _, ok := parse(tag); return ok }
 	label := status["BUILD_EMBED_LABEL"]
 	var ownedTags []string
 	for _, t := range strings.Fields(status["STABLE_GIT_TAGS_AT_HEAD"]) {
@@ -184,7 +183,7 @@ func runVersion(args []string, stderr io.Writer) error {
 		return fmt.Errorf("component %q has a release tag at HEAD but no usable --version-file %q", *component, *verFile)
 	}
 	if haveVer {
-		want := expand(*tagFormat, map[string]string{"name": *component, "version": ver.String()})
+		want := tagfmt.Format(*tagFormat, *component, ver)
 		switch {
 		case ownedLabel && label != want:
 			return fmt.Errorf("BUILD_EMBED_LABEL %q does not match the expected tag %q for VERSION %s", label, want, ver)
@@ -233,23 +232,6 @@ func readVersion(path string) (v semver.Version, ok bool, err error) {
 		return v, false, fmt.Errorf("%s: %w", path, err)
 	}
 	return v, true, nil
-}
-
-// ownership returns a predicate telling whether a tag belongs to component:
-// it has the format's literal prefix and suffix around a valid semver, so
-// "api-gateway-1.0.0" is not an "api" tag for format "{name}-{version}".
-func ownership(tagFormat, component string) func(string) bool {
-	i := strings.Index(tagFormat, "{version}")
-	vars := map[string]string{"name": component}
-	prefix := expand(tagFormat[:i], vars)
-	suffix := expand(tagFormat[i+len("{version}"):], vars)
-	return func(tag string) bool {
-		if !strings.HasPrefix(tag, prefix) || !strings.HasSuffix(tag, suffix) || len(tag) < len(prefix)+len(suffix) {
-			return false
-		}
-		_, err := semver.Parse(tag[len(prefix) : len(tag)-len(suffix)])
-		return err == nil
-	}
 }
 
 func runRender(args []string, stderr io.Writer) error {

@@ -207,3 +207,25 @@ func (r Repo) Dirty() (bool, error) {
 	}
 	return len(bytes.TrimSpace(out)) > 0, nil
 }
+
+// Tags lists all tag names, sorted lexically.
+func (r Repo) Tags() ([]string, error) {
+	out, err := r.run("tag", "--list")
+	if err != nil {
+		return nil, err
+	}
+	return strings.Fields(string(out)), nil
+}
+
+// TagCommit resolves tag to the SHA of the commit it points to, peeling
+// annotated tags; false if the tag does not exist.
+func (r Repo) TagCommit(tag string) (string, bool, error) {
+	out, err := r.run("rev-parse", "--verify", "--quiet", "--end-of-options", "refs/tags/"+tag+"^{commit}")
+	if err != nil {
+		if exitCode(err) == 1 {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	return strings.TrimSpace(string(out)), true, nil
+}

@@ -15,7 +15,10 @@ go_library(
     srcs = ["main.go"],
     importpath = "loopingz.com/rules_k8s_cd/release/stampver",
     visibility = ["//visibility:private"],
-    deps = ["//go/release/pkg/semver"],
+    deps = [
+        "//go/release/pkg/semver",
+        "//go/release/pkg/tagfmt",
+    ],
 )
 
 go_binary(
