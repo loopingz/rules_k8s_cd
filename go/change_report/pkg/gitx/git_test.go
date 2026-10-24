@@ -220,3 +220,47 @@ func TestCommitURLTemplate(t *testing.T) {
 		t.Errorf("remote: %q", got)
 	}
 }
+
+func TestSubdirDirAndHostileConfig(t *testing.T) {
+	top := newRepo(t)
+	gitCmd(t, top.Dir, "config", "log.showRoot", "false")
+	gitCmd(t, top.Dir, "config", "log.showSignature", "true")
+	gitCmd(t, top.Dir, "config", "color.ui", "always")
+	top.write(t, "ws/a/x", "1")
+	top.write(t, "outside/o", "o")
+	c1 := top.commit(t, "root")
+	top.write(t, "outside/o", "o2")
+	top.commit(t, "outside only")
+	top.write(t, "ws/a/x", "2")
+	c3 := top.commit(t, "ws change")
+	r := Repo{Dir: filepath.Join(top.Dir, "ws")}
+
+	cs, err := r.Log("", "HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cs) != 3 || cs[0].SHA != c3 || cs[2].SHA != c1 {
+		t.Fatalf("commits: %+v", cs)
+	}
+	if !reflect.DeepEqual(cs[0].Files, []FileChange{{'M', "a/x"}}) || len(cs[1].Files) != 0 ||
+		!reflect.DeepEqual(cs[2].Files, []FileChange{{'A', "a/x"}}) {
+		t.Errorf("files: %+v / %+v / %+v", cs[0].Files, cs[1].Files, cs[2].Files)
+	}
+	m, err := r.TreeFiles("HEAD")
+	if err != nil || len(m) != 1 || m["a/x"] == "" {
+		t.Errorf("tree: %v %v", m, err)
+	}
+	if ok, err := r.Tracked("a/x"); err != nil || !ok {
+		t.Errorf("tracked: %v %v", ok, err)
+	}
+	if ok, err := r.Tracked("outside/o"); err != nil || ok {
+		t.Errorf("tracked outside: %v %v", ok, err)
+	}
+	b, ok, err := r.Show("HEAD", "a/x")
+	if err != nil || !ok || string(b) != "2" {
+		t.Errorf("show: %q %v %v", b, ok, err)
+	}
+	if _, ok, err := r.Show("HEAD", "ws/a/x"); err != nil || ok {
+		t.Errorf("show toplevel-relative should be absent: %v %v", ok, err)
+	}
+}

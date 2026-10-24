@@ -9,7 +9,10 @@ import (
 	"strings"
 )
 
-// Repo is a git repository working directory.
+// Repo is a git repository working directory. Dir may be a subdirectory of
+// the git toplevel (e.g. a Bazel workspace inside a monorepo). All paths
+// accepted and returned by Repo methods are relative to Dir; changes outside
+// Dir are not reported.
 type Repo struct {
 	Dir string
 }
@@ -118,7 +121,7 @@ func (r Repo) TreeFiles(rev string) (map[string]string, error) {
 
 // Show returns the content of path at rev; false if it does not exist there.
 func (r Repo) Show(rev, path string) ([]byte, bool, error) {
-	if _, err := r.run("cat-file", "-e", rev+":"+path); err != nil {
+	if _, err := r.run("cat-file", "-e", rev+":./"+path); err != nil {
 		if exitCode(err) != 0 {
 			// Absent path (or unknown rev, indistinguishable here): verify rev.
 			if _, perr := r.RevParse(rev); perr != nil {
@@ -128,7 +131,7 @@ func (r Repo) Show(rev, path string) ([]byte, bool, error) {
 		}
 		return nil, false, err
 	}
-	out, err := r.run("cat-file", "blob", rev+":"+path)
+	out, err := r.run("cat-file", "blob", rev+":./"+path)
 	if err != nil {
 		return nil, false, err
 	}

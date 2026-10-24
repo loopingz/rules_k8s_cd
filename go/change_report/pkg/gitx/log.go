@@ -30,7 +30,8 @@ const headerFields = 8
 // Log returns the commits in from..to (all history up to to when from is
 // empty), newest first.
 func (r Repo) Log(from, to string) ([]Commit, error) {
-	out, err := r.run("log", "--name-status", "--no-renames", "-z", logFormat, rangeSpec(from, to), "--")
+	out, err := r.run("-c", "log.showRoot=true", "-c", "log.showSignature=false", "-c", "color.ui=false",
+		"log", "--root", "--no-show-signature", "--no-color", "--relative", "--name-status", "--no-renames", "-z", logFormat, rangeSpec(from, to), "--")
 	if err != nil {
 		return nil, err
 	}
