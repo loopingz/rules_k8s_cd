@@ -11,9 +11,11 @@ It runs in any CI, including GitHub Actions and Forgejo Actions. It only needs `
 ```bash
 bazel run @rules_k8s_cd//go/change_report -- \
   --since "$SINCE" \
-  --targets 'filter("gitops\\.", //deployments/...)' \
+  --targets 'filter("gitops\.", //deployments/...)' \
   --format targets
 ```
+
+The query string is passed verbatim to Bazel, so inside shell single quotes write `\.` once (no extra escaping).
 
 Inside the rules_k8s_cd repository itself use `//go/change_report` instead of `@rules_k8s_cd//go/change_report`.
 
@@ -100,7 +102,7 @@ The files (relative to the repository root) that belong to removed gitops target
 
 ### `markdown`
 
-A changelog suitable for a pull request body. Commit subjects and bodies are HTML-escaped. Example with a baseline:
+A changelog suitable for a pull request body. Commit subjects and bodies are HTML-escaped. Abridged example with a baseline (the `Full commit messages` section of `//apps/web:deploy` is omitted):
 
 ````markdown
 # Changes aaaaaaa..ddddddd
@@ -137,7 +139,7 @@ Merge commits are not attributed to targets:
 - 3333333 Merge branch 'x' &lt;into&gt; main
 ````
 
-When the baselines differ per target, each section starts with `_Since aaaaaaa_`. A target with no baseline gets `_No baseline: full deployment._` instead of a commit table, and without any baseline the title is `# Changes (no baseline: full deployment)`.
+When the baselines differ per target, each section starts with `_Since aaaaaaa_`. A target with no baseline gets `_No baseline: full deployment._` instead of a commit table. When targets have different baselines the title is `# Changes up to <head>`; without any baseline the title is `# Changes (no baseline: full deployment)`.
 
 ## Gitops header and removed targets
 
@@ -215,15 +217,17 @@ jobs:
         run: |
           SINCE="$INPUT_SINCE"
           if [ -z "$SINCE" ]; then
-            # Latest gitops PR (any state) labelled "gitops"; commit recorded in its body.
+            # Latest MERGED gitops PR labelled "gitops"; commit recorded in its body.
+            # Merged only: a closed-unmerged PR never landed its changes, so using it
+            # would move the baseline past them and under-report.
             # GitHub (gh):
-            SINCE=$(GH_TOKEN="$TOKEN" gh pr list --label gitops --state all --limit 1 \
+            SINCE=$(GH_TOKEN="$TOKEN" gh pr list --label gitops --state merged --limit 1 \
               --json body --jq '.[0].body' 2>/dev/null \
               | sed -n 's/^Baseline: \([0-9a-f]\{40\}\)$/\1/p' | head -n1 || true)
             # Forgejo (curl) alternative:
             # SINCE=$(curl -fsS -H "Authorization: token $TOKEN" \
-            #   "$API/repos/$REPO/pulls?state=all&limit=1&labels=gitops" \
-            #   | jq -r '.[0].body // ""' | sed -n 's/^Baseline: \([0-9a-f]\{40\}\)$/\1/p' | head -n1)
+            #   "$API/repos/$REPO/pulls?state=closed&limit=50&labels=gitops" \
+            #   | jq -r '[.[] | select(.merged)][0].body // ""' | sed -n 's/^Baseline: \([0-9a-f]\{40\}\)$/\1/p' | head -n1)
           fi
           if [ -z "$SINCE" ]; then
             # Last successful run of this workflow (GitHub; Forgejo: query $API/repos/$REPO/actions/runs).
@@ -238,24 +242,24 @@ jobs:
           OUT="$RUNNER_TEMP/change_report"; mkdir -p "$OUT"; echo "OUT=$OUT" >> "$GITHUB_ENV"
           bazel run @rules_k8s_cd//go/change_report -- \
             --since "$SINCE" \
-            --targets 'filter("gitops\\.", //deployments/...)' \
+            --targets 'filter("gitops\.", //deployments/...)' \
             --gitops-dir gitops \
             --format targets --output "$OUT/changed.txt"
           bazel run @rules_k8s_cd//go/change_report -- \
             --since "$SINCE" \
-            --targets 'filter("gitops\\.", //deployments/...)' \
+            --targets 'filter("gitops\.", //deployments/...)' \
             --gitops-dir gitops \
             --format markdown --output "$OUT/changelog.md"
           bazel run @rules_k8s_cd//go/change_report -- \
             --since "$SINCE" \
-            --targets 'filter("gitops\\.", //deployments/...)' \
+            --targets 'filter("gitops\.", //deployments/...)' \
             --gitops-dir gitops \
             --format removed --output "$OUT/removed.txt"
 
       - name: Regenerate gitops files
         run: |
           while read -r target; do
-            [ -n "$target" ] && bazel run "$target"
+            [ -n "$target" ] && bazel run "$target" < /dev/null
           done < "$OUT/changed.txt"
           while read -r f; do
             [ -n "$f" ] && git rm -f -- "$f"
@@ -273,8 +277,13 @@ jobs:
           git add -A gitops
           git commit -m "chore: update gitops manifests"
           git push -f origin gitops/update
-          gh pr create --title "Update gitops manifests" --body-file "$OUT/pr-body.md" --label gitops \
-            --head gitops/update   # Forgejo: use `tea pulls create` or POST $API/repos/$REPO/pulls
+          if [ -n "$(gh pr list --head gitops/update --state open --json number --jq '.[0].number')" ]; then
+            gh pr edit gitops/update --body-file "$OUT/pr-body.md"
+          else
+            gh pr create --title "Update gitops manifests" --body-file "$OUT/pr-body.md" \
+              --label gitops --head gitops/update
+          fi
+          # Forgejo: use `tea pulls create` or POST/PATCH $API/repos/$REPO/pulls
 ```
 
 Notes:
