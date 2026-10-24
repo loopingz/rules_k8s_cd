@@ -173,3 +173,15 @@ func TestEmptyReport(t *testing.T) {
 		t.Errorf("got %s", b.String())
 	}
 }
+
+func TestMarkdownRootBaselineHeader(t *testing.T) {
+	r := report.Report{Head: "abcdef1234", Since: report.RootBaseline, Baseline: true,
+		Targets: []report.Target{{Label: "//a:a", Status: report.Unchanged, Since: report.RootBaseline}}}
+	var b strings.Builder
+	if err := Markdown(&b, r, ""); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(b.String(), "# Changes (all history)..abcdef1") || strings.Contains(b.String(), "<root>") {
+		t.Errorf("got %q", b.String())
+	}
+}

@@ -209,7 +209,11 @@ func TestIgnoreFlag(t *testing.T) {
 	if ignorePathFunc(nil) != nil {
 		t.Error("no globs must give nil")
 	}
-	if code, _, _ := runCLI("--targets", "//...", "--ignore", "docs/**", "--ignore", "*.md", "--format", "bogus"); code != 2 {
-		t.Errorf("repeatable --ignore rejected: code %d", code)
+	_, _, stderr := runCLI("--targets", "//...", "--ignore", "docs/**", "--ignore", "*.md", "--format", "bogus")
+	if strings.Contains(stderr, "flag provided but not defined") || strings.Contains(stderr, "invalid value") {
+		t.Errorf("--ignore rejected: %s", stderr)
+	}
+	if !strings.Contains(stderr, "invalid --format") {
+		t.Errorf("flags not parsed up to --format validation: %s", stderr)
 	}
 }

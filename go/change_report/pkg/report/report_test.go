@@ -592,3 +592,25 @@ func TestIgnoreCommit(t *testing.T) {
 		t.Errorf("unmanaged %v commits %v", r.Unmanaged, r.Commits)
 	}
 }
+
+func TestIgnorePathNoClosure(t *testing.T) {
+	in := input(map[string]graph.Closure{"//a:a": {}},
+		commit("c2", fc('M', "keep.go"), fc('M', "skip.md")), commit("c1", fc('M', "skip.md")))
+	delete(in.Closures, "//a:a")
+	in.IgnorePath = func(_, p string) bool { return p == "skip.md" }
+	tg := expect(t, Build(in), "//a:a", Changed, "c2")
+	if !reflect.DeepEqual(tg.Files, []string{"keep.go"}) {
+		t.Errorf("files %v", tg.Files)
+	}
+}
+
+func TestIgnorePathPartialCommit(t *testing.T) {
+	in := input(map[string]graph.Closure{
+		"//a:a": cl([]string{"a/f.go", "a/g.go"}, []string{"a"}, nil),
+	}, commit("c1", fc('M', "a/f.go"), fc('M', "a/g.go")))
+	in.IgnorePath = func(_, p string) bool { return p == "a/f.go" }
+	tg := expect(t, Build(in), "//a:a", Changed, "c1")
+	if !reflect.DeepEqual(tg.Files, []string{"a/g.go"}) {
+		t.Errorf("files %v", tg.Files)
+	}
+}

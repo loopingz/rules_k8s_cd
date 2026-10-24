@@ -187,6 +187,8 @@ func Markdown(w io.Writer, r report.Report, commitURL string) error {
 	}
 	shared := r.Baseline && r.Since != ""
 	switch {
+	case shared && r.Since == report.RootBaseline:
+		p("# Changes (all history)..%s\n", headShort)
 	case shared:
 		p("# Changes %s..%s\n", shortSHA(r, r.Since), headShort)
 	case anySince:
