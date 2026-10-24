@@ -92,6 +92,8 @@ def gitops(images = {}, environments = {}):
                 data = context,
                 out = export_dir + "/" + env + ".yaml",
                 dir = kustomization_target,
+                # The header names the user-facing run target, not this private one
+                target = "//" + native.package_name() + ":gitops." + env,
             )
 
             # Allow one target to generate the manifests and push them to the gitops repository
