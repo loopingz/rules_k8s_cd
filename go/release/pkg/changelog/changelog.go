@@ -181,8 +181,14 @@ func headingIs(l, prefix string) bool {
 	return rest == "" || rest[0] == ' ' || rest[0] == '('
 }
 
+// Marker is the line identifying the release PR of component name; only a
+// PR whose body carries it is updated or closed by the release tool.
+func Marker(name string) string {
+	return fmt.Sprintf("<!-- rules_k8s_cd:release %s -->", name)
+}
+
 // PRBody returns the release PR body: the marker that identifies the
 // component's release PR followed by section.
 func PRBody(name string, section string) string {
-	return fmt.Sprintf("<!-- rules_k8s_cd:release %s -->\n\n%s", name, section)
+	return Marker(name) + "\n\n" + section
 }

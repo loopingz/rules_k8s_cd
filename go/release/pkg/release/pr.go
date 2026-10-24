@@ -9,6 +9,7 @@ import (
 
 	"loopingz.com/rules_k8s_cd/release/pkg/changelog"
 	"loopingz.com/rules_k8s_cd/release/pkg/component"
+	"loopingz.com/rules_k8s_cd/release/pkg/forge"
 	"loopingz.com/rules_k8s_cd/release/pkg/gitwrite"
 )
 
@@ -87,7 +88,7 @@ func prOne(e Env, p Plan) error {
 			e.out("%s: would open or update the release PR %q", c.Name, title)
 			return nil
 		}
-		pr, err := e.Forge.FindOpenPR(branch)
+		pr, err := findReleasePR(e, c.Name, branch)
 		if err != nil {
 			return err
 		}
@@ -106,7 +107,7 @@ func prOne(e Env, p Plan) error {
 	if err := gitwrite.PushBranch(e.Repo, e.Remote, sha, branch); err != nil {
 		return err
 	}
-	pr, err := e.Forge.FindOpenPR(branch)
+	pr, err := findReleasePR(e, c.Name, branch)
 	if err != nil {
 		return err
 	}
@@ -125,6 +126,24 @@ func prOne(e Env, p Plan) error {
 	return nil
 }
 
+// findReleasePR returns the open release PR of component name on branch:
+// an open PR on branch whose body carries the release marker. Another PR on
+// branch (opened by hand, or from a fork on forges matching the branch name
+// only) is never updated or closed: it is reported and nil is returned, so
+// creating the release PR then fails loudly if the forge refuses a second
+// PR for the branch.
+func findReleasePR(e Env, name, branch string) (*forge.PR, error) {
+	pr, err := e.Forge.FindOpenPR(branch)
+	if err != nil || pr == nil {
+		return nil, err
+	}
+	if !strings.Contains(pr.Body, changelog.Marker(name)) {
+		e.warn("%s: PR #%d on %s lacks the release marker %q; leaving it untouched", name, pr.Number, branch, changelog.Marker(name))
+		return nil, nil
+	}
+	return pr, nil
+}
+
 // closeStale closes the open release PR of a component with nothing to
 // release.
 func closeStale(e Env, name, branch string) error {
@@ -132,7 +151,7 @@ func closeStale(e Env, name, branch string) error {
 		e.out("%s: nothing to release; would close its open release PR, if any", name)
 		return nil
 	}
-	pr, err := e.Forge.FindOpenPR(branch)
+	pr, err := findReleasePR(e, name, branch)
 	if err != nil || pr == nil {
 		return err
 	}

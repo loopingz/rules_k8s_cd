@@ -230,6 +230,9 @@ func (f *fakeForge) FindOpenPR(head string) (*forge.PR, error) {
 
 func (f *fakeForge) CreatePR(head, base, title, body string) (*forge.PR, error) {
 	f.calls = append(f.calls, fmt.Sprintf("create %s->%s %q", head, base, title))
+	if f.prs[head] != nil {
+		return nil, fmt.Errorf("a pull request already exists for %s", head)
+	}
 	pr := &forge.PR{Number: f.next, Head: head, Base: base, Title: title, Body: body}
 	f.next++
 	f.prs[head] = pr
@@ -390,7 +393,7 @@ func TestPRCreatesBranchAndPR(t *testing.T) {
 
 func TestPRNoChangesClosesPR(t *testing.T) {
 	f := setup(t)
-	f.forge.prs["release/a"] = &forge.PR{Number: 7, Head: "release/a"}
+	f.forge.prs["release/a"] = &forge.PR{Number: 7, Head: "release/a", Body: "<!-- rules_k8s_cd:release a -->\n\n## 1.0.1"}
 	f.commit("docs: readme", map[string]string{"a/README.md": "r\n"})
 	if err := PR(f.env(), comps()); err != nil {
 		t.Fatal(err)
@@ -401,6 +404,38 @@ func TestPRNoChangesClosesPR(t *testing.T) {
 	}
 	if f.remoteRef("refs/heads/release/a") != "" || f.remoteRef("refs/heads/release/b") != "" {
 		t.Error("branch pushed without changes")
+	}
+}
+
+// A PR on release/<name> without the marker is not the tool's: it is never
+// updated or closed, and creating the release PR then fails loudly.
+func TestPRLeavesForeignPRUntouched(t *testing.T) {
+	f := setup(t)
+	foreign := &forge.PR{Number: 9, Head: "release/a", Title: "mine", Body: "hand-made"}
+	f.forge.prs["release/a"] = foreign
+	f.commit("feat: a", map[string]string{"a/x.go": "x\n"})
+	err := PR(f.env(), comps()[1:])
+	if err == nil || !strings.Contains(err.Error(), "already exists") {
+		t.Fatalf("err = %v, want the CreatePR error", err)
+	}
+	if foreign.Title != "mine" || foreign.Body != "hand-made" || contains(f.forge.writes(), "update") {
+		t.Errorf("foreign PR updated: %+v (writes %v)", foreign, f.forge.writes())
+	}
+	if !contains(f.warns, "PR #9 on release/a lacks the release marker") {
+		t.Errorf("warns = %v", f.warns)
+	}
+
+	// Nothing to release: the foreign PR is not closed either.
+	f2 := setup(t)
+	f2.forge.prs["release/a"] = &forge.PR{Number: 9, Head: "release/a", Body: "hand-made"}
+	if err := PR(f2.env(), comps()[1:]); err != nil {
+		t.Fatal(err)
+	}
+	if w := f2.forge.writes(); len(w) != 0 || f2.forge.prs["release/a"] == nil {
+		t.Errorf("foreign PR closed: writes %v", w)
+	}
+	if !contains(f2.warns, "PR #9 on release/a lacks the release marker") {
+		t.Errorf("warns = %v", f2.warns)
 	}
 }
 
@@ -447,7 +482,7 @@ func TestPRRequiresMainTip(t *testing.T) {
 
 func TestPRDryRun(t *testing.T) {
 	f := setup(t)
-	f.forge.prs["release/b"] = &forge.PR{Number: 3, Head: "release/b"}
+	f.forge.prs["release/b"] = &forge.PR{Number: 3, Head: "release/b", Body: "<!-- rules_k8s_cd:release b -->"}
 	f.commit("feat: a", map[string]string{"a/x.go": "x\n"})
 	f.dryRun = true
 	for _, noForge := range []bool{false, true} {
