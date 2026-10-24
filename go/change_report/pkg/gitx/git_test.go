@@ -264,3 +264,21 @@ func TestSubdirDirAndHostileConfig(t *testing.T) {
 		t.Errorf("show toplevel-relative should be absent: %v %v", ok, err)
 	}
 }
+
+func TestDirty(t *testing.T) {
+	r := newRepo(t)
+	r.write(t, "a.txt", "1")
+	r.commit(t, "init")
+	if d, err := r.Dirty(); err != nil || d {
+		t.Fatalf("clean: Dirty = %v, %v", d, err)
+	}
+	r.write(t, "b.txt", "2")
+	if d, err := r.Dirty(); err != nil || !d {
+		t.Fatalf("untracked: Dirty = %v, %v", d, err)
+	}
+	r.commit(t, "b")
+	r.write(t, "a.txt", "changed")
+	if d, err := r.Dirty(); err != nil || !d {
+		t.Fatalf("modified: Dirty = %v, %v", d, err)
+	}
+}

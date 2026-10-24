@@ -190,3 +190,13 @@ func commitURLFromRemote(remote string) string {
 	}
 	return "https://" + host + "/" + path + "/commit/{sha}"
 }
+
+// Dirty reports whether the working tree under Dir has uncommitted changes,
+// including untracked files.
+func (r Repo) Dirty() (bool, error) {
+	out, err := r.run("status", "--porcelain", "--", ".")
+	if err != nil {
+		return false, err
+	}
+	return len(bytes.TrimSpace(out)) > 0, nil
+}
