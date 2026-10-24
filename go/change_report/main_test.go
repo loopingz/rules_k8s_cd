@@ -171,3 +171,32 @@ func TestExistingOutsideUniverse(t *testing.T) {
 		t.Errorf("no candidates: got %v, calls %v", got, f.calls)
 	}
 }
+
+func TestDisplayPath(t *testing.T) {
+	for _, c := range []struct{ base, p, want string }{
+		{"/work", "/work/deploy/a.yaml", "deploy/a.yaml"},
+		{"/work/", "/work/a.yaml", "a.yaml"},
+		{"/work", "/workx/a.yaml", "/workx/a.yaml"},
+		{"/work/sub", "/work/a.yaml", "/work/a.yaml"},
+		{"", "/work/a.yaml", "/work/a.yaml"},
+	} {
+		if got := displayPath(c.base, c.p); got != c.want {
+			t.Errorf("displayPath(%q, %q) = %q, want %q", c.base, c.p, got, c.want)
+		}
+	}
+}
+
+func TestWorkingDir(t *testing.T) {
+	if got := workingDir(func(k string) string {
+		if k == "BUILD_WORKING_DIRECTORY" {
+			return "/from/bazel"
+		}
+		return ""
+	}); got != "/from/bazel" {
+		t.Errorf("got %q", got)
+	}
+	wd, _ := os.Getwd()
+	if got := workingDir(func(string) string { return "" }); got != wd {
+		t.Errorf("got %q, want cwd %q", got, wd)
+	}
+}

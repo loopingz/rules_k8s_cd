@@ -225,6 +225,16 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 	for _, w := range rep.Warnings {
 		warn(w)
 	}
+	// Removed files are shown relative to the user's working directory.
+	wd := workingDir(env)
+	for i := range rep.Targets {
+		if rep.Targets[i].Status == report.Removed {
+			for j, f := range rep.Targets[i].Files {
+				rep.Targets[i].Files[j] = displayPath(wd, f)
+			}
+			sort.Strings(rep.Targets[i].Files)
+		}
+	}
 
 	url := *commitURL
 	if url == "" {
@@ -300,6 +310,29 @@ func existingOutsideUniverse(r bazelq.Runner, gres *gitops.Result, universe []st
 		warn(fmt.Sprintf("%d gitops target(s) outside --targets still exist and were not marked removed", n))
 	}
 	return existing
+}
+
+// workingDir is the user's working directory: BUILD_WORKING_DIRECTORY under
+// `bazel run`, else the process cwd ("" if unknown).
+func workingDir(env func(string) string) string {
+	if wd := env("BUILD_WORKING_DIRECTORY"); wd != "" {
+		return wd
+	}
+	wd, _ := os.Getwd()
+	return wd
+}
+
+// displayPath returns absolute path p relative to base when p is under it,
+// else p unchanged.
+func displayPath(base, p string) string {
+	if base == "" {
+		return p
+	}
+	rel, err := filepath.Rel(base, p)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return p
+	}
+	return rel
 }
 
 // resolvePath makes a relative path absolute against BUILD_WORKING_DIRECTORY
