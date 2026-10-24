@@ -17,6 +17,7 @@ import (
 
 	"loopingz.com/rules_k8s_cd/change_report/pkg/bazelq"
 	"loopingz.com/rules_k8s_cd/change_report/pkg/cache"
+	"loopingz.com/rules_k8s_cd/change_report/pkg/cliutil"
 	"loopingz.com/rules_k8s_cd/change_report/pkg/gitops"
 	"loopingz.com/rules_k8s_cd/change_report/pkg/gitx"
 	"loopingz.com/rules_k8s_cd/change_report/pkg/label"
@@ -28,6 +29,22 @@ type stringSlice []string
 
 func (s *stringSlice) String() string     { return strings.Join(*s, ",") }
 func (s *stringSlice) Set(v string) error { *s = append(*s, v); return nil }
+
+// ignorePathFunc returns an IgnorePath hook matching any of globs for every
+// label, or nil when there are none.
+func ignorePathFunc(globs []string) func(label, path string) bool {
+	if len(globs) == 0 {
+		return nil
+	}
+	return func(_, p string) bool {
+		for _, g := range globs {
+			if report.MatchGlob(g, p) {
+				return true
+			}
+		}
+		return false
+	}
+}
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr, os.Getenv))
@@ -49,9 +66,11 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 		debugCache  = fs.Bool("debug-cache", false, "print the graph cache mode to stderr")
 		gitopsDirs  stringSlice
 		globalFiles stringSlice
+		ignores     stringSlice
 	)
 	fs.Var(&gitopsDirs, "gitops-dir", "directory scanned for gitops manifests (repeatable)")
 	fs.Var(&globalFiles, "global-file", "extra glob of files affecting every target (repeatable)")
+	fs.Var(&ignores, "ignore", "glob of files never attributed to any target (repeatable)")
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
 			return 0
@@ -79,7 +98,7 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 
 	// Under `bazel run` the process cwd is the runfiles tree; relative paths
 	// given by the user are relative to BUILD_WORKING_DIRECTORY.
-	resolve := func(p string) string { return resolvePath(env, p) }
+	resolve := func(p string) string { return cliutil.ResolvePath(env, p) }
 
 	var perTarget map[string]string
 	if *sinceFile != "" {
@@ -119,11 +138,7 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 	if cd != "" {
 		cd = resolve(cd)
 	} else {
-		if x := env("XDG_CACHE_HOME"); x != "" {
-			cd = filepath.Join(x, "rules_k8s_cd", "change_report")
-		} else if uc, err := os.UserCacheDir(); err == nil {
-			cd = filepath.Join(uc, "rules_k8s_cd", "change_report")
-		}
+		cd = cliutil.DefaultCacheDir(env, "change_report")
 	}
 	loadCacheDir := cd
 	if dirty, err := repo.Dirty(); err != nil {
@@ -193,31 +208,19 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 	}
 	existing := existingOutsideUniverse(runner, gres, snap.Universe, warn)
 
-	fileWarned := false
+	fileAt, tracked := report.GitAccessors(repo, warn)
 	rep := report.Build(report.Input{
-		Head:      head,
-		Baselines: baselines,
-		Universe:  snap.Universe,
-		Closures:  snap.Closures,
-		Mapping:   snap.Mapping,
-		Commits:   commits,
-		InRange:   inRange,
-		FileAt: func(rev, p string) ([]byte, bool) {
-			b, ok, err := repo.Show(rev, p)
-			if err != nil {
-				if !fileWarned {
-					fileWarned = true
-					warn(fmt.Sprintf("cannot read %s at %s: %v; treating as absent", p, rev, err))
-				}
-				return nil, false
-			}
-			return b, ok
-		},
-		Tracked: func(p string) bool {
-			ok, err := repo.Tracked(p)
-			return err == nil && ok
-		},
+		Head:           head,
+		Baselines:      baselines,
+		Universe:       snap.Universe,
+		Closures:       snap.Closures,
+		Mapping:        snap.Mapping,
+		Commits:        commits,
+		InRange:        inRange,
+		FileAt:         fileAt,
+		Tracked:        tracked,
 		GlobalGlobs:    globalFiles,
+		IgnorePath:     ignorePathFunc(ignores),
 		ModuleBzlFiles: snap.ModuleBzlFiles,
 		Gitops:         gres,
 		Existing:       existing,
@@ -333,18 +336,6 @@ func displayPath(base, p string) string {
 		return p
 	}
 	return rel
-}
-
-// resolvePath makes a relative path absolute against BUILD_WORKING_DIRECTORY
-// (set by `bazel run`), else leaves it for the process cwd.
-func resolvePath(env func(string) string, p string) string {
-	if p == "" || filepath.IsAbs(p) {
-		return p
-	}
-	if wd := env("BUILD_WORKING_DIRECTORY"); wd != "" {
-		return filepath.Join(wd, p)
-	}
-	return p
 }
 
 // writeFileAtomic writes data to a temp file next to path and renames it into

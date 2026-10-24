@@ -44,24 +44,6 @@ func TestSinceFileParse(t *testing.T) {
 	}
 }
 
-func TestResolvePath(t *testing.T) {
-	env := func(k string) string {
-		if k == "BUILD_WORKING_DIRECTORY" {
-			return "/wd"
-		}
-		return ""
-	}
-	if got := resolvePath(env, "a/b"); got != "/wd/a/b" {
-		t.Errorf("relative: %q", got)
-	}
-	if got := resolvePath(env, "/abs"); got != "/abs" {
-		t.Errorf("absolute: %q", got)
-	}
-	if got := resolvePath(func(string) string { return "" }, "a"); got != "a" {
-		t.Errorf("no wd: %q", got)
-	}
-}
-
 func TestRelativeSinceFileUsesWorkingDirectory(t *testing.T) {
 	wd := t.TempDir()
 	if err := os.WriteFile(filepath.Join(wd, "since.json"), []byte("{bad"), 0o644); err != nil {
@@ -198,5 +180,22 @@ func TestWorkingDir(t *testing.T) {
 	wd, _ := os.Getwd()
 	if got := workingDir(func(string) string { return "" }); got != wd {
 		t.Errorf("got %q, want cwd %q", got, wd)
+	}
+}
+
+func TestIgnoreFlag(t *testing.T) {
+	f := ignorePathFunc([]string{"docs/**", "*.md"})
+	if f == nil || !f("//a:a", "docs/x/y.txt") || !f("//a:a", "README.md") || f("//a:a", "src/a.go") {
+		t.Error("ignore globs not applied")
+	}
+	if ignorePathFunc(nil) != nil {
+		t.Error("no globs must give nil")
+	}
+	_, _, stderr := runCLI("--targets", "//...", "--ignore", "docs/**", "--ignore", "*.md", "--format", "bogus")
+	if strings.Contains(stderr, "flag provided but not defined") || strings.Contains(stderr, "invalid value") {
+		t.Errorf("--ignore rejected: %s", stderr)
+	}
+	if !strings.Contains(stderr, "invalid --format") {
+		t.Errorf("flags not parsed up to --format validation: %s", stderr)
 	}
 }

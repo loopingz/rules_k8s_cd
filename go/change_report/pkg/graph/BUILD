@@ -7,7 +7,10 @@ go_library(
         "loads.go",
     ],
     importpath = "loopingz.com/rules_k8s_cd/change_report/pkg/graph",
-    visibility = ["//go/change_report:__subpackages__"],
+    visibility = [
+        "//go/change_report:__subpackages__",
+        "//go/release:__subpackages__",
+    ],
     deps = [
         "//go/change_report/pkg/bazelq",
         "//go/change_report/pkg/label",

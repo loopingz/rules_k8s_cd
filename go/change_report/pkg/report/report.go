@@ -25,6 +25,10 @@ const (
 	Removed   Status = "removed"
 )
 
+// RootBaseline is a baseline meaning "all history up to HEAD": the target has
+// never been released, so every commit is in range.
+const RootBaseline = "<root>"
+
 // Target is the outcome for one label.
 type Target struct {
 	Label  string
@@ -36,6 +40,9 @@ type Target struct {
 	// Files is the sorted union of the files that caused attribution (for a
 	// removed target: its gitops files).
 	Files []string
+	// CommitFiles maps each attributed commit to the files that caused its
+	// attribution, sorted (empty for a commit attributed without files).
+	CommitFiles map[string][]string
 }
 
 // Report is the result of Build.
@@ -79,6 +86,12 @@ type Input struct {
 	// Existing holds gitops labels outside Universe that still exist (or
 	// whose existence could not be checked): they are never marked removed.
 	Existing map[string]bool
+	// IgnorePath reports whether a touched path must not be attributed to
+	// label (nil = none). It applies to every attribution route.
+	IgnorePath func(label, path string) bool
+	// IgnoreCommit reports commits to skip entirely (nil = none); skipped
+	// commits appear nowhere in the report.
+	IgnoreCommit func(c gitx.Commit) bool
 }
 
 // Build computes the report.
@@ -89,6 +102,9 @@ func Build(in Input) Report {
 	var commits []classified
 	usage := newMappedUsage(in)
 	for _, c := range in.Commits {
+		if in.IgnoreCommit != nil && in.IgnoreCommit(c) {
+			continue
+		}
 		if len(c.Parents) > 1 {
 			r.Unmanaged = append(r.Unmanaged, c.SHA)
 			r.Commits[c.SHA] = c
@@ -120,6 +136,11 @@ func Build(in Input) Report {
 			continue
 		}
 		inRange, known := in.InRange[base]
+		if !known && base == RootBaseline {
+			// All history: every commit is in range.
+			known = true
+			inRange = nil
+		}
 		if !known {
 			// Unknown range: never "unchanged", whatever the commits say.
 			forceChanged = true
@@ -129,24 +150,36 @@ func Build(in Input) Report {
 		if !haveClosure {
 			r.Warnings = append(r.Warnings, fmt.Sprintf("no closure for %s; attributing every commit in range", label))
 		}
+		var ignore func(string) bool
+		if in.IgnorePath != nil {
+			ignore = func(p string) bool { return in.IgnorePath(label, p) }
+		}
 		files := map[string]bool{}
 		for _, cc := range commits {
-			if known && !inRange[cc.c.SHA] {
+			if known && base != RootBaseline && !inRange[cc.c.SHA] {
 				continue
 			}
 			var hit []string
 			if haveClosure {
-				hit = cc.attributed(closure)
+				hit = cc.attributed(closure, ignore)
 			} else {
 				for _, f := range cc.c.Files {
-					hit = append(hit, f.Path)
+					if ignore == nil || !ignore(f.Path) {
+						hit = append(hit, f.Path)
+					}
 				}
 			}
-			if len(hit) == 0 && haveClosure {
+			if len(hit) == 0 && (haveClosure || len(cc.c.Files) > 0) {
 				continue
 			}
 			t.Commits = append(t.Commits, cc.c.SHA)
 			r.Commits[cc.c.SHA] = cc.c
+			if t.CommitFiles == nil {
+				t.CommitFiles = map[string][]string{}
+			}
+			cf := append([]string(nil), hit...)
+			sort.Strings(cf)
+			t.CommitFiles[cc.c.SHA] = cf
 			for _, f := range hit {
 				files[f] = true
 			}

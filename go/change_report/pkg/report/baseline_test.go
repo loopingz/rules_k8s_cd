@@ -172,3 +172,34 @@ func TestCollectHistoryNoBaselines(t *testing.T) {
 		t.Errorf("got %v %v %v", commits, inRange, err)
 	}
 }
+
+func TestResolveRootBaseline(t *testing.T) {
+	r := newTestRepo(t)
+	r.commit("one")
+	b, w := ResolveBaselines(r.Repo, "HEAD", []string{"//a:a", "//b:b"}, RootBaseline, map[string]string{"//b:b": RootBaseline})
+	if len(w) != 0 || b["//a:a"] != RootBaseline || b["//b:b"] != RootBaseline {
+		t.Errorf("b=%v w=%v", b, w)
+	}
+}
+
+func TestCollectHistoryRoot(t *testing.T) {
+	r := newTestRepo(t)
+	c1 := r.commit("one")
+	c2 := r.commit("two")
+	c3 := r.commit("three")
+	commits, inRange, err := CollectHistory(r.Repo, "HEAD", map[string]string{"//a:a": RootBaseline, "//b:b": c2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(commits) != 3 {
+		t.Fatalf("commits %d", len(commits))
+	}
+	for _, c := range []string{c1, c2, c3} {
+		if !inRange[RootBaseline][c] {
+			t.Errorf("%s not in root range", c)
+		}
+	}
+	if len(inRange[c2]) != 1 || !inRange[c2][c3] {
+		t.Errorf("inRange[c2] = %v", inRange[c2])
+	}
+}

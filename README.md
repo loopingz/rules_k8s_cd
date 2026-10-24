@@ -17,6 +17,7 @@ Bazel rules for building, deploying, scanning, and managing Kubernetes resources
 | `oci_push_info` | Push OCI image and expose registry/digest metadata | |
 | `kustomization_injector` | Inject images, patches, and resources into a kustomization.yaml | |
 | `change_report` | CLI reporting which targets changed since a baseline commit, with a commit changelog and removed gitops targets | [docs/change_report.md](docs/change_report.md) |
+| `release_component` | Release PRs, tags, changelogs and build-time versions from conventional commits (GitHub and Forgejo), with the `release` CLI | [docs/release.md](docs/release.md) |
 
 ### Helm rendering
 

@@ -18,6 +18,7 @@ go_library(
     deps = [
         "//go/change_report/pkg/bazelq",
         "//go/change_report/pkg/cache",
+        "//go/change_report/pkg/cliutil",
         "//go/change_report/pkg/gitops",
         "//go/change_report/pkg/gitx",
         "//go/change_report/pkg/label",

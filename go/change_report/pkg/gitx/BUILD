@@ -7,7 +7,10 @@ go_library(
         "log.go",
     ],
     importpath = "loopingz.com/rules_k8s_cd/change_report/pkg/gitx",
-    visibility = ["//go/change_report:__subpackages__"],
+    visibility = [
+        "//go/change_report:__subpackages__",
+        "//go/release:__subpackages__",
+    ],
 )
 
 go_test(

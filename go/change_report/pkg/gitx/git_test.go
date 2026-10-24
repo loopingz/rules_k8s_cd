@@ -285,3 +285,53 @@ func TestDirty(t *testing.T) {
 		t.Fatalf("modified: Dirty = %v, %v", d, err)
 	}
 }
+
+func TestTagsAndTagCommit(t *testing.T) {
+	r := newRepo(t)
+	if tags, err := r.Tags(); err != nil || len(tags) != 0 {
+		t.Fatalf("empty repo: %v, %v", tags, err)
+	}
+	r.write(t, "a", "1")
+	c1 := r.commit(t, "one")
+	r.write(t, "a", "2")
+	c2 := r.commit(t, "two")
+	gitCmd(t, r.Dir, "tag", "v1.0.0", c1)
+	gitCmd(t, r.Dir, "tag", "-a", "-m", "annotated", "app@v2.0.0", c2)
+
+	tags, err := r.Tags()
+	if err != nil || !reflect.DeepEqual(tags, []string{"app@v2.0.0", "v1.0.0"}) {
+		t.Fatalf("Tags = %v, %v", tags, err)
+	}
+	if sha, ok, err := r.TagCommit("v1.0.0"); err != nil || !ok || sha != c1 {
+		t.Errorf("lightweight: %q %v %v want %q", sha, ok, err, c1)
+	}
+	// Annotated tags are peeled to the commit, not the tag object.
+	if sha, ok, err := r.TagCommit("app@v2.0.0"); err != nil || !ok || sha != c2 {
+		t.Errorf("annotated: %q %v %v want %q", sha, ok, err, c2)
+	}
+	if _, ok, err := r.TagCommit("nope"); err != nil || ok {
+		t.Errorf("missing tag: ok=%v err=%v", ok, err)
+	}
+}
+
+func TestParseRemote(t *testing.T) {
+	tests := []struct {
+		in                 string
+		scheme, host, path string
+		ok                 bool
+	}{
+		{"https://h.com/o/r.git", "https", "h.com", "o/r", true},
+		{"http://u:p@h.com:3000/o/r/", "http", "h.com:3000", "o/r", true},
+		{"ssh://git@h.com:2222/o/r.git", "https", "h.com", "o/r", true},
+		{"git@h.com:o/r.git", "https", "h.com", "o/r", true},
+		{"/local/path", "", "", "", false},
+		{"https://h.com/solo", "", "", "", false},
+		{"a:b@c", "", "", "", false},
+	}
+	for _, tt := range tests {
+		s, h, p, ok := ParseRemote(tt.in)
+		if s != tt.scheme || h != tt.host || p != tt.path || ok != tt.ok {
+			t.Errorf("ParseRemote(%q) = %q %q %q %v", tt.in, s, h, p, ok)
+		}
+	}
+}

@@ -49,14 +49,90 @@ type Node struct {
 	RuleClass      string
 	Inputs         []string
 	GeneratingRule string
+	// Attrs holds the rule attributes (RULE nodes only), keyed by name. It
+	// is only filled by ParseWithAttrs/QueryWithAttrs and is never
+	// serialized (json:"-"), so it cannot enter the graph cache. It
+	// includes explicitly specified attributes and every attribute of type
+	// STRING, STRING_LIST, LABEL, LABEL_LIST, STRING_DICT or BOOLEAN; other
+	// types are skipped unless explicit, in which case only Type is set.
+	Attrs map[string]Attr `json:"-"`
+}
+
+// Attr is a rule attribute value. Only the field matching Type is set.
+// LABEL and LABEL_LIST values are in the --consistent_labels form
+// (@@//pkg:name) and are held in String and StringList respectively.
+// Explicit tells whether the attribute was set in the BUILD file; when false
+// the value is Bazel's default. Values that Bazel does not resolve to a
+// concrete value (for example select()) appear empty.
+type Attr struct {
+	Type       string
+	Explicit   bool
+	String     string
+	StringList []string
+	StringDict map[string]string
+	Bool       bool
+}
+
+type rawAttr struct {
+	Name                string   `json:"name"`
+	Type                string   `json:"type"`
+	ExplicitlySpecified bool     `json:"explicitlySpecified"`
+	StringValue         string   `json:"stringValue"`
+	StringListValue     []string `json:"stringListValue"`
+	StringDictValue     []struct {
+		Key   string `json:"key"`
+		Value string `json:"value"`
+	} `json:"stringDictValue"`
+	BooleanValue bool `json:"booleanValue"`
+}
+
+func attrsIf(on bool, raw []rawAttr) map[string]Attr {
+	if !on {
+		return nil
+	}
+	return parseAttrs(raw)
+}
+
+func parseAttrs(raw []rawAttr) map[string]Attr {
+	if len(raw) == 0 {
+		return nil
+	}
+	attrs := make(map[string]Attr, len(raw))
+	for _, a := range raw {
+		switch a.Type {
+		case "STRING", "LABEL":
+			attrs[a.Name] = Attr{Type: a.Type, Explicit: a.ExplicitlySpecified, String: a.StringValue}
+		case "STRING_LIST", "LABEL_LIST":
+			attrs[a.Name] = Attr{Type: a.Type, Explicit: a.ExplicitlySpecified, StringList: a.StringListValue}
+		case "STRING_DICT":
+			var d map[string]string
+			if len(a.StringDictValue) > 0 {
+				d = make(map[string]string, len(a.StringDictValue))
+				for _, kv := range a.StringDictValue {
+					d[kv.Key] = kv.Value
+				}
+			}
+			attrs[a.Name] = Attr{Type: a.Type, Explicit: a.ExplicitlySpecified, StringDict: d}
+		case "BOOLEAN":
+			attrs[a.Name] = Attr{Type: a.Type, Explicit: a.ExplicitlySpecified, Bool: a.BooleanValue}
+		default:
+			// Tolerate unknown or unsupported types: keep the type of
+			// explicit ones so callers can tell the attribute was set.
+			if a.ExplicitlySpecified {
+				attrs[a.Name] = Attr{Type: a.Type, Explicit: true}
+			}
+		}
+	}
+	return attrs
 }
 
 type entry struct {
 	Type string `json:"type"`
 	Rule *struct {
-		Name      string   `json:"name"`
-		RuleClass string   `json:"ruleClass"`
-		RuleInput []string `json:"ruleInput"`
+		Name      string    `json:"name"`
+		RuleClass string    `json:"ruleClass"`
+		RuleInput []string  `json:"ruleInput"`
+		Attribute []rawAttr `json:"attribute"`
 	} `json:"rule"`
 	SourceFile *struct {
 		Name string `json:"name"`
@@ -68,8 +144,18 @@ type entry struct {
 }
 
 // Parse reads streamed_jsonproto output (one JSON object per line).
-// Unknown entry types are skipped.
+// Unknown entry types are skipped. Rule attributes are not parsed (Attrs is
+// nil); use ParseWithAttrs for that.
 func Parse(r io.Reader) ([]Node, error) {
+	return parse(r, false)
+}
+
+// ParseWithAttrs is Parse that also fills Node.Attrs for RULE nodes.
+func ParseWithAttrs(r io.Reader) ([]Node, error) {
+	return parse(r, true)
+}
+
+func parse(r io.Reader, attrs bool) ([]Node, error) {
 	dec := json.NewDecoder(bufio.NewReaderSize(r, 1<<20))
 	var nodes []Node
 	for {
@@ -81,7 +167,7 @@ func Parse(r io.Reader) ([]Node, error) {
 		}
 		switch {
 		case e.Type == "RULE" && e.Rule != nil:
-			nodes = append(nodes, Node{Label: e.Rule.Name, Kind: "rule", RuleClass: e.Rule.RuleClass, Inputs: e.Rule.RuleInput})
+			nodes = append(nodes, Node{Label: e.Rule.Name, Kind: "rule", RuleClass: e.Rule.RuleClass, Inputs: e.Rule.RuleInput, Attrs: attrsIf(attrs, e.Rule.Attribute)})
 		case e.Type == "SOURCE_FILE" && e.SourceFile != nil:
 			nodes = append(nodes, Node{Label: e.SourceFile.Name, Kind: "source"})
 		case e.Type == "GENERATED_FILE" && e.GeneratedFile != nil:
@@ -94,11 +180,20 @@ func Parse(r io.Reader) ([]Node, error) {
 // Query runs a bazel query and parses the result. Any failure, including
 // exit code 3 (partial results), is an error: a partial graph could hide changes.
 func Query(r Runner, expr string) ([]Node, error) {
+	return query(r, expr, false)
+}
+
+// QueryWithAttrs is Query that also fills Node.Attrs for RULE nodes.
+func QueryWithAttrs(r Runner, expr string) ([]Node, error) {
+	return query(r, expr, true)
+}
+
+func query(r Runner, expr string, attrs bool) ([]Node, error) {
 	out, err := r.Run("query", "--consistent_labels", "--output=streamed_jsonproto", "--keep_going", expr)
 	if err != nil {
 		return nil, err
 	}
-	return Parse(bytes.NewReader(out))
+	return parse(bytes.NewReader(out), attrs)
 }
 
 // Labels runs a bazel query with --output=label and returns the sorted labels.

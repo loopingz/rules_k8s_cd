@@ -1,0 +1,9 @@
+## 2.0.0 (2026-10-25)
+
+### Breaking Changes
+
+- **api:** drop v1 ([0000001](https://example.com/c/0000000000000000000000000000000000000001))
+
+### Features
+
+- newest feature ([0000002](https://example.com/c/0000000000000000000000000000000000000002)) — via `lib/x.go`

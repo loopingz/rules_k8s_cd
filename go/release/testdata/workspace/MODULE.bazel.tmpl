@@ -1,0 +1,9 @@
+module(name = "it")
+
+bazel_dep(name = "rules_k8s_cd")
+local_path_override(
+    module_name = "rules_k8s_cd",
+    path = "@@RULES_K8S_CD@@",
+)
+
+bazel_dep(name = "rules_shell", version = "0.6.1")

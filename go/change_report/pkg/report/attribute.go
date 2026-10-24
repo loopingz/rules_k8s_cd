@@ -151,9 +151,13 @@ func moduleExplained(in Input, sha string) bool {
 
 // attributed returns the files of the commit that affect a target with the
 // given closure.
-func (cc classified) attributed(cl graph.Closure) []string {
+// Paths for which ignore returns true are never attributed (ignore may be nil).
+func (cc classified) attributed(cl graph.Closure, ignore func(string) bool) []string {
 	var out []string
 	for _, f := range cc.c.Files {
+		if ignore != nil && ignore(f.Path) {
+			continue
+		}
 		if cc.hits(cl, f) {
 			out = append(out, f.Path)
 		}

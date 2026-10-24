@@ -5,6 +5,7 @@ package gitx
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -21,8 +22,36 @@ type Repo struct {
 // error includes stderr; a non-zero exit is returned as *exec.ExitError
 // (wrapped) so callers can inspect the code.
 func (r Repo) run(args ...string) ([]byte, error) {
+	return r.runEnv(nil, args...)
+}
+
+// Git runs git with args in r.Dir and returns stdout; errors carry stderr.
+// Callers are responsible for any hostile-config `-c` overrides.
+func (r Repo) Git(args ...string) ([]byte, error) { return r.runEnv(nil, args...) }
+
+// GitEnv is Git with extra KEY=VALUE environment entries (e.g. GIT_INDEX_FILE).
+func (r Repo) GitEnv(env []string, args ...string) ([]byte, error) {
+	return r.runEnv(env, args...)
+}
+
+// GitEnvStdin is GitEnv with stdin fed to the command.
+func (r Repo) GitEnvStdin(env []string, stdin []byte, args ...string) ([]byte, error) {
+	return r.runStdin(env, stdin, args...)
+}
+
+func (r Repo) runEnv(env []string, args ...string) ([]byte, error) {
+	return r.runStdin(env, nil, args...)
+}
+
+func (r Repo) runStdin(env []string, stdin []byte, args ...string) ([]byte, error) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = r.Dir
+	if stdin != nil {
+		cmd.Stdin = bytes.NewReader(stdin)
+	}
+	if len(env) > 0 {
+		cmd.Env = append(os.Environ(), env...)
+	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -161,15 +190,26 @@ func (r Repo) CommitURLTemplate() string {
 }
 
 func commitURLFromRemote(remote string) string {
-	var host, path string
-	scheme := "https"
+	scheme, host, path, ok := ParseRemote(remote)
+	if !ok {
+		return ""
+	}
+	return scheme + "://" + host + "/" + path + "/commit/{sha}"
+}
+
+// ParseRemote splits a git remote URL (https, http, ssh:// or scp-like
+// user@host:path forms) into the web scheme, host and "owner/repo" path
+// (".git" suffix stripped). ssh remotes map to the "https" scheme and lose
+// their port. ok is false when the remote is not of that shape.
+func ParseRemote(remote string) (scheme, host, path string, ok bool) {
+	scheme = "https"
 	switch {
 	case strings.HasPrefix(remote, "https://") || strings.HasPrefix(remote, "http://") || strings.HasPrefix(remote, "ssh://"):
 		sep := strings.Index(remote, "://")
 		rest := remote[sep+3:]
 		slash := strings.IndexByte(rest, '/')
 		if slash < 0 {
-			return ""
+			return "", "", "", false
 		}
 		host, path = rest[:slash], rest[slash+1:]
 		if at := strings.LastIndexByte(host, '@'); at >= 0 {
@@ -187,15 +227,18 @@ func commitURLFromRemote(remote string) string {
 		// scp-like: user@host:org/repo.git
 		rest := remote[strings.IndexByte(remote, '@')+1:]
 		colon := strings.IndexByte(rest, ':')
+		if colon < 0 {
+			return "", "", "", false
+		}
 		host, path = rest[:colon], rest[colon+1:]
 	default:
-		return ""
+		return "", "", "", false
 	}
 	path = strings.TrimSuffix(strings.Trim(path, "/"), ".git")
 	if host == "" || path == "" || !strings.Contains(path, "/") {
-		return ""
+		return "", "", "", false
 	}
-	return scheme + "://" + host + "/" + path + "/commit/{sha}"
+	return scheme, host, path, true
 }
 
 // Dirty reports whether the working tree under Dir has uncommitted changes,
@@ -206,4 +249,26 @@ func (r Repo) Dirty() (bool, error) {
 		return false, err
 	}
 	return len(bytes.TrimSpace(out)) > 0, nil
+}
+
+// Tags lists all tag names, sorted lexically.
+func (r Repo) Tags() ([]string, error) {
+	out, err := r.run("tag", "--list")
+	if err != nil {
+		return nil, err
+	}
+	return strings.Fields(string(out)), nil
+}
+
+// TagCommit resolves tag to the SHA of the commit it points to, peeling
+// annotated tags; false if the tag does not exist.
+func (r Repo) TagCommit(tag string) (string, bool, error) {
+	out, err := r.run("rev-parse", "--verify", "--quiet", "--end-of-options", "refs/tags/"+tag+"^{commit}")
+	if err != nil {
+		if exitCode(err) == 1 {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	return strings.TrimSpace(string(out)), true, nil
 }

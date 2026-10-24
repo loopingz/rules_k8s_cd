@@ -1,0 +1,18 @@
+load("@rules_k8s_cd//lib:release.bzl", "release_component")
+load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+
+sh_binary(
+    name = "bin",
+    srcs = ["bin.sh"],
+    deps = ["//lib:util"],
+)
+
+release_component(
+    name = "api",
+    # A shared file records every component's version, like a MODULE.bazel
+    # version: it is in api's and web's closures.
+    bump_files = {"../lib/versions.txt": "api_version = \"([^\"]*)\""},
+    release_targets = ["//tools:record_api"],
+    targets = [":bin"],
+    visibility = ["//visibility:public"],
+)
