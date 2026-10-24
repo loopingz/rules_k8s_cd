@@ -551,3 +551,24 @@ func TestBzlInSubdirLoadsRelativeToPackage(t *testing.T) {
 		t.Errorf("loads of pkg/defs/x.bzl = %v, want [pkg/m.bzl]", got)
 	}
 }
+
+func TestModuleBzlFiles(t *testing.T) {
+	f := setup(t)
+	f.r.write(t, "MODULE.bazel", "module(name = \"self\")\ne = use_extension(\"//:ext.bzl\", \"e\")\n")
+	f.r.write(t, "deps/x.MODULE.bazel", "r = use_repo_rule(\"@self//tools:repo.bzl\", \"r\")\n")
+	f.r.write(t, "BUILD", "")
+	f.r.write(t, "ext.bzl", "load(\"//lib:n.bzl\", \"n\")\n")
+	f.r.write(t, "tools/BUILD", "")
+	f.r.write(t, "tools/repo.bzl", "x = 1\n")
+	f.r.commit(t, "module extension")
+	f.run.labels = append(f.run.labels, "@@//:none")
+	s, _ := f.load(t, "full")
+	want := []string{"ext.bzl", "lib/n.bzl", "tools/repo.bzl"}
+	if !reflect.DeepEqual(s.ModuleBzlFiles, want) {
+		t.Errorf("ModuleBzlFiles = %v, want %v", s.ModuleBzlFiles, want)
+	}
+	s2, _ := f.load(t, "hit")
+	if !reflect.DeepEqual(s2.ModuleBzlFiles, want) {
+		t.Errorf("persisted ModuleBzlFiles = %v, want %v", s2.ModuleBzlFiles, want)
+	}
+}

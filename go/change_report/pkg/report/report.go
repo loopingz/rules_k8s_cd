@@ -71,7 +71,11 @@ type Input struct {
 	// Tracked reports whether a path is tracked by git. nil means untracked.
 	Tracked     func(path string) bool
 	GlobalGlobs []string
-	Gitops      *gitops.Result
+	// ModuleBzlFiles are the workspace .bzl files used by MODULE.bazel
+	// (use_extension, use_repo_rule) and their transitive loads; they are in
+	// no target closure but affect every target.
+	ModuleBzlFiles []string
+	Gitops         *gitops.Result
 }
 
 // Build computes the report.

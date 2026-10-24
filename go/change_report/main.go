@@ -214,8 +214,9 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 			ok, err := repo.Tracked(p)
 			return err == nil && ok
 		},
-		GlobalGlobs: globalFiles,
-		Gitops:      gres,
+		GlobalGlobs:    globalFiles,
+		ModuleBzlFiles: snap.ModuleBzlFiles,
+		Gitops:         gres,
 	})
 	for _, w := range rep.Warnings {
 		warn(w)

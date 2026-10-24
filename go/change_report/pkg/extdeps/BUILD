@@ -9,7 +9,10 @@ go_library(
     ],
     importpath = "loopingz.com/rules_k8s_cd/change_report/pkg/extdeps",
     visibility = ["//go/change_report:__subpackages__"],
-    deps = ["//go/change_report/pkg/bazelq"],
+    deps = [
+        "//go/change_report/pkg/bazelq",
+        "//go/change_report/pkg/label",
+    ],
 )
 
 go_test(

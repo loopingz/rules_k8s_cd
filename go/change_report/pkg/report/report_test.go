@@ -465,3 +465,20 @@ func TestLevel2EmptySetLockGlobal(t *testing.T) {
 		expect(t, r, l, Changed, "c1")
 	}
 }
+
+// A .bzl file used only by MODULE.bazel (module extension, repo rule) is in
+// no closure but affects every target.
+func TestModuleBzlFileGlobal(t *testing.T) {
+	in := input(map[string]graph.Closure{
+		"//a:a": cl([]string{"a/BUILD"}, []string{"a"}, nil),
+		"//b:b": cl([]string{"b/BUILD"}, []string{"b"}, nil),
+	}, commit("c1", fc('M', "tools/ext.bzl")), commit("c0", fc('M', "tools/other.bzl")))
+	in.ModuleBzlFiles = []string{"lib/n.bzl", "tools/ext.bzl"}
+	r := Build(in)
+	for _, l := range []string{"//a:a", "//b:b"} {
+		tg := expect(t, r, l, Changed, "c1")
+		if !reflect.DeepEqual(tg.Files, []string{"tools/ext.bzl"}) {
+			t.Errorf("%s: files %v", l, tg.Files)
+		}
+	}
+}

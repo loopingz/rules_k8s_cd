@@ -116,6 +116,16 @@ func (g *Graph) Closure(target string, buildFile func(pkg string) string) Closur
 	return Closure{Files: sortedKeys(files), Packages: sortedKeys(pkgs), Repos: sortedKeys(repos)}
 }
 
+// LoadClosure returns the sorted workspace files reachable from starts
+// (included) through Loads.
+func (g *Graph) LoadClosure(starts []string) []string {
+	files := map[string]bool{}
+	for _, s := range starts {
+		g.addLoadClosure(s, files)
+	}
+	return sortedKeys(files)
+}
+
 func (g *Graph) addLoadClosure(start string, files map[string]bool) {
 	stack := []string{start}
 	seen := map[string]bool{}

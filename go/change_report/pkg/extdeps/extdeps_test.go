@@ -376,3 +376,26 @@ func TestMainRepoNames(t *testing.T) {
 		t.Errorf("no module(): %v", got)
 	}
 }
+
+func TestModuleBzlPaths(t *testing.T) {
+	mb := `module(name = "me", repo_name = "alias")
+# x = use_extension("//commented:c.bzl", "x")
+a = use_extension("//lib:a.bzl", "a")
+b = use_extension("@//lib:b.bzl", "b")
+c = use_extension("@@//lib:c.bzl", "c", dev_dependency = True)
+d = use_extension("@me//lib:d.bzl", "d")
+e = use_extension("@alias//lib:e.bzl", "e")
+f = use_extension(":f.bzl", "f")
+g = use_extension(extension_name = "g", extension_bzl_file = "//lib:g.bzl")
+ext = use_extension("@rules_oci//oci:extensions.bzl", "oci")
+http = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+mine = use_repo_rule(
+    "//tools:repo.bzl",
+    "my_repo",
+)
+`
+	want := []string{"f.bzl", "lib/a.bzl", "lib/b.bzl", "lib/c.bzl", "lib/d.bzl", "lib/e.bzl", "lib/g.bzl", "tools/repo.bzl"}
+	if got := ModuleBzlPaths([]byte(mb), MainRepoNames([]byte(mb))); !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v\nwant %v", got, want)
+	}
+}

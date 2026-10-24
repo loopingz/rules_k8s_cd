@@ -205,6 +205,11 @@ func isGlobal(in Input, p string) bool {
 			return true
 		}
 	}
+	for _, m := range in.ModuleBzlFiles {
+		if m == p {
+			return true
+		}
+	}
 	for _, lp := range in.Mapping.LocalPaths {
 		lp = path.Clean(lp)
 		if lp == ".." || strings.HasPrefix(lp, "../") || strings.HasPrefix(lp, "/") {

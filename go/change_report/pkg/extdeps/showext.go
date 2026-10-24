@@ -6,9 +6,11 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"loopingz.com/rules_k8s_cd/change_report/pkg/bazelq"
+	"loopingz.com/rules_k8s_cd/change_report/pkg/label"
 )
 
 var quotedRe = regexp.MustCompile(`"([^"\\]*)"`)
@@ -187,6 +189,38 @@ var (
 	pathAttr = regexp.MustCompile(`\bpath\s*=\s*"([^"]*)"`)
 	depRe    = regexp.MustCompile(`\bbazel_dep\(\s*name\s*=\s*"([^"]+)"`)
 )
+
+var moduleBzlCallRe = regexp.MustCompile(`(?s)\b(?:use_extension|use_repo_rule)\s*\(([^)]*)\)`)
+
+// ModuleBzlPaths returns the sorted workspace paths of the main-repo .bzl
+// files named by use_extension and use_repo_rule calls in a MODULE.bazel (or
+// included *.MODULE.bazel) file. Main-repo labels are "//x", "@//x", "@@//x",
+// "@<name>//x" for a name in mainNames, and ":x.bzl" (root package). Every
+// quoted ".bzl" string of a call is considered, whatever its argument
+// position: over-matching only makes more files global.
+func ModuleBzlPaths(src []byte, mainNames []string) []string {
+	var out []string
+	for _, call := range moduleBzlCallRe.FindAllStringSubmatch(stripComments(src), -1) {
+		for _, q := range quotedRe.FindAllStringSubmatch(call[1], -1) {
+			s := q[1]
+			if !strings.HasSuffix(s, ".bzl") {
+				continue
+			}
+			if rest, ok := strings.CutPrefix(s, ":"); ok {
+				out = append(out, rest)
+				continue
+			}
+			l, err := label.Parse(s)
+			if err != nil {
+				continue
+			}
+			if l.IsMain() || slices.Contains(mainNames, l.Repo) {
+				out = append(out, l.Path())
+			}
+		}
+	}
+	return uniqSorted(out)
+}
 
 // LocalPaths returns the `path` of local_path_override and local_repository calls.
 func LocalPaths(moduleBazel []byte) []string {

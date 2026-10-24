@@ -113,3 +113,13 @@ func TestParseLoadsWhitespaceAndWordBoundary(t *testing.T) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 }
+
+func TestLoadClosure(t *testing.T) {
+	g := New(nil)
+	g.SetLoads("ext.bzl", []string{"lib/a.bzl"})
+	g.SetLoads("lib/a.bzl", []string{"lib/b.bzl", "ext.bzl"})
+	got := g.LoadClosure([]string{"ext.bzl", "other.bzl"})
+	if want := []string{"ext.bzl", "lib/a.bzl", "lib/b.bzl", "other.bzl"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}

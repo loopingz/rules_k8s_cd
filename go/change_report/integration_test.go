@@ -40,7 +40,7 @@ import (
 	"loopingz.com/rules_k8s_cd/change_report/pkg/gitx"
 )
 
-const itUniverse = `filter("gitops\.", //...)`
+const itUniverse = `filter(":gitops\.", //...)`
 
 var (
 	itProd   = "//app:gitops.prod"
@@ -299,6 +299,21 @@ func TestIntegration(t *testing.T) {
 		}
 		if !strings.Contains(errOut, "cache: full") {
 			t.Errorf("want cache: full, stderr %s", errOut)
+		}
+		if !strings.Contains(errOut, "MODULE.bazel.lock is not committed") {
+			t.Errorf("want untracked lockfile warning, stderr %s", errOut)
+		}
+	})
+
+	e.sub(t, "EditExtensionBzl", func(t *testing.T) {
+		// ext.bzl is only used by MODULE.bazel (use_extension): it is in no
+		// target closure, yet it can change any repo the extension creates.
+		prev := e.head()
+		e.write("ext.bzl", strings.Replace(e.read("ext.bzl"), "rctx.attr.content)", "rctx.attr.content + \"\\n\")", 1))
+		e.commit("edit extension")
+		out, errOut := e.run(0, "--since", prev, "--debug-cache")
+		if want := lines(itAll...); out != want {
+			t.Errorf("got %q, want %q (stderr %s)", out, want, errOut)
 		}
 		if !strings.Contains(errOut, "MODULE.bazel.lock is not committed") {
 			t.Errorf("want untracked lockfile warning, stderr %s", errOut)

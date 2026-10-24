@@ -26,7 +26,7 @@ import (
 
 // FormatVersion is the on-disk cache format; bump it on any change to the
 // persisted data or to how it is computed.
-const FormatVersion = 2
+const FormatVersion = 3
 
 // Snapshot is the dependency graph of the universe at HEAD.
 type Snapshot struct {
@@ -34,10 +34,14 @@ type Snapshot struct {
 	// Universe holds the universe target labels in "//pkg:name" form, sorted.
 	Universe []string
 	// Closures is keyed by the Universe labels.
-	Closures    map[string]graph.Closure
-	Mapping     extdeps.Mapping
-	PackageKeys map[string]string
-	GlobalKey   string
+	Closures map[string]graph.Closure
+	Mapping  extdeps.Mapping
+	// ModuleBzlFiles are the workspace .bzl files used by MODULE.bazel and
+	// *.MODULE.bazel (use_extension, use_repo_rule) plus their transitive
+	// loads, sorted. They are .bzl files, so the GlobalKey covers them.
+	ModuleBzlFiles []string
+	PackageKeys    map[string]string
+	GlobalKey      string
 	// Tree maps every path at HEAD to its blob SHA; recomputed on each run.
 	Tree map[string]string `json:"-"`
 }
@@ -299,19 +303,29 @@ func full(o Options, tree map[string]string, pkgs map[string]bool, keys map[stri
 		mapping = m
 	}
 
+	var moduleBzl []string
+	for p := range tree {
+		if p == "MODULE.bazel" || strings.HasSuffix(p, ".MODULE.bazel") {
+			if src, err := os.ReadFile(filepath.Join(o.Workspace, filepath.FromSlash(p))); err == nil {
+				moduleBzl = append(moduleBzl, extdeps.ModuleBzlPaths(src, mainNames)...)
+			}
+		}
+	}
+
 	bf := buildFileFunc(tree)
 	closures := make(map[string]graph.Closure, len(universe))
 	for _, t := range universe {
 		closures[t] = g.Closure(t, bf)
 	}
 	return &Snapshot{
-		Graph:       g,
-		Universe:    universe,
-		Closures:    closures,
-		Mapping:     mapping,
-		PackageKeys: keys,
-		GlobalKey:   gk,
-		Tree:        tree,
+		Graph:          g,
+		Universe:       universe,
+		Closures:       closures,
+		Mapping:        mapping,
+		ModuleBzlFiles: g.LoadClosure(moduleBzl),
+		PackageKeys:    keys,
+		GlobalKey:      gk,
+		Tree:           tree,
 	}, nil
 }
 
