@@ -44,24 +44,6 @@ func TestSinceFileParse(t *testing.T) {
 	}
 }
 
-func TestResolvePath(t *testing.T) {
-	env := func(k string) string {
-		if k == "BUILD_WORKING_DIRECTORY" {
-			return "/wd"
-		}
-		return ""
-	}
-	if got := resolvePath(env, "a/b"); got != "/wd/a/b" {
-		t.Errorf("relative: %q", got)
-	}
-	if got := resolvePath(env, "/abs"); got != "/abs" {
-		t.Errorf("absolute: %q", got)
-	}
-	if got := resolvePath(func(string) string { return "" }, "a"); got != "a" {
-		t.Errorf("no wd: %q", got)
-	}
-}
-
 func TestRelativeSinceFileUsesWorkingDirectory(t *testing.T) {
 	wd := t.TempDir()
 	if err := os.WriteFile(filepath.Join(wd, "since.json"), []byte("{bad"), 0o644); err != nil {

@@ -17,6 +17,7 @@ import (
 
 	"loopingz.com/rules_k8s_cd/change_report/pkg/bazelq"
 	"loopingz.com/rules_k8s_cd/change_report/pkg/cache"
+	"loopingz.com/rules_k8s_cd/change_report/pkg/cliutil"
 	"loopingz.com/rules_k8s_cd/change_report/pkg/gitops"
 	"loopingz.com/rules_k8s_cd/change_report/pkg/gitx"
 	"loopingz.com/rules_k8s_cd/change_report/pkg/label"
@@ -97,7 +98,7 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 
 	// Under `bazel run` the process cwd is the runfiles tree; relative paths
 	// given by the user are relative to BUILD_WORKING_DIRECTORY.
-	resolve := func(p string) string { return resolvePath(env, p) }
+	resolve := func(p string) string { return cliutil.ResolvePath(env, p) }
 
 	var perTarget map[string]string
 	if *sinceFile != "" {
@@ -137,11 +138,7 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 	if cd != "" {
 		cd = resolve(cd)
 	} else {
-		if x := env("XDG_CACHE_HOME"); x != "" {
-			cd = filepath.Join(x, "rules_k8s_cd", "change_report")
-		} else if uc, err := os.UserCacheDir(); err == nil {
-			cd = filepath.Join(uc, "rules_k8s_cd", "change_report")
-		}
+		cd = cliutil.DefaultCacheDir(env, "change_report")
 	}
 	loadCacheDir := cd
 	if dirty, err := repo.Dirty(); err != nil {
@@ -339,18 +336,6 @@ func displayPath(base, p string) string {
 		return p
 	}
 	return rel
-}
-
-// resolvePath makes a relative path absolute against BUILD_WORKING_DIRECTORY
-// (set by `bazel run`), else leaves it for the process cwd.
-func resolvePath(env func(string) string, p string) string {
-	if p == "" || filepath.IsAbs(p) {
-		return p
-	}
-	if wd := env("BUILD_WORKING_DIRECTORY"); wd != "" {
-		return filepath.Join(wd, p)
-	}
-	return p
 }
 
 // writeFileAtomic writes data to a temp file next to path and renames it into
