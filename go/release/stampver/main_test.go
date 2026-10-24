@@ -181,3 +181,74 @@ func TestUsageErrors(t *testing.T) {
 		t.Errorf("stderr lacks usage: %q", se.String())
 	}
 }
+
+func (f *fixture) versionErr(extra ...string) (int, string) {
+	f.t.Helper()
+	args := append([]string{"version", "--component", "web", "--untagged", "main-{commit}",
+		"--out", filepath.Join(f.dir, "o.txt"), "--out-json", filepath.Join(f.dir, "o.json")}, extra...)
+	var so, se bytes.Buffer
+	return run(args, &so, &se), se.String()
+}
+
+func TestOwnedLabelMismatchIsError(t *testing.T) {
+	f := newFixture(t)
+	vf := f.write("VERSION", "1.1.0\n")
+	st := f.write("stable", "BUILD_EMBED_LABEL web@v1.2.0\n")
+	code, msg := f.versionErr("--tag-format", "{name}@v{version}", "--version-file", vf, "--stable-status", st)
+	if code != 1 || !strings.Contains(msg, "web@v1.2.0") || !strings.Contains(msg, "web@v1.1.0") {
+		t.Errorf("code=%d msg=%q", code, msg)
+	}
+}
+
+func TestTagAtHeadMismatchWarns(t *testing.T) {
+	f := newFixture(t)
+	vf := f.write("VERSION", "1.1.0\n")
+	st := f.write("stable", "STABLE_GIT_COMMIT abc\nSTABLE_GIT_TAGS_AT_HEAD web@v1.2.0\n")
+	code, msg := f.versionErr("--tag-format", "{name}@v{version}", "--version-file", vf, "--stable-status", st)
+	if code != 0 || !strings.Contains(msg, "warning") || !strings.Contains(msg, "web@v1.1.0") {
+		t.Errorf("code=%d msg=%q", code, msg)
+	}
+}
+
+func TestInvalidUnusedVersionWarns(t *testing.T) {
+	f := newFixture(t)
+	vf := f.write("VERSION", "nope\n")
+	code, msg := f.versionErr("--tag-format", "{name}@v{version}", "--version-file", vf)
+	if code != 0 || !strings.Contains(msg, "warning") {
+		t.Errorf("code=%d msg=%q", code, msg)
+	}
+}
+
+func TestTagFormatValidation(t *testing.T) {
+	f := newFixture(t)
+	for _, tf := range []string{"{name}@v", "{version}", "{name}"} {
+		if code, _ := f.versionErr("--tag-format", tf); code != 1 {
+			t.Errorf("tag-format %q: code=%d", tf, code)
+		}
+	}
+}
+
+func TestOwnershipPrefixes(t *testing.T) {
+	f := newFixture(t)
+	vf := f.write("VERSION", "1.0.0\n")
+	// api-gateway tag must not be treated as an api tag, even with a loose format.
+	st := f.write("stable", "BUILD_EMBED_LABEL api-gateway-2.0.0\nSTABLE_GIT_TAGS_AT_HEAD api-gateway-2.0.0\n")
+	code, msg := f.versionErr("--component", "api", "--tag-format", "{name}-{version}", "--version-file", vf, "--stable-status", st)
+	if code != 0 || strings.Contains(msg, "warning") {
+		t.Errorf("code=%d msg=%q", code, msg)
+	}
+	st2 := f.write("stable2", "BUILD_EMBED_LABEL api-1.0.0\n")
+	if code, msg := f.versionErr("--component", "api", "--tag-format", "{name}-{version}", "--version-file", vf, "--stable-status", st2); code != 0 {
+		t.Errorf("code=%d msg=%q", code, msg)
+	}
+}
+
+func TestBranchInJSON(t *testing.T) {
+	f := newFixture(t)
+	st := f.write("stable", "STABLE_GIT_BRANCH main\n")
+	_, _ = f.version("--stable-status", st)
+	b, _ := os.ReadFile(filepath.Join(f.dir, "out.json"))
+	if !strings.Contains(string(b), `"branch": "main"`) {
+		t.Errorf("json: %s", b)
+	}
+}

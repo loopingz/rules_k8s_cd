@@ -157,25 +157,47 @@ func runVersion(args []string, stderr io.Writer) error {
 		in.Date = t.Format("20060102")
 	}
 
-	// Candidate tags: the stamped label and every tag at HEAD.
-	candidates := strings.Fields(status["STABLE_GIT_TAGS_AT_HEAD"])
-	if l := status["BUILD_EMBED_LABEL"]; l != "" {
-		candidates = append([]string{l}, candidates...)
+	if !strings.Contains(*tagFormat, "{version}") {
+		return fmt.Errorf("--tag-format %q must contain {version}", *tagFormat)
 	}
+	if expand((*tagFormat)[:strings.Index(*tagFormat, "{version}")], map[string]string{"name": *component}) == "" {
+		return fmt.Errorf("--tag-format %q has an empty literal prefix before {version}", *tagFormat)
+	}
+	owns := ownership(*tagFormat, *component)
+	label := status["BUILD_EMBED_LABEL"]
+	var ownedTags []string
+	for _, t := range strings.Fields(status["STABLE_GIT_TAGS_AT_HEAD"]) {
+		if owns(t) {
+			ownedTags = append(ownedTags, t)
+		}
+	}
+	ownedLabel := label != "" && owns(label)
+	needed := ownedLabel || len(ownedTags) > 0
 
 	ver, haveVer, err := readVersion(*verFile)
-	if err != nil && ownsAny(*tagFormat, *component, candidates) {
-		return err
-	}
-	if !haveVer && ownsAny(*tagFormat, *component, candidates) {
+	if err != nil {
+		if needed {
+			return err
+		}
+		fmt.Fprintf(stderr, "stampver: warning: ignoring invalid version file: %v\n", err)
+	} else if !haveVer && needed {
 		return fmt.Errorf("component %q has a release tag at HEAD but no usable --version-file %q", *component, *verFile)
 	}
 	if haveVer {
 		want := expand(*tagFormat, map[string]string{"name": *component, "version": ver.String()})
-		for _, c := range candidates {
-			if c == want {
-				in.Version, in.Tagged = ver.String(), true
-				break
+		switch {
+		case ownedLabel && label != want:
+			return fmt.Errorf("BUILD_EMBED_LABEL %q does not match the expected tag %q for VERSION %s", label, want, ver)
+		case ownedLabel:
+			in.Version, in.Tagged = ver.String(), true
+		default:
+			for _, t := range ownedTags {
+				if t == want {
+					in.Version, in.Tagged = ver.String(), true
+				}
+			}
+			if !in.Tagged && len(ownedTags) > 0 {
+				fmt.Fprintf(stderr, "stampver: warning: tags %v at HEAD do not match expected tag %q for VERSION %s; building untagged\n", ownedTags, want, ver)
 			}
 		}
 	}
@@ -213,19 +235,21 @@ func readVersion(path string) (v semver.Version, ok bool, err error) {
 	return v, true, nil
 }
 
-// ownsAny reports whether any candidate looks like a tag of this component,
-// i.e. starts with the tag format up to {version}. Only then is VERSION needed.
-func ownsAny(tagFormat, component string, candidates []string) bool {
-	prefix := expand(tagFormat, map[string]string{"name": component})
-	if i := strings.Index(prefix, "{version}"); i >= 0 {
-		prefix = prefix[:i]
-	}
-	for _, c := range candidates {
-		if strings.HasPrefix(c, prefix) {
-			return true
+// ownership returns a predicate telling whether a tag belongs to component:
+// it has the format's literal prefix and suffix around a valid semver, so
+// "api-gateway-1.0.0" is not an "api" tag for format "{name}-{version}".
+func ownership(tagFormat, component string) func(string) bool {
+	i := strings.Index(tagFormat, "{version}")
+	vars := map[string]string{"name": component}
+	prefix := expand(tagFormat[:i], vars)
+	suffix := expand(tagFormat[i+len("{version}"):], vars)
+	return func(tag string) bool {
+		if !strings.HasPrefix(tag, prefix) || !strings.HasSuffix(tag, suffix) || len(tag) < len(prefix)+len(suffix) {
+			return false
 		}
+		_, err := semver.Parse(tag[len(prefix) : len(tag)-len(suffix)])
+		return err == nil
 	}
-	return false
 }
 
 func runRender(args []string, stderr io.Writer) error {
