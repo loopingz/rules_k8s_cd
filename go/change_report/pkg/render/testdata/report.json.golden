@@ -1,0 +1,80 @@
+{
+  "since": "aaaaaaa0000000000000000000000000000000aa",
+  "head": "ddddddd00000000000000000000000000000ddd0",
+  "baseline": true,
+  "targets": [
+    {
+      "label": "//apps/api:deploy",
+      "status": "changed",
+      "since": "aaaaaaa0000000000000000000000000000000aa",
+      "commits": [
+        "2222222000000000000000000000000000000222",
+        "1111111000000000000000000000000000000111"
+      ],
+      "files": [
+        "apps/api/main.go",
+        "apps/api/values.yaml"
+      ]
+    },
+    {
+      "label": "//apps/old:deploy",
+      "status": "removed",
+      "since": "aaaaaaa0000000000000000000000000000000aa",
+      "commits": [],
+      "files": [
+        "gitops/old/a.yaml",
+        "gitops/old/b.yaml"
+      ]
+    },
+    {
+      "label": "//apps/web:deploy",
+      "status": "changed",
+      "since": "aaaaaaa0000000000000000000000000000000aa",
+      "commits": [
+        "1111111000000000000000000000000000000111"
+      ],
+      "files": [
+        "apps/web/index.html"
+      ]
+    },
+    {
+      "label": "//apps/worker:deploy",
+      "status": "unchanged",
+      "since": "aaaaaaa0000000000000000000000000000000aa",
+      "commits": [],
+      "files": []
+    }
+  ],
+  "unmanaged_commits": [
+    "3333333000000000000000000000000000000333"
+  ],
+  "commits": {
+    "1111111000000000000000000000000000000111": {
+      "short": "1111111",
+      "author": "Alice",
+      "email": "alice@example.com",
+      "date": "2026-10-01T12:30:00Z",
+      "subject": "feat: add things",
+      "body": "",
+      "url": "https://example.com/commit/1111111000000000000000000000000000000111"
+    },
+    "2222222000000000000000000000000000000222": {
+      "short": "2222222",
+      "author": "Bob",
+      "email": "bob@example.com",
+      "date": "2026-10-01T13:30:00Z",
+      "subject": "fix: handle a|b <nil>",
+      "body": "Longer explanation.\n\nSecond paragraph.\n</details> tricky",
+      "url": "https://example.com/commit/2222222000000000000000000000000000000222"
+    },
+    "3333333000000000000000000000000000000333": {
+      "short": "3333333",
+      "author": "Carol",
+      "email": "carol@example.com",
+      "date": "2026-10-01T14:30:00Z",
+      "subject": "Merge branch 'x' <into> main",
+      "body": "",
+      "url": "https://example.com/commit/3333333000000000000000000000000000000333"
+    }
+  }
+}
