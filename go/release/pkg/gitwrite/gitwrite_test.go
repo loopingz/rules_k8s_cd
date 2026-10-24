@@ -224,10 +224,16 @@ func TestCreateTagFreshClone(t *testing.T) {
 		t.Fatal(err)
 	}
 	clone := t.TempDir()
-	git(t, clone, "clone", "-q", origin, ".")
+	git(t, clone, "clone", "-q", "--no-tags", origin, ".")
 	crepo := gitx.Repo{Dir: clone}
+	if _, ok, err := crepo.TagCommit("x@v1"); err != nil || ok {
+		t.Fatalf("tag present locally before CreateTag: ok=%v err=%v", ok, err)
+	}
 	if err := CreateTag(crepo, "origin", "x@v1", c1, "m"); err != nil {
 		t.Fatalf("fresh clone same commit: %v", err)
+	}
+	if _, ok, _ := crepo.TagCommit("x@v1"); ok {
+		t.Error("CreateTag created a local tag although the remote already had it")
 	}
 	c2, err := CommitFiles(crepo, c1, map[string][]byte{"f": []byte("a")}, "a")
 	if err != nil {
@@ -310,5 +316,13 @@ func TestLastCommitTouching(t *testing.T) {
 	}
 	if _, ok, err := LastCommitTouching(repo, "missing"); err != nil || ok {
 		t.Errorf("missing: ok=%v err=%v", ok, err)
+	}
+}
+
+func TestCreateTagBogusRemote(t *testing.T) {
+	top, _ := setup(t)
+	sha := git(t, top, "rev-parse", "HEAD")
+	if err := CreateTag(gitx.Repo{Dir: top}, filepath.Join(top, "nonexistent"), "t", sha, "m"); err == nil {
+		t.Error("expected error for unreachable remote")
 	}
 }
