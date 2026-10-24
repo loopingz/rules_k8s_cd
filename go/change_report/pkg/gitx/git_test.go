@@ -326,6 +326,7 @@ func TestParseRemote(t *testing.T) {
 		{"git@h.com:o/r.git", "https", "h.com", "o/r", true},
 		{"/local/path", "", "", "", false},
 		{"https://h.com/solo", "", "", "", false},
+		{"a:b@c", "", "", "", false},
 	}
 	for _, tt := range tests {
 		s, h, p, ok := ParseRemote(tt.in)

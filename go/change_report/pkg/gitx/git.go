@@ -5,6 +5,7 @@ package gitx
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -21,8 +22,24 @@ type Repo struct {
 // error includes stderr; a non-zero exit is returned as *exec.ExitError
 // (wrapped) so callers can inspect the code.
 func (r Repo) run(args ...string) ([]byte, error) {
+	return r.runEnv(nil, args...)
+}
+
+// Git runs git with args in r.Dir and returns stdout; errors carry stderr.
+// Callers are responsible for any hostile-config `-c` overrides.
+func (r Repo) Git(args ...string) ([]byte, error) { return r.runEnv(nil, args...) }
+
+// GitEnv is Git with extra KEY=VALUE environment entries (e.g. GIT_INDEX_FILE).
+func (r Repo) GitEnv(env []string, args ...string) ([]byte, error) {
+	return r.runEnv(env, args...)
+}
+
+func (r Repo) runEnv(env []string, args ...string) ([]byte, error) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = r.Dir
+	if len(env) > 0 {
+		cmd.Env = append(os.Environ(), env...)
+	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -198,6 +215,9 @@ func ParseRemote(remote string) (scheme, host, path string, ok bool) {
 		// scp-like: user@host:org/repo.git
 		rest := remote[strings.IndexByte(remote, '@')+1:]
 		colon := strings.IndexByte(rest, ':')
+		if colon < 0 {
+			return "", "", "", false
+		}
 		host, path = rest[:colon], rest[colon+1:]
 	default:
 		return "", "", "", false
