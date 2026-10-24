@@ -182,7 +182,7 @@ func TestChangedReposRegistry(t *testing.T) {
 	before := []byte(`{"registryFileHashes":{"https://bcr.bazel.build/bazel_registry.json":"1","https://bcr.bazel.build/modules/zlib/1.3/MODULE.bazel":"a"}}`)
 	after := []byte(`{"registryFileHashes":{"https://bcr.bazel.build/bazel_registry.json":"1","https://bcr.bazel.build/modules/zlib/1.3/MODULE.bazel":"b","https://bcr.bazel.build/modules/new/2/MODULE.bazel":"c"}}`)
 	got, ok := ChangedRepos(before, after)
-	if !ok || !reflect.DeepEqual(got, []string{"new+", "new+2", "zlib+", "zlib+1.3"}) {
+	if !ok || !reflect.DeepEqual(got, []string{"new+", "new++*", "new+2", "zlib+", "zlib++*", "zlib+1.3"}) {
 		t.Errorf("got %v ok=%v", got, ok)
 	}
 	// bazel_registry.json itself changing cannot be attributed.
@@ -291,5 +291,60 @@ func TestLoadMissingLockfileFails(t *testing.T) {
 	f := &fakeRunner{fn: func(a []string) ([]byte, error) { return nil, errors.New("no bazel") }}
 	if _, _, err := Load(t.TempDir(), f, nil, nil); err == nil {
 		t.Error("expected error")
+	}
+}
+
+func TestMatchRepoPrefix(t *testing.T) {
+	cases := []struct {
+		p, c string
+		want bool
+	}{
+		{"rules_oci++*", "rules_oci++oci+nginx", true},
+		{"rules_oci++*", "rules_oci+", false},
+		{"rules_oci++*", "other++oci+nginx", false},
+		{"*+oci+nginx", "rules_oci++oci+nginx", true},
+		{"rules_oci+", "rules_oci+", true},
+		{"rules_oci+", "rules_oci++oci+x", false},
+	}
+	for _, c := range cases {
+		if got := MatchRepo(c.p, c.c); got != c.want {
+			t.Errorf("MatchRepo(%q,%q)=%v", c.p, c.c, got)
+		}
+	}
+}
+
+func TestModuleChangeExplained(t *testing.T) {
+	base := `module(name = "x")
+# a comment
+bazel_dep(
+    name = "rules_oci",  # trailing ) comment
+    version = "2.0.0",
+)
+bazel_dep(name = "zlib", version = "1.0")
+oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
+oci.pull(name = "nginx", digest = "sha256:aaa")
+use_repo(oci, "nginx")
+`
+	cases := []struct {
+		name string
+		edit func(string) string
+		want bool
+	}{
+		{"identical", func(s string) string { return s }, true},
+		{"version bump", func(s string) string { return strings.Replace(s, `"2.0.0"`, `"2.1.0"`, 1) }, true},
+		{"dep added", func(s string) string { return s + "bazel_dep(name = \"new\", version = \"1\")\n" }, true},
+		{"digest", func(s string) string { return strings.Replace(s, "aaa", "bbb", 1) }, false},
+		{"git_override", func(s string) string {
+			return s + "git_override(module_name = \"zlib\", remote = \"r\", commit = \"c\")\n"
+		}, false},
+		{"use_repo", func(s string) string {
+			return strings.Replace(s, `use_repo(oci, "nginx")`, `use_repo(oci, "nginx", "other")`, 1)
+		}, false},
+		{"comment outside", func(s string) string { return strings.Replace(s, "# a comment", "# another", 1) }, false},
+	}
+	for _, c := range cases {
+		if got := ModuleChangeExplained([]byte(base), []byte(c.edit(base))); got != c.want {
+			t.Errorf("%s: got %v want %v", c.name, got, c.want)
+		}
 	}
 }

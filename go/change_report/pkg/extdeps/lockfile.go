@@ -26,10 +26,14 @@ type Mapping struct {
 }
 
 // MatchRepo reports whether canonical repo name matches pattern, which is
-// either an exact canonical name or "*<suffix>" for a suffix match.
+// an exact canonical name, "*<suffix>" for a suffix match, or "<prefix>*" for a
+// prefix match (e.g. "rules_oci++*" for all repos of that module's extensions).
 func MatchRepo(pattern, canonical string) bool {
 	if strings.HasPrefix(pattern, "*") {
 		return strings.HasSuffix(canonical, pattern[1:])
+	}
+	if strings.HasSuffix(pattern, "*") {
+		return strings.HasPrefix(canonical, pattern[:len(pattern)-1])
 	}
 	return pattern == canonical
 }
