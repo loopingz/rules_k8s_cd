@@ -13,6 +13,7 @@ go_library(
         "//go/change_report/pkg/label",
         "//go/change_report/pkg/report",
         "//go/release/pkg/component",
+        "//go/release/pkg/semver",
     ],
 )
 

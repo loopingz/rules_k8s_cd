@@ -21,14 +21,33 @@ import (
 	"loopingz.com/rules_k8s_cd/change_report/pkg/label"
 	"loopingz.com/rules_k8s_cd/change_report/pkg/report"
 	"loopingz.com/rules_k8s_cd/release/pkg/component"
+	"loopingz.com/rules_k8s_cd/release/pkg/semver"
 )
 
-// releaseSubject matches the subject of a release commit
-// ("chore(release): <name> <version>").
-var releaseSubject = regexp.MustCompile(`^chore\(release\): \S+ \S+$`)
+// releaseSubject matches the subject of a release commit,
+// "chore(release): <name> <version>", optionally followed by the " (#N)"
+// suffix forges add when squash-merging a pull request.
+var releaseSubject = regexp.MustCompile(`^chore\(release\): (\S+) (\d+\.\d+\.\d+)(?: \(#\d+\))?$`)
+
+// ParseReleaseSubject returns the component name and version of a release
+// commit subject; ok is false if subject is not one.
+func ParseReleaseSubject(subject string) (name string, version semver.Version, ok bool) {
+	m := releaseSubject.FindStringSubmatch(subject)
+	if m == nil {
+		return "", semver.Version{}, false
+	}
+	v, err := semver.Parse(m[2])
+	if err != nil {
+		return "", semver.Version{}, false
+	}
+	return m[1], v, true
+}
 
 // IsReleaseCommit reports whether c is a release commit.
-func IsReleaseCommit(c gitx.Commit) bool { return releaseSubject.MatchString(c.Subject) }
+func IsReleaseCommit(c gitx.Commit) bool {
+	_, _, ok := ParseReleaseSubject(c.Subject)
+	return ok
+}
 
 // Result is the attribution of one component.
 type Result struct {
@@ -44,12 +63,22 @@ type Result struct {
 
 // Attribute attributes the commits up to head to comps, keyed by component
 // label. states must hold a state for every component; its BaselineSHA
-// (possibly report.RootBaseline) is where attribution starts. o.Universe and
-// o.Warn are set by Attribute; cache warnings are returned with the others.
-// globalGlobs are files affecting every component.
+// (possibly report.RootBaseline) is where attribution starts. o.Universe is
+// set by Attribute. Every warning is returned and, if o.Warn is non-nil, also
+// passed to it. globalGlobs are files affecting every component.
+//
+// Release commits are dropped whole, and every component's version file and
+// changelog are never attributed. Bump files are attributed like any file: a
+// non-release change to one is a real change of its owner.
 func Attribute(o cache.Options, repo gitx.Repo, head string, comps []component.Component, states map[string]component.State, globalGlobs []string) (map[string]Result, []string, error) {
 	var warnings []string
-	warn := func(s string) { warnings = append(warnings, s) }
+	callerWarn := o.Warn
+	warn := func(s string) {
+		warnings = append(warnings, s)
+		if callerWarn != nil {
+			callerWarn(s)
+		}
+	}
 
 	perComp := map[string]string{}
 	var labels []string
@@ -87,7 +116,10 @@ func Attribute(o cache.Options, repo gitx.Repo, head string, comps []component.C
 			return nil, warnings, err
 		}
 		if len(targets) == 0 {
-			warn(fmt.Sprintf("component %s matches no targets; no commit can be attributed to it", c.Label))
+			if c.TargetsQuery != "" {
+				return nil, warnings, fmt.Errorf("component %s: targets_query %q matches no targets", c.Label, c.TargetsQuery)
+			}
+			return nil, warnings, fmt.Errorf("component %s has no targets", c.Label)
 		}
 		cls := make([]graph.Closure, len(targets))
 		for i, t := range targets {
@@ -99,7 +131,9 @@ func Attribute(o cache.Options, repo gitx.Repo, head string, comps []component.C
 	}
 
 	baselines, bw := report.ResolveBaselines(repo, head, labels, "", perComp)
-	warnings = append(warnings, bw...)
+	for _, w := range bw {
+		warn(w)
+	}
 	for _, l := range labels {
 		if baselines[l] == "" {
 			// Never miss a release: an unusable baseline means all history.
@@ -126,11 +160,7 @@ func Attribute(o cache.Options, repo gitx.Repo, head string, comps []component.C
 		if releaseFiles[p] {
 			return true
 		}
-		c := byLabel[l]
-		if _, ok := c.BumpFiles[p]; ok {
-			return true
-		}
-		for _, g := range c.Ignore {
+		for _, g := range byLabel[l].Ignore {
 			if report.MatchGlob(g, p) {
 				return true
 			}
@@ -154,7 +184,9 @@ func Attribute(o cache.Options, repo gitx.Repo, head string, comps []component.C
 		IgnorePath:     ignorePath,
 		IgnoreCommit:   IsReleaseCommit,
 	})
-	warnings = append(warnings, rep.Warnings...)
+	for _, w := range rep.Warnings {
+		warn(w)
+	}
 
 	for _, t := range rep.Targets {
 		r, ok := results[t.Label]

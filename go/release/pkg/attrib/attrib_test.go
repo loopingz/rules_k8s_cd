@@ -234,12 +234,118 @@ func TestOtherComponentsVersionFileIgnored(t *testing.T) {
 	eq(t, "b", shas(t, res, "//b:b"), nil)
 }
 
-func TestBumpFilesIgnored(t *testing.T) {
+func TestBumpFilesAttributedToOwner(t *testing.T) {
 	f := newFixture(t)
 	f.comps[0].BumpFiles = map[string]string{"a/bump.txt": `^v=(.*)$`}
-	f.commit("chore: bump", map[string]string{"a/bump.txt": "v=2\n"})
+	// A release commit editing the bump file never counts.
+	f.commit("chore(release): a 1.1.0", map[string]string{"a/bump.txt": "v=1.1.0\n", "a/VERSION": "1.1.0\n"})
+	// A non-release edit of the bump file is a real change of its owner.
+	c := f.commit("build: bump dep", map[string]string{"a/bump.txt": "v=2\n"})
+	res, _ := f.attribute(f.states(f.base))
+	eq(t, "a", shas(t, res, "//a:a"), []string{c})
+	eq(t, "a files", res["//a:a"].Files[c], []string{"a/bump.txt"})
+}
+
+func TestReleaseCommitSquashSuffixIgnored(t *testing.T) {
+	f := newFixture(t)
+	f.commit("chore(release): a 1.1.0 (#12)", map[string]string{"a/VERSION": "1.1.0\n", "lib/x": "x2\n"})
 	res, _ := f.attribute(f.states(f.base))
 	eq(t, "a", shas(t, res, "//a:a"), nil)
+	eq(t, "b", shas(t, res, "//b:b"), nil)
+}
+
+func TestParseReleaseSubject(t *testing.T) {
+	for _, tc := range []struct {
+		subject, name, version string
+		ok                     bool
+	}{
+		{"chore(release): a 1.1.0", "a", "1.1.0", true},
+		{"chore(release): my-api 2.0.10 (#12)", "my-api", "2.0.10", true},
+		{"chore(release): update workflow", "", "", false},
+		{"chore(release): a 1.1", "", "", false},
+		{"chore(release): a 01.1.0", "", "", false},
+		{"chore(release): a 1.1.0-rc.1", "", "", false},
+		{"chore(release): a 1.1.0 (#12) extra", "", "", false},
+		{"fix: a 1.1.0", "", "", false},
+	} {
+		name, v, ok := ParseReleaseSubject(tc.subject)
+		if ok != tc.ok || (ok && (name != tc.name || v.String() != tc.version)) {
+			t.Errorf("ParseReleaseSubject(%q) = %q, %v, %v; want %q, %q, %v", tc.subject, name, v, ok, tc.name, tc.version, tc.ok)
+		}
+	}
+}
+
+func TestInvalidReleaseVersionNotIgnored(t *testing.T) {
+	f := newFixture(t)
+	c := f.commit("chore(release): update workflow", map[string]string{"lib/x": "x2\n"})
+	res, _ := f.attribute(f.states(f.base))
+	eq(t, "a", shas(t, res, "//a:a"), []string{c})
+}
+
+func TestMergeCommitNotAttributed(t *testing.T) {
+	f := newFixture(t)
+	f.git("checkout", "-q", "-b", "side")
+	c1 := f.commit("feat: side", map[string]string{"lib/x": "x2\n"})
+	f.git("checkout", "-q", "main")
+	c2 := f.commit("feat: main", map[string]string{"a/src.txt": "a2\n"})
+	f.git("merge", "-q", "--no-ff", "-m", "Merge side", "side")
+	merge := f.git("rev-parse", "HEAD")
+	res, _ := f.attribute(f.states(f.base))
+	got := shas(t, res, "//a:a")
+	for _, s := range got {
+		if s == merge {
+			t.Errorf("merge commit attributed: %v", got)
+		}
+	}
+	if len(got) != 2 || !(contains(got, c1) && contains(got, c2)) {
+		t.Errorf("a = %v, want %s and %s", got, c1, c2)
+	}
+}
+
+func contains(xs []string, s string) bool {
+	for _, x := range xs {
+		if x == s {
+			return true
+		}
+	}
+	return false
+}
+
+func TestEmptyMembershipIsError(t *testing.T) {
+	f := newFixture(t)
+	f.comps[1].Targets = nil
+	f.comps[1].TargetsQuery = "kind(rule, //b:none*)"
+	f.run.labels = map[string][]string{
+		`set("//a:t") + (kind(rule, //b:none*))`: {"@@//a:t"},
+		`(kind(rule, //b:none*))`:                {},
+	}
+	_, _, err := Attribute(cache.Options{Workspace: f.dir, Runner: f.run, Repo: f.repo}, f.repo, f.base, f.comps, f.states(f.base), nil)
+	if err == nil || !strings.Contains(err.Error(), "//b:b") || !strings.Contains(err.Error(), "kind(rule, //b:none*)") {
+		t.Fatalf("err = %v", err)
+	}
+
+	f = newFixture(t)
+	f.comps[1].Targets = nil
+	f.run.labels = map[string][]string{`set("//a:t") + set()`: {"@@//a:t"}}
+	_, _, err = Attribute(cache.Options{Workspace: f.dir, Runner: f.run, Repo: f.repo}, f.repo, f.base, f.comps, f.states(f.base), nil)
+	if err == nil || !strings.Contains(err.Error(), "//b:b") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestCallerWarnAlsoCalled(t *testing.T) {
+	f := newFixture(t)
+	states := f.states(f.base)
+	states["//a:a"] = component.State{BaselineSHA: "0123456789012345678901234567890123456789"}
+	var got []string
+	o := cache.Options{Workspace: f.dir, Runner: f.run, Repo: f.repo, Warn: func(s string) { got = append(got, s) }}
+	_, warns, err := Attribute(o, f.repo, f.base, f.comps, states, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warns) == 0 || !reflect.DeepEqual(got, warns) {
+		t.Errorf("caller warn got %v, returned %v", got, warns)
+	}
 }
 
 func TestIgnoreGlobs(t *testing.T) {
@@ -280,6 +386,15 @@ func TestTargetsQuery(t *testing.T) {
 	eq(t, "a", shas(t, res, "//a:a"), nil)
 	eq(t, "b", shas(t, res, "//b:b"), []string{c})
 	eq(t, "b targets", res["//b:b"].Targets, []string{"//b:t"})
+	n := 0
+	for _, e := range f.run.calls {
+		if e == `(kind(rule, //b:*))` {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Errorf("targets_query ran %d times (calls %v)", n, f.run.calls)
+	}
 }
 
 func TestTargetOutsideUniverseIsError(t *testing.T) {
