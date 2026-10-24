@@ -1,0 +1,10 @@
+load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+
+# Release target of api: records the tag it ran for and the version the
+# build resolved.
+sh_binary(
+    name = "record_api",
+    srcs = ["record.sh"],
+    args = ["api/api.version.txt"],
+    data = ["//api:api.version"],
+)

@@ -1,0 +1,19 @@
+load("@rules_k8s_cd//lib:release.bzl", "release_component")
+
+filegroup(
+    name = "site",
+    # The site shows api's version: every api release commit touches a file
+    # in web's closure (api/VERSION), and must still not release web.
+    srcs = glob(
+        [
+            "*.html",
+            "*.txt",
+        ],
+        allow_empty = True,
+    ) + ["//api:api.version"],
+)
+
+release_component(
+    name = "web",
+    targets = [":site"],
+)
