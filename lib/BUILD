@@ -122,3 +122,12 @@ bzl_library(
     name = "helm",
     srcs = ["helm.bzl"],
 )
+
+bzl_library(
+    name = "release",
+    srcs = ["release.bzl"],
+    deps = [
+        "@aspect_bazel_lib//lib:stamping",
+        "@bazel_skylib//lib:dicts",
+    ],
+)

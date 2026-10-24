@@ -1,0 +1,1 @@
+{"version": "{version}", "commit": "{commit}", "date": "{date}"}
