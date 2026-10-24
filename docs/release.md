@@ -15,15 +15,15 @@ Inside the rules_k8s_cd repository itself use `//go/release` instead of `@rules_
 - **Component**: a releasable unit of the repository, declared with `release_component`. A repository can have several (a library, a service, a CLI), each with its own version, tags, changelog and release PR.
 - **VERSION file**: the version of a component, a single line `X.Y.Z` followed by a newline. It is only written by release commits. Only `MAJOR.MINOR.PATCH` is supported (no pre-release suffix).
 - **Tag**: `tag_format` applied to the version, `{name}@v{version}` by default (for example `api@v1.4.0`), or `v{version}` for a single-component repository such as this one. The tag is the baseline: the commits since the tag of the current version are what the next release is computed from.
-- **Release PR**: one pull request per component, from the branch `release/<name>` to the main branch, titled `chore(release): <name> <version>`. It contains one commit with the new VERSION, the changelog section and the bumped files. The tool force-pushes that branch, so never commit to it by hand. The PR body carries the marker `<!-- rules_k8s_cd:release <name> -->`, which is how the tool finds its own PR.
-- **Release commit**: the squash-merged release PR. Its subject `chore(release): <name> <version>` (a forge ` (#N)` suffix is fine) is how the tool recognises it. Release commits are never attributed to any component and VERSION and changelog files never count as changes, so a release can never trigger another release.
+- **Release PR**: one pull request per component, from the branch `release/<name>` to the main branch, titled `chore(release): <name> <version>`. It contains one commit with the new VERSION, the changelog section and the bumped files. The tool force-pushes that branch, so never commit to it by hand. The PR body carries the marker `<!-- rules_k8s_cd:release <name> -->`: the tool only updates or closes an open PR on `release/<name>` whose body carries it. Another PR on that branch (opened by hand, or a fork's branch of the same name on Forgejo) is left untouched with a warning; if the forge then refuses to open the release PR next to it, the error is reported. The release commit and the PR body also end with a `Release-Base: <sha>` trailer, the main commit the PR was built on (see [Commits merged after the last update](#commits-merged-after-the-last-update)).
+- **Release commit**: the squash-merged release PR, or with a merge commit the release PR's own commit (it keeps its subject). Its subject `chore(release): <name> <version>` (a forge ` (#N)` suffix is fine) is how the tool recognises it. Release commits are never attributed to any component and VERSION and changelog files never count as changes, so a release can never trigger another release.
 
 ### Flow
 
 1. A push to the main branch runs `release run`. It first runs `tag`, then `pr`.
 2. `tag` looks at the VERSION of every component at `HEAD`. If it was set by a release commit and its tag is not on the remote yet, the tool tags that commit, pushes the tag, creates the forge release (notes: the changelog section) and runs the component's `release_targets`.
 3. `pr` computes, for every component, the commits since its tag that affect it, derives the next version, and opens or updates the release PR. A component with nothing to release gets its open release PR closed.
-4. Merging the release PR (squash) pushes to main, and step 1 cuts the release.
+4. Merging the release PR (squash, or a merge commit) pushes to main, and step 1 cuts the release.
 
 Every command is safe to re-run; a failed run is finished by running it again.
 
@@ -89,7 +89,7 @@ It declares the component and a `<name>.version` target (a [`release_version`](#
 
 Targets must exist and be in the query universe, and a component whose `targets_query` matches nothing is an error.
 
-Release targets run with `bazel run --stamp --embed_label=<tag> <target>` and the environment variables `RELEASE_COMPONENT`, `RELEASE_VERSION` and `RELEASE_TAG`. Release targets inherit the environment of the job, so they need their own credentials (a registry login, `GH_TOKEN` for `gh`, ...): `FORGE_TOKEN` is not enough for tools that read other variables. Use them to push images, publish packages or edit the release notes. When `HEAD` is not the release commit (a later commit already landed on main), the targets run in a temporary git worktree of the release commit, so they always build the released sources. Each such run starts with a fresh Bazel output base: the first build is a cold one. If a target fails, the tag stays and the tool prints a warning to re-run with `--retry-targets`.
+Release targets run with `bazel run --stamp --embed_label=<tag> <target>` and the environment variables `RELEASE_COMPONENT`, `RELEASE_VERSION` and `RELEASE_TAG`. Like any `bazel run`, they start in their runfiles tree, not in the checkout: use `$BUILD_WORKSPACE_DIRECTORY` to reach the sources (for example `cd "$BUILD_WORKSPACE_DIRECTORY"` before running `gh`, which needs a git checkout or `GH_REPO`). In a release worktree it points at the worktree, that is at the release commit. Release targets inherit the environment of the job, so they need their own credentials (a registry login, `GH_TOKEN` for `gh`, ...): `FORGE_TOKEN` is not enough for tools that read other variables. Use them to push images, publish packages or edit the release notes. When `HEAD` is not the release commit (a later commit already landed on main, or the PR was merged with a merge commit), the targets run in a git worktree of the release commit, so they always build the released sources. The worktree lives at a stable path per repository, `rules_k8s_cd-release-worktree-<hash>` under `--cache-dir` (the temp dir when the cache is disabled): its Bazel output base is reused across runs, and the tool runs `bazel shutdown` in it before removing the worktree, so no Bazel server outlives the run. Only one release may run per repository at a time (the workflow below uses a concurrency group). If a target fails, the tag stays and the tool prints a warning to re-run with `--retry-targets`.
 
 `bump_files` are **not** ignored when computing changes. Only the release commit is. A hand edit of a bump file, for example a `bazel_dep` change in `MODULE.bazel` bumped by the module version regex, counts for the owning component.
 
@@ -140,7 +140,7 @@ release_version_file(
 | `out` | Output file. |
 | `substitutions` | Extra `{key}` substitutions overriding the version info. `{package}` defaults to `version`. |
 
-Placeholders available in templates: `{version}`, `{commit}`, `{commit_full}`, `{date}`, `{date_iso}`, `{branch}`, `{component}`.
+Placeholders available in templates: `{version}`, `{commit}`, `{commit_full}`, `{date}`, `{date_iso}`, `{branch}`, `{component}`. Values are substituted as is, without escaping for the target language. Only `{branch}` can contain quotes or backslashes (a branch name chosen by a contributor); avoid it inside string literals, or use `{commit}` instead.
 
 ### Build-time version
 
@@ -162,7 +162,7 @@ bazel run //go/release -- <command> [flags]
 
 | Command | Description |
 |---------|-------------|
-| `status` | Prints the release plan of every component and writes nothing. |
+| `status` | Prints the release plan of every component and writes nothing. It never uses the forge API, but it needs access to the git remote: whether a tag is published is read with `git ls-remote`. |
 | `pr` | Opens, updates or closes the release PR of every component. |
 | `tag` | Tags and publishes the releases whose release PR is merged. |
 | `run` | `tag`, then `pr`. `pr` is skipped when `tag` fails, so an unpublished VERSION is never overwritten. |
@@ -184,7 +184,7 @@ rules_k8s_cd | 4.1.0   | 4.2.0 | release PR
 | `--forge-url` | | Web URL of the forge: required for Forgejo outside Actions, and for GitHub Enterprise (the API is `<url>/api/v3`). |
 | `--repo` | from the remote URL | `owner/name`. |
 | `--remote` | `origin` | Git remote to push to. |
-| `--main-branch` | the remote's HEAD branch, else `main` | Branch the release PRs target. `pr` requires `HEAD` to be its tip. |
+| `--main-branch` | the remote's HEAD branch, else `main` | Branch the release PRs target. `pr` requires `HEAD` to be its tip; when the branch only moved on since the checkout, `pr` warns and is skipped (exit 0): the run triggered by the newer commits updates the PRs. |
 | `--components` | `//...` | Bazel query scope searched for `release_component` targets. |
 | `--dry-run` | false | Prints what would be done; pushes, tags and writes nothing. |
 | `--retry-targets` | false | `tag`: finish the release of the current VERSION of each component: re-create the forge release when missing and re-run the release targets (see below). |
@@ -198,16 +198,26 @@ The exit code is 0 on success, 1 on a runtime error and 2 on invalid usage. Warn
 
 ### Tokens
 
-The token is read from `FORGE_TOKEN`, then `GITHUB_TOKEN`, then `FORGEJO_TOKEN`. It is never printed. `--dry-run` needs no token: without one it does not query the forge and prints what it would do (with a token it reads the forge, for a more precise preview). `status` never uses the forge.
+The token is read from `FORGE_TOKEN`, then `GITHUB_TOKEN`, then `FORGEJO_TOKEN`. It is never printed. `--dry-run` needs no token: without one it does not query the forge and prints what it would do (with a token it reads the forge, for a more precise preview). `status` never uses the forge API (it still reads the git remote).
 
 On GitHub the token needs `contents: write` and `pull-requests: write`. On Forgejo it needs repository write access and the permission to open pull requests and releases.
 
 ### Publishing and retries
 
 - The forge release is created only for a tag created in this run. Tags that already exist when you adopt the tool do not get a forge release.
-- `tag` first checks the remote, so it can be re-run on a fresh CI clone: a remote tag on the release commit is fetched and left alone, a tag anywhere else is an error.
+- `tag` first checks the remote, so it can be re-run on a fresh CI clone: a remote tag on the release commit is fetched and left alone, a tag anywhere else is an error. `status` and `pr` also trust the remote: in a clone without tags, the remote tag of VERSION is the baseline.
 - `--retry-targets` finishes the current-VERSION release of every component regardless of `HEAD`: it creates the forge release if it is missing and re-runs the release targets, in a worktree of the release commit when `HEAD` moved. It refuses when the tag does not point at the release commit. Trigger it with the `retry_targets` input of the workflow below after a failed release target.
 - A VERSION already set by a release commit but not tagged yet (tag cut failed, or a push race) is cut by the next `tag`.
+
+### Commits merged after the last update
+
+The release PR is rebuilt on every push to main, but a commit can land between the last `pr` run and the merge of the release PR (for example while the release run of that commit is still queued). It is shipped in the release, yet absent from its changelog. The release commit, and the PR body, end with the trailer `Release-Base: <sha>` naming the main commit the PR was built on. When `tag` cuts the release, it lists the commits between that base and the release commit's parent (merges and release commits excluded) and warns:
+
+```
+warning: api 1.4.0: 2 commit(s) landed after the release PR was last updated and are not in its changelog: 1a2b3c4 5d6e7f8
+```
+
+They are not attributed to the next release either: edit the forge release notes by hand if they matter. To avoid it, wait for the release PR to be refreshed (the release run of the last commit on main has finished) before merging it. When the squash message keeps neither the commit message nor the PR description, the trailer is lost and nothing is checked.
 
 ## Setup
 
@@ -215,13 +225,13 @@ On GitHub the token needs `contents: write` and `pull-requests: write`. On Forge
 
 1. Declare the components in `BUILD` files (see above).
 2. Merge. `release run` opens the first release PR(s): the changelog is `Initial release` with the latest commits, the version is `initial_version`.
-3. Merge the PR with a **squash** (the squash title must be kept as is). The next `release run` creates the tag, the forge release and runs the release targets.
+3. Merge the PR with a **squash** (the squash title must be kept as is) or a merge commit. The next `release run` creates the tag, the forge release and runs the release targets.
 
 For a repository that already has tags: create the VERSION file with the version of the latest tag (the tag format must match your existing tags, for example `v{version}`) and commit it. The first PR is then computed from the commits since that tag.
 
 ### Squash title rule
 
-Squash-merge the release PR and keep the title `chore(release): <name> <version>`. A forge ` (#N)` suffix is fine. Editing the title breaks release detection: no tag is cut (the tool warns), and an edit of a shared bump file is then attributed to the other components. Restore the original title before merging.
+Squash-merge the release PR and keep the title `chore(release): <name> <version>`. A forge ` (#N)` suffix is fine. A merge commit works too: the release PR's own commit keeps the subject and is the one tagged. Editing the title breaks release detection: no tag is cut (the tool warns), and an edit of a shared bump file is then attributed to the other components. Restore the original title before merging.
 
 ### GitHub Actions
 
@@ -260,6 +270,10 @@ jobs:
           run ${{ inputs.retry_targets && '--retry-targets' || '' }}
         env:
           FORGE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Only for release targets running `gh`: they inherit this
+          # environment and start in their runfiles tree, not the checkout.
+          # GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # GH_REPO: ${{ github.repository }}
 ```
 
 Pull requests opened with `GITHUB_TOKEN` do not trigger other workflows, so CI does not run on the release PR (and a required check would block the merge). Use a personal access token or a GitHub App token with the same permissions in the `FORGE_TOKEN` secret instead.
@@ -355,10 +369,12 @@ The first release PR is computed from the commits since `v4.1.0`. The `MODULE.ba
 
 - Only `MAJOR.MINOR.PATCH` versions: no pre-release or build metadata in VERSION.
 - Only the main branch is released: no release branches or backports. `pr` requires `HEAD` to be the tip of the main branch.
-- The release PR must be squash-merged (or merged with a commit whose subject is the release subject), and its title must not be edited.
+- The release PR must be squash-merged with its title kept, or merged with a merge commit (the release PR's commit keeps its subject).
 - The forge release is created only for tags created by the tool, and a forge release deleted by hand is only re-created with `--retry-targets`.
 - A release PR branch (`release/<name>`) is force-pushed: do not commit to it.
 - The tool needs the full git history and the tags; shallow clones do not work.
 - A deliberate downgrade of VERSION is not supported: the highest tag wins.
-- Release targets that run in a worktree start with a cold Bazel output base.
+- Release targets that run in the release worktree use their own Bazel output base: the first run there is a cold build.
+- Commits merged between the last `pr` run and the merge of the release PR are released but not in its changelog; `tag` warns about them.
+- `status` and `pr` need access to the git remote (`git ls-remote`), even in dry-run.
 - Changes outside the Bazel workspace and git-ignored files are not tracked (see [change_report](change_report.md#known-limitations)).
