@@ -211,30 +211,17 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 	}
 	existing := existingOutsideUniverse(runner, gres, snap.Universe, warn)
 
-	fileWarned := false
+	fileAt, tracked := report.GitAccessors(repo, warn)
 	rep := report.Build(report.Input{
-		Head:      head,
-		Baselines: baselines,
-		Universe:  snap.Universe,
-		Closures:  snap.Closures,
-		Mapping:   snap.Mapping,
-		Commits:   commits,
-		InRange:   inRange,
-		FileAt: func(rev, p string) ([]byte, bool) {
-			b, ok, err := repo.Show(rev, p)
-			if err != nil {
-				if !fileWarned {
-					fileWarned = true
-					warn(fmt.Sprintf("cannot read %s at %s: %v; treating as absent", p, rev, err))
-				}
-				return nil, false
-			}
-			return b, ok
-		},
-		Tracked: func(p string) bool {
-			ok, err := repo.Tracked(p)
-			return err == nil && ok
-		},
+		Head:           head,
+		Baselines:      baselines,
+		Universe:       snap.Universe,
+		Closures:       snap.Closures,
+		Mapping:        snap.Mapping,
+		Commits:        commits,
+		InRange:        inRange,
+		FileAt:         fileAt,
+		Tracked:        tracked,
 		GlobalGlobs:    globalFiles,
 		IgnorePath:     ignorePathFunc(ignores),
 		ModuleBzlFiles: snap.ModuleBzlFiles,

@@ -614,3 +614,15 @@ func TestIgnorePathPartialCommit(t *testing.T) {
 		t.Errorf("files %v", tg.Files)
 	}
 }
+
+func TestCommitFiles(t *testing.T) {
+	in := input(map[string]graph.Closure{
+		"//a:a": cl([]string{"a/f.go", "a/g.go"}, []string{"a"}, nil),
+	}, commit("c2", fc('M', "a/g.go"), fc('M', "z.txt")), commit("c1", fc('M', "a/f.go"), fc('M', "a/g.go")))
+	in.IgnorePath = func(_, p string) bool { return p == "a/f.go" }
+	tg := expect(t, Build(in), "//a:a", Changed, "c2", "c1")
+	want := map[string][]string{"c2": {"a/g.go"}, "c1": {"a/g.go"}}
+	if !reflect.DeepEqual(tg.CommitFiles, want) {
+		t.Errorf("commit files %v, want %v", tg.CommitFiles, want)
+	}
+}

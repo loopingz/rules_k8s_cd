@@ -40,6 +40,9 @@ type Target struct {
 	// Files is the sorted union of the files that caused attribution (for a
 	// removed target: its gitops files).
 	Files []string
+	// CommitFiles maps each attributed commit to the files that caused its
+	// attribution, sorted (empty for a commit attributed without files).
+	CommitFiles map[string][]string
 }
 
 // Report is the result of Build.
@@ -171,6 +174,12 @@ func Build(in Input) Report {
 			}
 			t.Commits = append(t.Commits, cc.c.SHA)
 			r.Commits[cc.c.SHA] = cc.c
+			if t.CommitFiles == nil {
+				t.CommitFiles = map[string][]string{}
+			}
+			cf := append([]string(nil), hit...)
+			sort.Strings(cf)
+			t.CommitFiles[cc.c.SHA] = cf
 			for _, f := range hit {
 				files[f] = true
 			}

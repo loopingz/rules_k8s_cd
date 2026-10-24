@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "attribute.go",
         "baseline.go",
+        "git.go",
         "report.go",
     ],
     importpath = "loopingz.com/rules_k8s_cd/change_report/pkg/report",
@@ -25,6 +26,7 @@ go_test(
     name = "report_test",
     srcs = [
         "baseline_test.go",
+        "git_test.go",
         "report_test.go",
     ],
     embed = [":report"],
