@@ -68,7 +68,11 @@ type Options struct {
 type persisted struct {
 	FormatVersion int
 	Packages      []string
-	Snapshot      Snapshot
+	// MappedFiles are the Snapshot.Mapping.FileRepos keys; InputsDigest
+	// hashes the working-tree content of inputPaths(tree, MappedFiles).
+	MappedFiles  []string
+	InputsDigest string
+	Snapshot     Snapshot
 }
 
 // Load returns the snapshot for HEAD, from the cache when it is still valid.
@@ -93,10 +97,10 @@ func Load(o Options) (*Snapshot, Stats, error) {
 		warn(fmt.Sprintf("graph cache disabled: %v", err))
 	}
 	if file != "" {
-		if c := readCache(file, gk, warn); c != nil {
+		if c := readCache(file, gk, warn); c != nil && c.InputsDigest == inputsDigest(o.Workspace, inputPaths(tree, c.MappedFiles)) {
 			if s, st, ok := incremental(o, c, tree, pkgs, keys, warn); ok {
 				if st.Mode != "hit" {
-					save(file, s, pkgs, warn)
+					save(file, o.Workspace, s, pkgs, warn)
 				}
 				return s, st, nil
 			}
@@ -108,7 +112,7 @@ func Load(o Options) (*Snapshot, Stats, error) {
 		return nil, Stats{}, err
 	}
 	if file != "" {
-		save(file, s, pkgs, warn)
+		save(file, o.Workspace, s, pkgs, warn)
 	}
 	return s, Stats{Mode: "full"}, nil
 }
@@ -162,13 +166,24 @@ func readCache(file, gk string, warn func(string)) *persisted {
 }
 
 // save writes the snapshot atomically; failures are only warnings.
-func save(file string, s *Snapshot, pkgs map[string]bool, warn func(string)) {
+func save(file, ws string, s *Snapshot, pkgs map[string]bool, warn func(string)) {
 	err := func() error {
 		dir := filepath.Dir(file)
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
 		}
-		data, err := json.Marshal(persisted{FormatVersion: FormatVersion, Packages: sortedKeys(pkgs), Snapshot: *s})
+		mapped := make([]string, 0, len(s.Mapping.FileRepos))
+		for p := range s.Mapping.FileRepos {
+			mapped = append(mapped, p)
+		}
+		sort.Strings(mapped)
+		data, err := json.Marshal(persisted{
+			FormatVersion: FormatVersion,
+			Packages:      sortedKeys(pkgs),
+			MappedFiles:   mapped,
+			InputsDigest:  inputsDigest(ws, inputPaths(s.Tree, mapped)),
+			Snapshot:      *s,
+		})
 		if err != nil {
 			return err
 		}
@@ -222,7 +237,7 @@ func incremental(o Options, c *persisted, tree map[string]string, pkgs map[strin
 	}
 	pats := make([]string, len(changed))
 	for i, p := range changed {
-		pats[i] = "//" + p + ":all"
+		pats[i] = "//" + p + ":*" // all targets, including files referenced by other packages
 	}
 	nodes, err := bazelq.Query(o.Runner, "deps(set("+strings.Join(pats, " ")+"))")
 	if err != nil {

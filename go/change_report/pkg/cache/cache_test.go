@@ -57,8 +57,10 @@ func (r repo) commit(t *testing.T, msg string) {
 type fakeRunner struct {
 	labels []string
 	nodes  []string // streamed_jsonproto lines
-	fail   func(args []string) bool
-	calls  [][]string
+	// partial, if set, serves `deps(set(...))` queries instead of nodes.
+	partial func(expr string) []string
+	fail    func(args []string) bool
+	calls   [][]string
 }
 
 func (f *fakeRunner) Run(args ...string) ([]byte, error) {
@@ -71,6 +73,8 @@ func (f *fakeRunner) Run(args ...string) ([]byte, error) {
 		return []byte("Build label: 8.0.0\n"), nil
 	case contains(args, "--output=label"):
 		return []byte(strings.Join(f.labels, "\n") + "\n"), nil
+	case contains(args, "--output=streamed_jsonproto") && f.partial != nil && strings.HasPrefix(args[len(args)-1], "deps(set("):
+		return []byte(strings.Join(f.partial(args[len(args)-1]), "\n") + "\n"), nil
 	case contains(args, "--output=streamed_jsonproto"):
 		return []byte(strings.Join(f.nodes, "\n") + "\n"), nil
 	}
@@ -234,7 +238,7 @@ func TestAddFileRequeriesOnlyPackage(t *testing.T) {
 			deps = e
 		}
 	}
-	if !strings.Contains(deps, "//pkg:all") || strings.Contains(deps, "//sub:all") {
+	if deps != "deps(set(//pkg:*))" {
 		t.Errorf("deps query = %q (all: %v)", deps, exprs)
 	}
 	if !contains(s.Closures["//pkg:viamacro"].Files, "pkg/manifests/c.yaml") {
@@ -309,6 +313,100 @@ func TestBzlChangeFull(t *testing.T) {
 	f.load(t, "full")
 }
 
+func gen(l, rule string) string {
+	return fmt.Sprintf(`{"type":"GENERATED_FILE","generatedFile":{"name":%q,"generatingRule":%q}}`, l, rule)
+}
+
+func TestPartialKeepsCrossPackageGeneratedFiles(t *testing.T) {
+	f := setup(t)
+	f.r.write(t, "p/BUILD", "genrule(name = \"genrule\")\n")
+	f.r.write(t, "p/in.txt", "in\n")
+	f.r.write(t, "q/BUILD", "filegroup(name = \"t\")\n")
+	f.r.commit(t, "gen")
+	pNodes := []string{
+		src("@@//p:in.txt"),
+		rule("@@//p:genrule", "@@//p:in.txt"),
+		gen("@@//p:gen.out", "@@//p:genrule"),
+	}
+	f.run.labels = append(f.run.labels, "@@//p:genrule", "@@//q:t")
+	f.run.nodes = append(append(f.run.nodes, pNodes...), rule("@@//q:t", "@@//p:gen.out"))
+	// Like Bazel: `//p:all` matches rules only, `//p:*` every target.
+	f.run.partial = func(expr string) []string {
+		if strings.Contains(expr, "//p:*") {
+			return pNodes
+		}
+		return pNodes[1:2]
+	}
+	f.load(t, "full")
+	f.r.write(t, "p/extra.txt", "x\n")
+	f.r.commit(t, "add file to p")
+	s, st := f.load(t, "partial")
+	if !reflect.DeepEqual(st.RequeriedPackages, []string{"p"}) {
+		t.Errorf("requeried = %v", st.RequeriedPackages)
+	}
+	if c := s.Closures["//q:t"]; !contains(c.Files, "p/in.txt") {
+		t.Errorf("//q:t closure lost p/in.txt: %v", c.Files)
+	}
+}
+
+func TestUntrackedLockfileChangeFull(t *testing.T) {
+	f := setup(t)
+	gitCmd(t, f.r.Dir, "rm", "-q", "--cached", "MODULE.bazel.lock")
+	gitCmd(t, f.r.Dir, "commit", "-q", "-m", "untrack lockfile")
+	if _, tracked := mustTree(t, f.r)["MODULE.bazel.lock"]; tracked {
+		t.Fatal("lockfile still tracked")
+	}
+	f.load(t, "full")
+	f.load(t, "hit")
+	f.r.write(t, "MODULE.bazel.lock", `{"lockFileVersion": 1}`+"\n")
+	f.load(t, "full")
+	f.load(t, "hit")
+}
+
+func mustTree(t *testing.T, r repo) map[string]string {
+	t.Helper()
+	tree, err := r.TreeFiles("HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tree
+}
+
+func TestGoModEditFull(t *testing.T) {
+	f := setup(t)
+	f.r.write(t, "sub/go.mod", "module x\n")
+	f.r.commit(t, "go.mod")
+	f.load(t, "full")
+	f.r.write(t, "sub/go.mod", "module x\n\nrequire y v1.0.0\n")
+	f.r.commit(t, "bump")
+	f.load(t, "full")
+}
+
+func TestMappedFileEditFull(t *testing.T) {
+	f := setup(t)
+	f.r.write(t, "MODULE.bazel.lock", `{"moduleExtensions":{"//ext:e.bzl%e":{"general":{"recordedInputs":["FILE:@@//sub/images.yaml abc"],"generatedRepoSpecs":{"img":{}}}}}}`+"\n")
+	f.r.write(t, "sub/images.yaml", "a: 1\n")
+	f.r.commit(t, "mapped file")
+	s, _ := f.load(t, "full")
+	if _, ok := s.Mapping.FileRepos["sub/images.yaml"]; !ok {
+		t.Fatalf("images.yaml not mapped: %v", s.Mapping.FileRepos)
+	}
+	f.load(t, "hit")
+	f.r.write(t, "sub/images.yaml", "a: 2\n")
+	f.r.commit(t, "edit images")
+	f.load(t, "full")
+}
+
+func TestBazelignoreChangeFull(t *testing.T) {
+	f := setup(t)
+	f.r.write(t, ".bazelignore", "a\n")
+	f.r.commit(t, "ignore")
+	f.load(t, "full")
+	f.r.write(t, ".bazelignore", "a\nb\n")
+	f.r.commit(t, "ignore more")
+	f.load(t, "full")
+}
+
 func TestUniverseExprChangeFull(t *testing.T) {
 	f := setup(t)
 	f.load(t, "full")
@@ -340,8 +438,12 @@ func TestUnwritableCacheDir(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.load(t, "full")
-	if len(f.warns) == 0 {
-		t.Error("no warning for unwritable cache dir")
+	saved := false
+	for _, w := range f.warns {
+		saved = saved || strings.HasPrefix(w, "saving graph cache")
+	}
+	if !saved {
+		t.Errorf("warnings = %q, want a save failure", f.warns)
 	}
 }
 
@@ -407,6 +509,7 @@ func TestPackagesAndKeys(t *testing.T) {
 	}
 	for _, mut := range []struct{ k, v string }{
 		{"a/m.bzl", "m2"}, {"MODULE.bazel", "mod2"}, {".bazelrc", "rc2"}, {"WORKSPACE.bzlmod", "ws2"}, {"MODULE.bazel.lock", "l"}, {"x/new.bzl", "n"},
+		{".bazelignore", "i"}, {"REPO.bazel", "r"}, {"tools/ci.bazelrc", "c"}, {"deps/go.MODULE.bazel", "g"},
 	} {
 		old, had := tree[mut.k]
 		tree[mut.k] = mut.v
