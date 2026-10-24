@@ -11,11 +11,13 @@ It runs in any CI, including GitHub Actions and Forgejo Actions. It only needs `
 ```bash
 bazel run @rules_k8s_cd//go/change_report -- \
   --since "$SINCE" \
-  --targets 'filter("gitops\.", //deployments/...)' \
+  --targets 'filter(":gitops\.", //deployments/...)' \
   --format targets
 ```
 
-The query string is passed verbatim to Bazel, so inside shell single quotes write `\.` once (no extra escaping).
+The query string is passed verbatim to Bazel, so inside shell single quotes write `\.` once (no extra escaping). The leading `:` anchors the match at the start of the target name: `filter("gitops\.", …)` would also match the private helper targets of the `gitops` macro (`_gitops.<env>`, `__gitops.<env>.kustomize`, `__gitops.<env>.header`), which are not runnable and break the `bazel run` loop of the workflow below.
+
+It needs Bazel 8 or later (canonical repository names with `+`).
 
 Inside the rules_k8s_cd repository itself use `//go/change_report` instead of `@rules_k8s_cd//go/change_report`.
 
@@ -32,7 +34,7 @@ Under `bazel run`, relative paths given to `--since-file`, `--output`, `--cache-
 | `--output` | stdout | Write the result to this file (atomically) instead of stdout. |
 | `--gitops-dir` | | Directory scanned for exported gitops manifests. Repeatable. Enables removed-target detection. |
 | `--global-file` | | Extra glob of files that affect every target. Repeatable. |
-| `--commit-url` | derived from `origin` | Commit URL template containing `{sha}`, e.g. `https://git.example.com/org/repo/commit/{sha}`. |
+| `--commit-url` | derived from `origin` | Commit URL template containing `{sha}`, e.g. `https://git.example.com/org/repo/commit/{sha}`. The default keeps the scheme and port of an http(s) remote and uses `https://<host>` for ssh remotes. |
 | `--cache-dir` | `$XDG_CACHE_HOME/rules_k8s_cd/change_report`, else the OS user cache dir | Directory for the dependency graph cache. |
 | `--workspace` | `$BUILD_WORKSPACE_DIRECTORY`, else the current directory | Bazel workspace directory. |
 | `--bazel` | `bazel` | Bazel binary to invoke. |
@@ -48,7 +50,7 @@ The labels of changed targets, one per line, sorted. Targets without a baseline 
 
 ### `removed`
 
-The files (relative to the repository root) that belong to removed gitops targets, sorted, one per line. Requires `--gitops-dir`. Feed it to `git rm`.
+The files that belong to removed gitops targets, sorted, one per line. Requires `--gitops-dir`. Feed it to `git rm`. Paths are relative to your working directory (the directory where you invoked `bazel run`, else the current directory) when they are under it, absolute otherwise; the same applies to the `files` of removed targets in `json` and `markdown`.
 
 ### `json`
 
@@ -149,23 +151,34 @@ When the baselines differ per target, each section starts with `_Since aaaaaaa_`
 # rules_k8s_cd:target //deployments/app:gitops.prod
 ```
 
-With `--gitops-dir gitops`, `change_report` scans the directory, groups files by that header and reports as `removed` every labelled target that no longer exists in the `--targets` universe at `HEAD`. Gitops files without the header are ignored, with a warning.
+With `--gitops-dir gitops`, `change_report` scans the directory and groups files by that header. A labelled target is reported as `removed` only when it no longer exists at `HEAD`:
+
+- a target in the `--targets` universe exists;
+- labels outside the universe (for example because `--targets` was narrowed to one directory) are checked with a single `bazel query --keep_going 'set(<labels>)'`. Labels that query still finds are not removed, and `change_report` warns `<n> gitops target(s) outside --targets still exist and were not marked removed`; only labels it does not return are removed.
+- if that query fails for another reason than missing targets, nothing is reported as removed, with a warning.
+
+Gitops files without the header are ignored, with a warning.
 
 ## How a target is judged changed
 
 For each target, `change_report` computes the set of files and external repositories it depends on (via `bazel query --consistent_labels`), then looks at the files changed between the target's baseline and `HEAD`.
 
-- Source files are matched against the target's dependency closure.
-- Global files always affect every target: `MODULE.bazel` (see below), `WORKSPACE`, `WORKSPACE.bazel`, `WORKSPACE.bzlmod`, `.bazelrc`, `.bazelversion`, plus any `--global-file` glob.
+- Source files are matched against the target's dependency closure, including the BUILD files of its packages and the `.bzl` files they load. A source directory used as a label (`srcs = ["chart"]`) covers every file below it.
+- Global files always affect every target: `MODULE.bazel` (see below), `*.MODULE.bazel`, `WORKSPACE`, `WORKSPACE.bazel`, `WORKSPACE.bzlmod`, `.bazelrc`, `*.bazelrc`, `.bazelversion`, `.bazelignore`, `REPO.bazel`, the `.bzl` files used by `use_extension` / `use_repo_rule` in `MODULE.bazel` or `*.MODULE.bazel` (and the files they load), the directories of `local_path_override`, `local_repository` and `new_local_repository`, plus any `--global-file` glob.
 - Dependency-looking files that cannot be mapped to a target mark everything as changed: `**/go.mod`, `**/go.sum`, `**/package.json`, `**/pnpm-lock.yaml`, `**/package-lock.json`, `**/yarn.lock`, `**/requirements*.txt`, `**/*.lock`, `**/Chart.yaml`, `**/Chart.lock`.
-- External dependencies are attributed through `MODULE.bazel.lock`: each module extension records its input files (`recordedInputs`), which maps those files (for example `go.mod`) to the repositories the extension generates, and from there to the targets using them. A `MODULE.bazel` edit is only narrowed when it touches nothing but `bazel_dep` declarations; any other edit marks every target changed.
+- External dependencies are attributed through `MODULE.bazel.lock`: each module extension records its input files (`recordedInputs`), which maps those files (for example `go.mod`) to the repositories the extension generates, and from there to the targets using them. A `MODULE.bazel` edit is only narrowed when it touches nothing but `bazel_dep` declarations; any other edit marks every target changed. If a mapped file's repositories match no repository used by any target of the universe (for example other canonical-name conventions), the file is treated as global, with the warning `dependency file <path> maps to repositories not used by any target; treating it as global`.
 - The tool never under-reports: when something is uncertain (unknown baseline, unparsable optional input, unmapped file, doubtful cache) the result is "changed".
 
 Commit `MODULE.bazel.lock` to get per-repository precision for external dependencies. Without it, only extension-level precision is available and `change_report` warns.
 
 ### Graph cache
 
-Computing the dependency graph is the expensive part. `change_report` caches it in `--cache-dir`, keyed by the commit and the query, and reuses the cache of an earlier commit when the Bazel-relevant files are unchanged. Persist that directory between CI runs (see the workflow). `--debug-cache` prints which mode was used.
+Computing the dependency graph is the expensive part. `change_report` caches it in `--cache-dir`, one cache per workspace directory, validated by:
+
+- a global key: the `--targets` expression, the Bazel version (`.bazelversion` and `USE_BAZEL_VERSION`) and the content of `MODULE.bazel`, `MODULE.bazel.lock`, `*.MODULE.bazel`, `WORKSPACE*`, `*.bazelrc`, `.bazelversion`, `.bazelignore`, `REPO.bazel` and every `.bzl` file. Any change re-queries everything (`cache: full`);
+- one key per package: its BUILD file plus the list of files it owns. Adding, removing or renaming a file, or editing a BUILD file, re-queries only that package (`cache: partial`); editing a source file keeps the cache (`cache: hit`).
+
+The dependency-file inputs of the external mapping (`MODULE.bazel.lock`, `go.mod`, …) are also hashed from the working tree. Persist the cache directory between CI runs (see the workflow). `--debug-cache` prints which mode was used.
 
 ## Baselines
 
@@ -242,17 +255,17 @@ jobs:
           OUT="$RUNNER_TEMP/change_report"; mkdir -p "$OUT"; echo "OUT=$OUT" >> "$GITHUB_ENV"
           bazel run @rules_k8s_cd//go/change_report -- \
             --since "$SINCE" \
-            --targets 'filter("gitops\.", //deployments/...)' \
+            --targets 'filter(":gitops\.", //deployments/...)' \
             --gitops-dir gitops \
             --format targets --output "$OUT/changed.txt"
           bazel run @rules_k8s_cd//go/change_report -- \
             --since "$SINCE" \
-            --targets 'filter("gitops\.", //deployments/...)' \
+            --targets 'filter(":gitops\.", //deployments/...)' \
             --gitops-dir gitops \
             --format markdown --output "$OUT/changelog.md"
           bazel run @rules_k8s_cd//go/change_report -- \
             --since "$SINCE" \
-            --targets 'filter("gitops\.", //deployments/...)' \
+            --targets 'filter(":gitops\.", //deployments/...)' \
             --gitops-dir gitops \
             --format removed --output "$OUT/removed.txt"
 
@@ -288,7 +301,7 @@ jobs:
 
 Notes:
 
-- Write the outputs outside the workspace (`$RUNNER_TEMP` above) and run all `change_report` calls before generating files: any uncommitted or untracked file in the workspace disables the graph cache for that run.
+- Write the outputs outside the workspace (`$RUNNER_TEMP` above) and run all `change_report` calls before generating files: any uncommitted or untracked file in the workspace disables the graph cache for that run. Common unexpected causes: an untracked and not ignored `MODULE.bazel.lock` written by Bazel (commit it or add it to `.gitignore`), the `bazel-*` convenience symlinks if they are not ignored, and a committed lockfile that Bazel rewrites on another OS.
 - `github.api_url`, `GITHUB_ENV` and `actions/cache` are available in Forgejo Actions, but Forgejo's API lives at `https://FORGE_HOST/api/v1`, `gh` is GitHub-only (use `curl` or `tea`), and actions are resolved from your Forgejo instance (mirrors of common actions are on `code.forgejo.org`). The `runs-on` value must match a label registered on your runner.
 - `gh pr list` returns the most recently created PRs, so the example fetches 50 merged ones and picks the latest `mergedAt` itself.
 - The cache `key` is unique per commit while `restore-keys` restores the newest earlier cache, which `change_report` then refreshes.
@@ -298,7 +311,9 @@ Notes:
 - Changes outside the Bazel workspace directory are ignored, including `local_path_override` modules such as `path = "../x"`.
 - Upgrading an unpinned Bazel binary does not invalidate the graph cache. Pin the version in `.bazelversion`.
 - Git-ignored files (for example a user.bazelrc that is `try-import`ed) are not tracked.
-- A dirty working tree disables the graph cache for that run.
+- A dirty working tree disables the graph cache for that run (see the workflow notes for common causes).
+- Toolchains resolved at analysis time are invisible to `bazel query deps()`: a change to a toolchain's files is only seen if it is also in a target's query closure (or matched by `--global-file`).
+- Requires Bazel 8 or later.
 - Merge commits are listed under "Not analysed" and not attributed to targets. Squash-merge (or rebase-merge) is recommended.
 - Commit `MODULE.bazel.lock` for per-repository dependency precision.
 - Gitops files without the `# rules_k8s_cd:target` header are ignored, with a warning.
