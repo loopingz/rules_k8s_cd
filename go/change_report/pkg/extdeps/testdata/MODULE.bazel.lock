@@ -1,0 +1,89 @@
+{
+  "facts": {},
+  "factsVersions": {},
+  "lockFileVersion": 28,
+  "moduleExtensions": {
+    "//lib:extensions.bzl%toolchains": {
+      "general": {
+        "bzlTransitiveDigest": "JTk6v7ifoJodUZSj0quo1JwmdF6xXkBZPwLxS8n2Mt0=",
+        "generatedRepoSpecs": {
+          "helm_darwin_amd64": {
+            "attributes": {
+              "platform": "darwin_amd64"
+            },
+            "repoRuleId": "@@//lib/private:helm_toolchain.bzl%helm_platform_repo"
+          },
+          "helm_darwin_arm64": {
+            "attributes": {
+              "platform": "darwin_arm64"
+            },
+            "repoRuleId": "@@//lib/private:helm_toolchain.bzl%helm_platform_repo"
+          }
+        },
+        "recordedInputs": [
+          "REPO_MAPPING:,aspect_bazel_lib aspect_bazel_lib+"
+        ],
+        "usagesDigest": "akaYApmTdPBxqiOGYxBQ7uX4gBkyIIOC7TnFsJJUlC4="
+      }
+    },
+    "@@gazelle+//internal/bzlmod:go_deps.bzl%go_deps": {
+      "general": {
+        "bzlTransitiveDigest": "aaa",
+        "generatedRepoSpecs": {
+          "com_github_foo_bar": {
+            "attributes": {
+              "importpath": "example.com/com_github_foo_bar",
+              "name": "com_github_foo_bar",
+              "sum": "h1:abc",
+              "version": "v1.2.3"
+            },
+            "repoRuleId": "@@gazelle+//internal:go_repository.bzl%go_repository"
+          },
+          "org_golang_x_text": {
+            "attributes": {
+              "importpath": "example.com/org_golang_x_text",
+              "name": "org_golang_x_text",
+              "sum": "h1:abc",
+              "version": "v0.3.0"
+            },
+            "repoRuleId": "@@gazelle+//internal:go_repository.bzl%go_repository"
+          }
+        },
+        "recordedInputs": [
+          "FILE:@@//go.mod 1111",
+          "FILE:@@//go.sum 2222",
+          "FILE:@@other+//x.txt 3333",
+          "REPO_MAPPING:,gazelle gazelle+"
+        ],
+        "usagesDigest": "bbb"
+      }
+    },
+    "@@pybind11_bazel+//:internal_configure.bzl%internal_configure_extension": {
+      "general": {
+        "bzlTransitiveDigest": "BsgERqYptkJeeC8wFaLj251IoTZTSy/58WA6kVp0q8I=",
+        "generatedRepoSpecs": {
+          "pybind11": {
+            "attributes": {
+              "build_file": "@@pybind11_bazel+//:pybind11-BUILD.bazel",
+              "strip_prefix": "pybind11-2.12.0",
+              "urls": [
+                "https://github.com/pybind/pybind11/archive/v2.12.0.zip"
+              ]
+            },
+            "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive"
+          }
+        },
+        "recordedInputs": [
+          "REPO_MAPPING:pybind11_bazel+,bazel_tools bazel_tools",
+          "FILE:@@pybind11_bazel+//MODULE.bazel e6f4c20442eaa7c90d7190d8dc539d0ab422f95c65a57cc59562170c58ae3d34"
+        ],
+        "usagesDigest": "D1r3lfzMuUBFxgG8V6o0bQTLMk3GkaGOaPzw53wrwyw="
+      }
+    }
+  },
+  "registryFileHashes": {
+    "https://bcr.bazel.build/bazel_registry.json": "8a28e4aff06ee60aed2a8c281907fb8bcbf3b753c91fb5a5c57da3215d5b3497",
+    "https://bcr.bazel.build/modules/abseil-cpp/20211102.0/MODULE.bazel": "70390338f7a5106231d20620712f7cccb659cd0e9d073d1991c038eb9fc57589"
+  },
+  "selectedYankedVersions": {}
+}

@@ -1,0 +1,11 @@
+genrule(
+    name = "out",
+    srcs = ["src.txt"],
+    outs = ["out.yaml"],
+    cmd = "cp $< $@",
+)
+
+filegroup(
+    name = "gitops.gen",
+    srcs = [":out"],
+)

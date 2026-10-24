@@ -1,0 +1,41 @@
+# Changes up to ddddddd
+
+2 target(s) changed.
+
+## //apps/api:deploy
+
+_Since aaaaaaa_
+
+| Commit | Subject | Author |
+|---|---|---|
+| [2222222](https://example.com/commit/2222222000000000000000000000000000000222) | fix: handle a\|b &lt;nil&gt; | Bob |
+| [1111111](https://example.com/commit/1111111000000000000000000000000000000111) | feat: add things | Alice |
+
+<details><summary>Full commit messages</summary>
+
+### 2222222 — fix: handle a|b &lt;nil&gt;
+
+Longer explanation.
+
+Second paragraph.
+&lt;/details&gt; tricky
+
+### 1111111 — feat: add things
+
+</details>
+
+## //apps/web:deploy
+
+_No baseline: full deployment._
+
+## Removed
+
+- //apps/old:deploy
+  - gitops/old/a.yaml
+  - gitops/old/b.yaml
+
+## Not analysed
+
+Merge commits are not attributed to targets:
+
+- 3333333 Merge branch 'x' &lt;into&gt; main

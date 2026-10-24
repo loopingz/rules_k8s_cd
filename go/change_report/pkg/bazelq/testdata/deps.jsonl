@@ -1,0 +1,6 @@
+{"type":"SOURCE_FILE","sourceFile":{"name":"@@//pkg:manifests/a.yaml","location":"/abs/pkg/BUILD:1:1","visibilityLabel":["@@//visibility:public"]}}
+{"type":"SOURCE_FILE","sourceFile":{"name":"@@//pkg:manifests/b.yaml","location":"/abs/pkg/BUILD:1:1"}}
+{"type":"RULE","rule":{"name":"@@//pkg:viamacro","ruleClass":"filegroup","location":"/abs/pkg/BUILD:3:10","attribute":[{"name":"srcs","type":"LABEL_LIST","stringListValue":["@@//pkg:manifests/a.yaml"]}],"ruleInput":["@@//pkg:manifests/a.yaml","@@//pkg:manifests/b.yaml"]}}
+{"type":"RULE","rule":{"name":"@@//sub:g","ruleClass":"genrule","location":"/abs/sub/BUILD:1:8","ruleInput":["@@//pkg:viamacro","@@bazel_tools//tools/genrule:genrule-setup.sh"],"ruleOutput":["@@//sub:o.txt"]}}
+{"type":"GENERATED_FILE","generatedFile":{"name":"@@//sub:o.txt","generatingRule":"@@//sub:g"}}
+{"type":"PACKAGE_GROUP","packageGroup":{"name":"@@//pkg:grp"}}

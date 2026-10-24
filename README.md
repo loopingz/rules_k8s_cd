@@ -16,6 +16,7 @@ Bazel rules for building, deploying, scanning, and managing Kubernetes resources
 | `dive` | Analyze OCI image layers using Dive | [docs/dive.md](docs/dive.md) |
 | `oci_push_info` | Push OCI image and expose registry/digest metadata | |
 | `kustomization_injector` | Inject images, patches, and resources into a kustomization.yaml | |
+| `change_report` | CLI reporting which targets changed since a baseline commit, with a commit changelog and removed gitops targets | [docs/change_report.md](docs/change_report.md) |
 
 ### Helm rendering
 
@@ -111,7 +112,7 @@ bazel_lib_toolchains.kyverno(
 
 `kustomize_apply`: Apply a kustomize overlay to a cluster via `bazel run`
 
-`kustomize_gitops`: Generate kustomize output for gitops workflows (writes rendered YAML back to the repo)
+`kustomize_gitops`: Generate kustomize output for gitops workflows (writes rendered YAML back to the repo, prefixed with a `# rules_k8s_cd:target <label>` line)
 
 `kustomization_injector`: Rule that injects images and patches into a kustomization.yaml
 
@@ -289,6 +290,28 @@ For each environment, the macro creates:
 - `push.images.<env>` — push all OCI images to the registry
 - `apply.<env>` — push images then apply manifests to the cluster (when no `gitops` key)
 - `gitops.<env>` — push images then export rendered manifests to a gitops directory (when `gitops` key is set)
+
+The `gitops` value is a directory, relative to the workspace root, formatted with
+`{CLUSTER}`, `{NAMESPACE}` and `{PACKAGE}` (the package path with any `deployments/`
+prefix removed). `bazel run :gitops.<env>` writes the rendered manifests to
+`<directory>/<env>.yaml`; with the example above, `//deployments/app:gitops.prod`
+writes `gitops/prod-cluster/app-prod/app/prod.yaml`.
+
+The first line of every exported manifest names the target that produced it:
+
+```yaml
+# rules_k8s_cd:target //deployments/app:gitops.prod
+# Generated with rules_k8s_cd from bazel build //deployments/app:__gitops.prod.kustomize
+apiVersion: v1
+...
+```
+
+The rest of the file is the kustomize output, unchanged. `change_report` reads this
+line to detect gitops files whose target no longer exists. Calling
+`kustomize_gitops` directly writes the same header with `//<package>:<name>`, or
+with the label given in its `target` argument.
+
+The `push.images.<env>` step is only created when `images` is not empty.
 
 The macro expects a conventional directory structure:
 

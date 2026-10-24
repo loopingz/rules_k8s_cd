@@ -53,30 +53,93 @@ def kustomize_apply(name, context = None, data = [], dir = "", **kwargs):
         **kwargs
     )
 
+def _prepend_header_impl(ctx):
+    ctx.actions.run_shell(
+        inputs = [ctx.file.src],
+        outputs = [ctx.outputs.out],
+        command = '{ printf \'%s\\n\' "$1"; cat "$2"; } > "$3"',
+        arguments = [ctx.attr.header, ctx.file.src.path, ctx.outputs.out.path],
+        mnemonic = "PrependHeader",
+        progress_message = "Prepending header to %{output}",
+    )
+    return [DefaultInfo(files = depset([ctx.outputs.out]))]
+
+# Writes `out` as the `header` line followed by the unchanged content of `src`.
+prepend_header = rule(
+    implementation = _prepend_header_impl,
+    attrs = {
+        "src": attr.label(allow_single_file = True, mandatory = True, doc = "File to prefix"),
+        "header": attr.string(mandatory = True, doc = "Line written before the content of src (without trailing newline)"),
+        "out": attr.output(mandatory = True, doc = "Output file"),
+    },
+)
+
+# Line 1 of every exported gitops manifest: names the target that produced it.
+# Consumed by go/change_report (gitops.HeaderPrefix) to detect removed deployments.
+GITOPS_HEADER_PREFIX = "# rules_k8s_cd:target "
+
+def gitops_header_label(name):
+    """Returns the label of target `name` of the calling package, for a gitops header.
+
+    The label is resolved by Bazel (`native.package_relative_label`), so it
+    names the right repository when the macro is called from another module;
+    main-repository labels are written as `//pkg:name`.
+
+    Args:
+      name: target name in the current package.
+
+    Returns:
+      The label as a string.
+    """
+    label = str(native.package_relative_label(":" + name))
+    if label.startswith("@@//"):
+        return label[2:]
+    if label.startswith("@//"):
+        return label[1:]
+    return label
+
 # Creates a kustomization for GitOps deployment using kubectl.
 # And export its result to a file in the given path.
 #
+# The exported file starts with a `# rules_k8s_cd:target <target>` line, followed by
+# the unchanged kustomize output.
+#
 # Args:
 # - name (str): The name of the kustomization.
-# - context (List[Label]): The context to use for kubectl.
+# - data (List[Label]): The files kustomize needs (kustomization.yaml, resources, patches).
 # - out (str): The path to export the kustomization to.
+# - dir (str): The directory, relative to the package, holding the kustomization.yaml.
+# - target (str): The label written in the header, defaults to this package's
+#   <name> target (`//<package>:<name>` in the main repository).
 #
 # Returns:
 # - None
-def kustomize_gitops(name, data, out, dir = ""):
+def kustomize_gitops(name, data, out, dir = "", target = None):
+    if target == None:
+        target = gitops_header_label(name)
+
     # Generate the yaml file
     kustomize(
         name = "_" + name + ".kustomize",
         data = data,
-        out = out,
+        out = "_" + name + ".kustomize.yaml",
         dir = dir,
+        visibility = ["//visibility:private"],
+    )
+
+    # Prefix it with the target that produced it
+    prepend_header(
+        name = "_" + name + ".header",
+        src = ":_" + name + ".kustomize",
+        header = GITOPS_HEADER_PREFIX + target,
+        out = out,
         visibility = ["//visibility:private"],
     )
 
     # Copying the yaml file to the export path
     write_source_file(
         name = name,
-        src = ":_" + name + ".kustomize",
+        src = ":_" + name + ".header",
         target = out,
     )
 

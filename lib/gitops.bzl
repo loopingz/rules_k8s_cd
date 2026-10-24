@@ -1,5 +1,6 @@
 load("@aspect_bazel_lib//lib:expand_template.bzl", "expand_template")
-load(":kubectl.bzl", "kubectl", "kustomization_injector", "kustomize_gitops")
+load(":kubectl.bzl", "kubectl")
+load(":kustomizer.bzl", "gitops_header_label", "kustomization_injector", "kustomize_gitops")
 load(":oci.bzl", "image_pushes")
 load(":utils.bzl", "download_binary", "run_all", "show", "write_source_file")
 
@@ -19,10 +20,14 @@ def gitops(images = {}, environments = {}):
         # Ensure all containers images are pushed to the registry
         images_pushed = image_pushes(images, info["registry"])
 
-        run_all(
-            name = "push.images." + env,
-            targets = images_pushed,
-        )
+        # run_all needs at least one target: without images there is nothing to push
+        push_steps = []
+        if images_pushed:
+            run_all(
+                name = "push.images." + env,
+                targets = images_pushed,
+            )
+            push_steps = [":push.images." + env]
 
         # Ensure gitops is only used once per BUILD file
         if native.existing_rule(env):
@@ -31,15 +36,15 @@ def gitops(images = {}, environments = {}):
         # Default resources to load
         native.filegroup(
             name = manifests_target,
-            srcs = native.glob(["manifests/*.yaml", "manifests/%s/**/*.yaml" % env]),
+            srcs = native.glob(["manifests/*.yaml", "manifests/%s/**/*.yaml" % env], allow_empty = True),
         )
         native.filegroup(
             name = patches_target,
-            srcs = native.glob(["overlays/*.yaml", "overlays/%s/**/*.yaml" % env]),
+            srcs = native.glob(["overlays/*.yaml", "overlays/%s/**/*.yaml" % env], allow_empty = True),
         )
         native.filegroup(
             name = patchesjson6902_target,
-            srcs = native.glob(["patches/*.yaml", "patches/%s/**/*.yaml" % env]),
+            srcs = native.glob(["patches/*.yaml", "patches/%s/**/*.yaml" % env], allow_empty = True),
         )
 
         # Expand kustomization model to include the environment specific
@@ -79,20 +84,22 @@ def gitops(images = {}, environments = {}):
 
         # If environment define a gitops file, we export manifests to another folder repository
         if "gitops" in info:
-            # Export the manifests to a gitops repository
+            # Export the manifests to a gitops repository: info["gitops"] is the
+            # directory, the manifest is written to <directory>/<env>.yaml
+            export_dir = info["gitops"].format(PACKAGE = package_name, CLUSTER = info["cluster"], NAMESPACE = info["namespace"])
             kustomize_gitops(
                 name = "_gitops." + env,
-                context = context,
-                export_path = info["gitops"].format(PACKAGE = package_name, CLUSTER = info["cluster"], NAMESPACE = info["namespace"]),
+                data = context,
+                out = export_dir + "/" + env + ".yaml",
+                dir = kustomization_target,
+                # The header names the user-facing run target, not this private one
+                target = gitops_header_label("gitops." + env),
             )
 
             # Allow one target to generate the manifests and push them to the gitops repository
             run_all(
                 name = "gitops." + env,
-                targets = [
-                    ":push.images." + env,
-                    ":_gitops." + env,
-                ],
+                targets = push_steps + [":_gitops." + env],
                 parallel = False,
             )
         else:
@@ -100,20 +107,17 @@ def gitops(images = {}, environments = {}):
             kubectl(
                 name = "_deploy." + env,
                 arguments = ["kustomize", "--load-restrictor", "LoadRestrictionsNone", ".", "|", "{{kubectl}}", "apply", "-f", "-"],
-                context = context,
+                data = context,
             )
             kubectl(
                 name = "_show." + env,
                 arguments = ["kustomize", "--load-restrictor", "LoadRestrictionsNone", native.package_name()],
-                context = context,
+                data = context,
             )
 
             # Allow one target to push images then apply
             run_all(
                 name = "apply." + env,
-                targets = [
-                    ":push.images." + env,
-                    ":_deploy." + env,
-                ],
+                targets = push_steps + [":_deploy." + env],
                 parallel = False,
             )

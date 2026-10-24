@@ -1,0 +1,17 @@
+## @@aspect_rules_js+//npm:extensions.bzl%npm:
+
+Fetched repositories:
+  - npm__acorn__8.0.0
+  - npm__left-pad__1.3.0 (imported by <root>)
+  - npm (imported by <root>, aspect_rules_js@2.0.0)
+
+## Usage in <root> from /ws/MODULE.bazel:10
+npm.npm_translate_lock(name="npm", pnpm_lock="//:pnpm-lock.yaml", data=["//sub:package.json"], verify_node_modules_ignored="//:.bazelignore")
+use_repo(
+  npm,
+  "npm",
+)
+
+## Usage in aspect_rules_js@2.0.0 from https://bcr.bazel.build/modules/aspect_rules_js/2.0.0/MODULE.bazel:5
+npm.something(x="//internal:file.txt")
+use_repo(npm, "npm")
