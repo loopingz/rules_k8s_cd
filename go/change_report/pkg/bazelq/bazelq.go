@@ -49,14 +49,77 @@ type Node struct {
 	RuleClass      string
 	Inputs         []string
 	GeneratingRule string
+	// Attrs holds the rule attributes (RULE nodes only), keyed by name. It
+	// includes explicitly specified attributes and every attribute of type
+	// STRING, STRING_LIST, LABEL, LABEL_LIST, STRING_DICT or BOOLEAN; other
+	// types are skipped unless explicit, in which case only Type is set.
+	Attrs map[string]Attr
+}
+
+// Attr is a rule attribute value. Only the field matching Type is set.
+// LABEL and LABEL_LIST values are in the --consistent_labels form
+// (@@//pkg:name) and are held in String and StringList respectively.
+type Attr struct {
+	Type       string
+	String     string
+	StringList []string
+	StringDict map[string]string
+	Bool       bool
+}
+
+type rawAttr struct {
+	Name                string   `json:"name"`
+	Type                string   `json:"type"`
+	ExplicitlySpecified bool     `json:"explicitlySpecified"`
+	StringValue         string   `json:"stringValue"`
+	StringListValue     []string `json:"stringListValue"`
+	StringDictValue     []struct {
+		Key   string `json:"key"`
+		Value string `json:"value"`
+	} `json:"stringDictValue"`
+	BooleanValue bool `json:"booleanValue"`
+}
+
+func parseAttrs(raw []rawAttr) map[string]Attr {
+	if len(raw) == 0 {
+		return nil
+	}
+	attrs := make(map[string]Attr, len(raw))
+	for _, a := range raw {
+		switch a.Type {
+		case "STRING", "LABEL":
+			attrs[a.Name] = Attr{Type: a.Type, String: a.StringValue}
+		case "STRING_LIST", "LABEL_LIST":
+			attrs[a.Name] = Attr{Type: a.Type, StringList: a.StringListValue}
+		case "STRING_DICT":
+			var d map[string]string
+			if len(a.StringDictValue) > 0 {
+				d = make(map[string]string, len(a.StringDictValue))
+				for _, kv := range a.StringDictValue {
+					d[kv.Key] = kv.Value
+				}
+			}
+			attrs[a.Name] = Attr{Type: a.Type, StringDict: d}
+		case "BOOLEAN":
+			attrs[a.Name] = Attr{Type: a.Type, Bool: a.BooleanValue}
+		default:
+			// Tolerate unknown or unsupported types: keep the type of
+			// explicit ones so callers can tell the attribute was set.
+			if a.ExplicitlySpecified {
+				attrs[a.Name] = Attr{Type: a.Type}
+			}
+		}
+	}
+	return attrs
 }
 
 type entry struct {
 	Type string `json:"type"`
 	Rule *struct {
-		Name      string   `json:"name"`
-		RuleClass string   `json:"ruleClass"`
-		RuleInput []string `json:"ruleInput"`
+		Name      string    `json:"name"`
+		RuleClass string    `json:"ruleClass"`
+		RuleInput []string  `json:"ruleInput"`
+		Attribute []rawAttr `json:"attribute"`
 	} `json:"rule"`
 	SourceFile *struct {
 		Name string `json:"name"`
@@ -81,7 +144,7 @@ func Parse(r io.Reader) ([]Node, error) {
 		}
 		switch {
 		case e.Type == "RULE" && e.Rule != nil:
-			nodes = append(nodes, Node{Label: e.Rule.Name, Kind: "rule", RuleClass: e.Rule.RuleClass, Inputs: e.Rule.RuleInput})
+			nodes = append(nodes, Node{Label: e.Rule.Name, Kind: "rule", RuleClass: e.Rule.RuleClass, Inputs: e.Rule.RuleInput, Attrs: parseAttrs(e.Rule.Attribute)})
 		case e.Type == "SOURCE_FILE" && e.SourceFile != nil:
 			nodes = append(nodes, Node{Label: e.SourceFile.Name, Kind: "source"})
 		case e.Type == "GENERATED_FILE" && e.GeneratedFile != nil:

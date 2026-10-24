@@ -37,6 +37,9 @@ func TestParse(t *testing.T) {
 		{Label: "@@//sub:g", Kind: "rule", RuleClass: "genrule", Inputs: []string{"@@//pkg:viamacro", "@@bazel_tools//tools/genrule:genrule-setup.sh"}},
 		{Label: "@@//sub:o.txt", Kind: "generated", GeneratingRule: "@@//sub:g"},
 	}
+	for i := range nodes {
+		nodes[i].Attrs = nil // covered by TestParseAttrs
+	}
 	if !reflect.DeepEqual(nodes, want) {
 		t.Errorf("got %+v\nwant %+v", nodes, want)
 	}
@@ -135,3 +138,55 @@ func TestExistingLabels(t *testing.T) {
 }
 
 func fmtWrap(err error) error { return fmt.Errorf("bazel query: %w: stderr", err) }
+
+func TestParseAttrs(t *testing.T) {
+	f, err := os.Open("testdata/attrs.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	nodes, err := Parse(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(nodes) != 1 {
+		t.Fatalf("got %d nodes, want 1", len(nodes))
+	}
+	a := nodes[0].Attrs
+	if got := a["s"]; got.Type != "STRING" || got.String != "hello" {
+		t.Errorf("s = %+v", got)
+	}
+	if got := a["sl"]; got.Type != "STRING_LIST" || !reflect.DeepEqual(got.StringList, []string{"a", "b"}) {
+		t.Errorf("sl = %+v", got)
+	}
+	if got := a["ll"]; got.Type != "LABEL_LIST" || !reflect.DeepEqual(got.StringList, []string{"@@//pkg:y", "@@//pkg:z"}) {
+		t.Errorf("ll = %+v", got)
+	}
+	if got := a["sd"]; got.Type != "STRING_DICT" || !reflect.DeepEqual(got.StringDict, map[string]string{"k1": "v1", "k2": "v2"}) {
+		t.Errorf("sd = %+v", got)
+	}
+	if got := a["b"]; got.Type != "BOOLEAN" || !got.Bool {
+		t.Errorf("b = %+v", got)
+	}
+	if _, ok := a["i"]; !ok {
+		t.Error("explicit INTEGER attr i should be recorded (type only)")
+	} else if a["i"].Type != "INTEGER" {
+		t.Errorf("i = %+v", a["i"])
+	}
+	if _, ok := a["exec_group_compatible_with"]; ok {
+		t.Error("non-explicit LABEL_LIST_DICT should be skipped")
+	}
+	if got, ok := a["tags"]; !ok || got.Type != "STRING_LIST" || got.StringList != nil {
+		t.Errorf("tags = %+v, %v", got, ok)
+	}
+}
+
+func TestParseAttrsNonRule(t *testing.T) {
+	nodes, err := Parse(strings.NewReader(`{"type":"SOURCE_FILE","sourceFile":{"name":"@@//a:b.txt"}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if nodes[0].Attrs != nil {
+		t.Errorf("source node has Attrs %v", nodes[0].Attrs)
+	}
+}
