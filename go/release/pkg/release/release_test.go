@@ -391,6 +391,20 @@ func TestPRCreatesBranchAndPR(t *testing.T) {
 	}
 }
 
+func TestPRReleaseBaseTrailer(t *testing.T) {
+	f := setup(t)
+	head := f.commit("feat: add thing", map[string]string{"a/x.go": "x\n"})
+	if err := PR(f.env(), comps()[1:]); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := git(t, f.origin, "log", "-1", "--format=%B", "refs/heads/release/a"), "chore(release): a 1.1.0\n\nRelease-Base: "+head; got != want {
+		t.Errorf("release commit message %q, want %q", got, want)
+	}
+	if body := f.forge.prs["release/a"].Body; !strings.HasSuffix(body, "\n\nRelease-Base: "+head+"\n") {
+		t.Errorf("PR body lacks the trailer:\n%s", body)
+	}
+}
+
 func TestPRNoChangesClosesPR(t *testing.T) {
 	f := setup(t)
 	f.forge.prs["release/a"] = &forge.PR{Number: 7, Head: "release/a", Body: "<!-- rules_k8s_cd:release a -->\n\n## 1.0.1"}
@@ -633,6 +647,54 @@ func TestTagRetryAfterHeadMoved(t *testing.T) {
 		if strings.Contains(strings.Join(r.Env, " "), "RELEASE_COMPONENT=b") {
 			t.Errorf("retried b: %+v", r)
 		}
+	}
+}
+
+// squashBranch merges release/a like a forge squash merge keeping the
+// release commit's message: subject " (#4)" plus its body.
+func (f *fixture) squashBranch() string {
+	f.t.Helper()
+	git(f.t, f.dir, "fetch", "-q", "origin")
+	msg := git(f.t, f.dir, "log", "-1", "--format=%B", "origin/release/a")
+	subject, body, _ := strings.Cut(msg, "\n")
+	git(f.t, f.dir, "checkout", "origin/release/a", "--", "a")
+	git(f.t, f.dir, "commit", "-q", "-m", subject+" (#4)"+"\n"+body)
+	f.push()
+	return git(f.t, f.dir, "rev-parse", "HEAD")
+}
+
+func TestTagWarnsCommitsMissingFromChangelog(t *testing.T) {
+	f := setup(t)
+	f.commit("feat: a", map[string]string{"a/x.go": "x\n"})
+	if err := PR(f.env(), comps()[1:]); err != nil {
+		t.Fatal(err)
+	}
+	late := f.commit("fix: late", map[string]string{"a/z.go": "z\n"})
+	f.commit("chore(release): b 1.0.1", map[string]string{"b/VERSION": "1.0.1\n"})
+	f.squashBranch()
+	if err := Tag(f.env(), comps()[1:]); err != nil {
+		t.Fatal(err)
+	}
+	want := "a 1.1.0: 1 commit(s) landed after the release PR was last updated and are not in its changelog: " + git(t, f.dir, "rev-parse", "--short", late)
+	if !contains(f.warns, want) {
+		t.Errorf("warns = %v, want %q", f.warns, want)
+	}
+
+	// Merged right after pr ran: nothing is missing.
+	g := setup(t)
+	g.commit("feat: a", map[string]string{"a/x.go": "x\n"})
+	if err := PR(g.env(), comps()[1:]); err != nil {
+		t.Fatal(err)
+	}
+	g.squashBranch()
+	if err := Tag(g.env(), comps()[1:]); err != nil {
+		t.Fatal(err)
+	}
+	if contains(g.warns, "landed after") {
+		t.Errorf("spurious warning: %v", g.warns)
+	}
+	if g.remoteRef("refs/tags/a@v1.1.0") == "" {
+		t.Error("not tagged")
 	}
 }
 

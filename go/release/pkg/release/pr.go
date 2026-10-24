@@ -84,7 +84,15 @@ func prOne(e Env, p Plan) error {
 		return err
 	}
 	title := releaseSubject(c.Name, p.Next)
-	body := changelog.PRBody(c.Name, p.Section)
+	base, err := e.Repo.RevParse("HEAD")
+	if err != nil {
+		return err
+	}
+	// The trailer, in the release commit and in the PR body (forges may use
+	// either as the squash commit message), lets tag spot commits that
+	// landed on main after this run and are missing from the changelog.
+	trailer := releaseBaseTrailer + base
+	body := strings.TrimRight(changelog.PRBody(c.Name, p.Section), "\n") + "\n\n" + trailer + "\n"
 
 	if e.DryRun {
 		names := make([]string, 0, len(files))
@@ -109,7 +117,7 @@ func prOne(e Env, p Plan) error {
 		return nil
 	}
 
-	sha, err := gitwrite.CommitFiles(e.Repo, "HEAD", files, title)
+	sha, err := gitwrite.CommitFiles(e.Repo, base, files, title+"\n\n"+trailer)
 	if err != nil {
 		return err
 	}

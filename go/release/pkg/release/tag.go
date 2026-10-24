@@ -6,8 +6,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
+	"loopingz.com/rules_k8s_cd/release/pkg/attrib"
 	"loopingz.com/rules_k8s_cd/release/pkg/changelog"
 	"loopingz.com/rules_k8s_cd/release/pkg/component"
 	"loopingz.com/rules_k8s_cd/release/pkg/gitwrite"
@@ -83,6 +85,7 @@ func tagOne(e Env, c component.Component) error {
 			return nil
 		}
 		sha = last.SHA
+		warnLateCommits(e, c, v, sha)
 		if e.DryRun {
 			e.out("%s: would tag %s at %s", c.Name, tag, last.Short)
 		} else {
@@ -107,6 +110,50 @@ func tagOne(e Env, c component.Component) error {
 		return nil
 	}
 	return runTargets(e, c, v, tag, sha)
+}
+
+// releaseBaseTrailer prefixes the trailer line recording the main commit a
+// release PR was built on.
+const releaseBaseTrailer = "Release-Base: "
+
+var releaseBaseRe = regexp.MustCompile(`(?m)^` + releaseBaseTrailer + `([0-9a-f]{40})\s*$`)
+
+// warnLateCommits warns about the commits that landed on main between the
+// last pr run (the Release-Base trailer of release commit sha) and the merge
+// of the release PR: they are released but not in its changelog. Merge
+// commits and release commits are not listed. Without a trailer (e.g. a
+// squash message without the PR description) nothing is checked.
+func warnLateCommits(e Env, c component.Component, v semver.Version, sha string) {
+	msg, err := e.Repo.Git("log", "-1", "--format=%B", sha)
+	if err != nil {
+		e.warn("%s %s: cannot read the release commit message: %v", c.Name, v, err)
+		return
+	}
+	m := releaseBaseRe.FindAllSubmatch(msg, -1)
+	if len(m) == 0 {
+		return
+	}
+	base := string(m[len(m)-1][1])
+	out, err := e.Repo.Git("log", "--no-merges", "--format=%h%x00%s", base+".."+sha+"^")
+	if err != nil {
+		e.warn("%s %s: cannot list the commits since the release PR base %s: %v", c.Name, v, base, err)
+		return
+	}
+	var late []string
+	for _, l := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		short, subject, ok := strings.Cut(l, "\x00")
+		if !ok {
+			continue
+		}
+		if _, _, rel := attrib.ParseReleaseSubject(subject); rel {
+			continue
+		}
+		late = append(late, short)
+	}
+	if len(late) > 0 {
+		e.warn("%s %s: %d commit(s) landed after the release PR was last updated and are not in its changelog: %s",
+			c.Name, v, len(late), strings.Join(late, " "))
+	}
 }
 
 // ensureRelease creates the forge release of tag unless it exists.
