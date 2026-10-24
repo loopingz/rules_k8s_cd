@@ -275,6 +275,14 @@ func TestParseReleaseSubject(t *testing.T) {
 	}
 }
 
+func TestReleaseSubjectOfUnknownComponentNotIgnored(t *testing.T) {
+	f := newFixture(t)
+	// "prepare" is not a component: this is an ordinary commit.
+	c := f.commit("chore(release): prepare 1.0.0", map[string]string{"a/src.txt": "a2\n"})
+	res, _ := f.attribute(f.states(f.base))
+	eq(t, "a", shas(t, res, "//a:a"), []string{c})
+}
+
 func TestInvalidReleaseVersionNotIgnored(t *testing.T) {
 	f := newFixture(t)
 	c := f.commit("chore(release): update workflow", map[string]string{"lib/x": "x2\n"})

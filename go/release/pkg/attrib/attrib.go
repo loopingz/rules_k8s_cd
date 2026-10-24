@@ -67,7 +67,7 @@ type Result struct {
 // set by Attribute. Every warning is returned and, if o.Warn is non-nil, also
 // passed to it. globalGlobs are files affecting every component.
 //
-// Release commits are dropped whole, and every component's version file and
+// Release commits of comps are dropped whole, and every component's version file and
 // changelog are never attributed. Bump files are attributed like any file: a
 // non-release change to one is a real change of its owner.
 func Attribute(o cache.Options, repo gitx.Repo, head string, comps []component.Component, states map[string]component.State, globalGlobs []string) (map[string]Result, []string, error) {
@@ -168,6 +168,17 @@ func Attribute(o cache.Options, repo gitx.Repo, head string, comps []component.C
 		return false
 	}
 
+	// Only a release commit of one of comps is dropped: "chore(release):
+	// prepare 1.0.0" is an ordinary commit.
+	names := make(map[string]bool, len(comps))
+	for _, c := range comps {
+		names[c.Name] = true
+	}
+	isRelease := func(c gitx.Commit) bool {
+		n, _, ok := ParseReleaseSubject(c.Subject)
+		return ok && names[n]
+	}
+
 	fileAt, tracked := report.GitAccessors(repo, warn)
 	rep := report.Build(report.Input{
 		Head:           head,
@@ -182,7 +193,7 @@ func Attribute(o cache.Options, repo gitx.Repo, head string, comps []component.C
 		GlobalGlobs:    globalGlobs,
 		ModuleBzlFiles: snap.ModuleBzlFiles,
 		IgnorePath:     ignorePath,
-		IgnoreCommit:   IsReleaseCommit,
+		IgnoreCommit:   isRelease,
 	})
 	for _, w := range rep.Warnings {
 		warn(w)
