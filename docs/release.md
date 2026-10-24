@@ -89,7 +89,7 @@ It declares the component and a `<name>.version` target (a [`release_version`](#
 
 Targets must exist and be in the query universe, and a component whose `targets_query` matches nothing is an error.
 
-Release targets run with `bazel run --stamp --embed_label=<tag> <target>` and the environment variables `RELEASE_COMPONENT`, `RELEASE_VERSION` and `RELEASE_TAG`. Use them to push images, publish packages or edit the release notes. When `HEAD` is not the release commit (a later commit already landed on main), the targets run in a temporary git worktree of the release commit, so they always build the released sources. Each such run starts with a fresh Bazel output base: the first build is a cold one. If a target fails, the tag stays and the tool prints a warning to re-run with `--retry-targets`.
+Release targets run with `bazel run --stamp --embed_label=<tag> <target>` and the environment variables `RELEASE_COMPONENT`, `RELEASE_VERSION` and `RELEASE_TAG`. Release targets inherit the environment of the job, so they need their own credentials (a registry login, `GH_TOKEN` for `gh`, ...): `FORGE_TOKEN` is not enough for tools that read other variables. Use them to push images, publish packages or edit the release notes. When `HEAD` is not the release commit (a later commit already landed on main), the targets run in a temporary git worktree of the release commit, so they always build the released sources. Each such run starts with a fresh Bazel output base: the first build is a cold one. If a target fails, the tag stays and the tool prints a warning to re-run with `--retry-targets`.
 
 `bump_files` are **not** ignored when computing changes. Only the release commit is. A hand edit of a bump file, for example a `bazel_dep` change in `MODULE.bazel` bumped by the module version regex, counts for the owning component.
 
@@ -263,6 +263,8 @@ jobs:
 ```
 
 Pull requests opened with `GITHUB_TOKEN` do not trigger other workflows, so CI does not run on the release PR (and a required check would block the merge). Use a personal access token or a GitHub App token with the same permissions in the `FORGE_TOKEN` secret instead.
+
+If the repository has `release_component` fixtures (for example in test packages), scope the search with `--components '//... - //path/to/fixtures/...'`; this repository does so for `//lib/tests/...`.
 
 This repository's own workflow is `.github/workflows/release.yml`.
 

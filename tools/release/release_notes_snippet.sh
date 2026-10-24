@@ -8,6 +8,7 @@ if [ -z "${RELEASE_TAG:-}" ]; then
   exit 1
 fi
 TAG="${RELEASE_TAG}"
+export GH_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-${FORGE_TOKEN:-}}}"
 
 CMD=sha256sum
 # For mac
@@ -19,6 +20,10 @@ NOTES="$(mktemp)"
 trap 'rm -f "${NOTES}"' EXIT
 
 gh release view "${TAG}" --json body -q .body > "${NOTES}"
+# --retry-targets re-runs this script: do not append the snippet twice.
+if grep -q '^## Workspace snippet' "${NOTES}"; then
+  exit 0
+fi
 DIGEST=$(wget "https://github.com/loopingz/rules_k8s_cd/archive/refs/tags/${TAG}.tar.gz" -O- | ${CMD} | cut -f1 -d' ')
 cat << EOT >> "${NOTES}"
 
