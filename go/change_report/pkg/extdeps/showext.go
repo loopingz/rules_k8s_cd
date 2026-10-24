@@ -185,7 +185,7 @@ func RootExtensions(moduleBazel []byte) []string {
 }
 
 var (
-	localRe  = regexp.MustCompile(`(?s)\b(?:local_path_override|local_repository)\(([^)]*)\)`)
+	localRe  = regexp.MustCompile(`(?s)\b(?:local_path_override|(?:new_)?local_repository)\s*\(([^)]*)\)`)
 	pathAttr = regexp.MustCompile(`\bpath\s*=\s*"([^"]*)"`)
 	depRe    = regexp.MustCompile(`\bbazel_dep\(\s*name\s*=\s*"([^"]+)"`)
 )
@@ -222,7 +222,8 @@ func ModuleBzlPaths(src []byte, mainNames []string) []string {
 	return uniqSorted(out)
 }
 
-// LocalPaths returns the `path` of local_path_override and local_repository calls.
+// LocalPaths returns the `path` of local_path_override, local_repository and
+// new_local_repository calls.
 func LocalPaths(moduleBazel []byte) []string {
 	var out []string
 	for _, m := range localRe.FindAllStringSubmatch(stripComments(moduleBazel), -1) {

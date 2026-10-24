@@ -135,9 +135,10 @@ local_path_override(
     path = "../a",
 )
 local_repository(name = "b", path = "third_party/b")
+new_local_repository(name = "d", build_file = "//:d.BUILD", path = "third_party/d")
 git_override(module_name = "c", remote = "x", path = "nope")
 `
-	want := []string{"../a", "third_party/b"}
+	want := []string{"../a", "third_party/b", "third_party/d"}
 	if got := LocalPaths([]byte(mb)); !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v", got)
 	}
