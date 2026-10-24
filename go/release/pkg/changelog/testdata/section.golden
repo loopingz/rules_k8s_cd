@@ -1,0 +1,21 @@
+## 2.0.0 (2026-10-25)
+
+### Breaking Changes
+
+- **api:** drop v1 (0000001)
+- older fix (0000008)
+
+### Features
+
+- newest feature (0000002) — via `lib/x.go`
+- **ui:** older feature (0000003) — via `a.go` +2 more
+
+### Bug Fixes
+
+- newest fix (0000004)
+- faster (0000005)
+
+### Other
+
+- Merge branch 'x' (0000006)
+- tidy (0000007)
