@@ -370,13 +370,15 @@ func TestPerTargetBaseline(t *testing.T) {
 	}
 }
 
-func TestUnknownRangeIsConservative(t *testing.T) {
+func TestUnknownRangeChanged(t *testing.T) {
 	in := input(map[string]graph.Closure{
 		"//a:a": cl([]string{"a/BUILD", "a/a.go"}, []string{"a"}, nil),
 	}, commit("c1", fc('M', "a/a.go")))
 	in.Baselines["//a:a"] = "unknown"
+	// An unrelated commit: only the unknown range can make //a:a changed.
+	in.Commits = []gitx.Commit{commit("c2", fc('M', "README.md"))}
 	r := Build(in)
-	expect(t, r, "//a:a", Changed, "c1")
+	expect(t, r, "//a:a", Changed)
 	if len(r.Warnings) == 0 {
 		t.Error("expected a warning")
 	}
@@ -447,8 +449,19 @@ func TestModuleBazelExplainedNoChangedReposGlobal(t *testing.T) {
 	r := Build(in)
 	for _, l := range []string{"//x:x", "//n:n", "//zl:zl"} {
 		tg := expect(t, r, l, Changed, "c1")
-		if !reflect.DeepEqual(tg.Files, []string{"MODULE.bazel"}) {
+		if !reflect.DeepEqual(tg.Files, []string{"MODULE.bazel", "MODULE.bazel.lock"}) {
 			t.Errorf("%s files %v", l, tg.Files)
 		}
+	}
+}
+
+func TestLevel2EmptySetLockGlobal(t *testing.T) {
+	// Level 2 succeeds but names no changed repo: the lockfile change is
+	// unexplained, so it must hit every target.
+	in := level2Input(map[string][2]string{"MODULE.bazel.lock": {lockBefore, lockBefore}},
+		fc('M', "MODULE.bazel.lock"))
+	r := Build(in)
+	for _, l := range []string{"//x:x", "//y:y", "//z:z", "//n:n", "//zl:zl"} {
+		expect(t, r, l, Changed, "c1")
 	}
 }

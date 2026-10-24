@@ -55,7 +55,8 @@ func classify(in Input, c gitx.Commit) classified {
 		p := f.Path
 		switch {
 		case p == lockFile:
-			if level2 {
+			// Level 2 ok but naming no repo leaves the change unexplained.
+			if level2 && len(changed) > 0 {
 				cc.scoped[p] = [][]string{changed}
 			} else {
 				cc.global[p] = true

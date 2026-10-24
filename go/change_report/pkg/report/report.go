@@ -106,12 +106,15 @@ func Build(in Input) Report {
 			since = ""
 		}
 		t := Target{Label: label, Since: base, Status: Changed}
+		forceChanged := false
 		if base == "" {
 			r.Targets = append(r.Targets, t)
 			continue
 		}
 		inRange, known := in.InRange[base]
 		if !known {
+			// Unknown range: never "unchanged", whatever the commits say.
+			forceChanged = true
 			r.Warnings = append(r.Warnings, fmt.Sprintf("commit range of baseline %s for %s is unknown; considering all commits", base, label))
 		}
 		closure, haveClosure := in.Closures[label]
@@ -140,7 +143,7 @@ func Build(in Input) Report {
 				files[f] = true
 			}
 		}
-		if len(t.Commits) == 0 {
+		if len(t.Commits) == 0 && !forceChanged {
 			t.Status = Unchanged
 		}
 		t.Files = sortedKeys(files)
