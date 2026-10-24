@@ -107,6 +107,11 @@ func fromNode(n bazelq.Node) (Component, error) {
 	if c.Targets, err = labels(n.Attrs["targets"].StringList); err != nil {
 		return fail(err)
 	}
+	for _, t := range c.Targets {
+		if strings.ContainsAny(t, "\"\n") {
+			return fail(fmt.Errorf("target %q contains a quote or newline", t))
+		}
+	}
 	if c.ReleaseTargets, err = labels(n.Attrs["release_targets"].StringList); err != nil {
 		return fail(err)
 	}
@@ -145,12 +150,17 @@ func (c Component) ParseTag(tag string) (semver.Version, bool) {
 	return tagfmt.Parser(c.TagFormat, c.Name)(tag)
 }
 
-// UniverseExpr is the Bazel query expression selecting the component's targets.
+// UniverseExpr is the Bazel query expression selecting the component's
+// targets; labels are double-quoted (Discover rejects labels that cannot be).
 func (c Component) UniverseExpr() string {
 	if c.TargetsQuery != "" {
 		return "(" + c.TargetsQuery + ")"
 	}
-	return "set(" + strings.Join(c.Targets, " ") + ")"
+	quoted := make([]string, len(c.Targets))
+	for i, t := range c.Targets {
+		quoted[i] = `"` + t + `"`
+	}
+	return "set(" + strings.Join(quoted, " ") + ")"
 }
 
 // State is a component's current release state.
@@ -219,6 +229,15 @@ func Current(repo gitx.Repo, c Component, tags []string) (State, []string, error
 			v, err := semver.Parse(strings.TrimSpace(string(b)))
 			if err != nil {
 				return State{}, nil, fmt.Errorf("%s: %w", c.VersionFile, err)
+			}
+			if highestTag != "" && v.Less(highest) {
+				sha, err := latest()
+				if err != nil {
+					return State{}, nil, err
+				}
+				hv := highest
+				return State{Current: &hv, Source: "tag", BaselineSHA: sha},
+					[]string{fmt.Sprintf("VERSION %s of %s is below the latest tag %s; using %s", v, c.Name, highestTag, highestTag)}, nil
 			}
 			st := State{Current: &v, Source: "version_file"}
 			tag := c.Tag(v)

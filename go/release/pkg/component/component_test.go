@@ -1,6 +1,8 @@
 package component
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -63,7 +65,7 @@ func TestDiscover(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got  %+v\nwant %+v", got, want)
 	}
-	if e := got[0].UniverseExpr(); e != `set(//lib/tests/release:demo_files)` {
+	if e := got[0].UniverseExpr(); e != `set("//lib/tests/release:demo_files")` {
 		t.Errorf("UniverseExpr = %q", e)
 	}
 	if e := got[1].UniverseExpr(); e != `(//lib/tests/release:demo_files)` {
@@ -271,5 +273,59 @@ func TestCurrentInvalidVersionFile(t *testing.T) {
 	_, _, err := Current(repo, Component{Name: "api", TagFormat: "v{version}", VersionFile: "VERSION"}, nil)
 	if err == nil || !strings.Contains(err.Error(), "VERSION") {
 		t.Errorf("err = %v", err)
+	}
+}
+
+func TestUniverseExprQuotesLabels(t *testing.T) {
+	c := Component{Targets: []string{"//a:x+y", "//c:d=e,f#g"}}
+	if got := c.UniverseExpr(); got != `set("//a:x+y" "//c:d=e,f#g")` {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestDiscoverRejectsQuoteInTarget(t *testing.T) {
+	out := strings.Replace(fixture(t), "demo_files\"]", "de\\\"mo\"]", 1)
+	if out == fixture(t) {
+		t.Fatal("fixture replace failed")
+	}
+	if _, err := Discover(&fakeRunner{out: out}, ""); err == nil {
+		t.Error("expected error for label containing a quote")
+	}
+}
+
+type errRunner struct{ err error }
+
+func (e errRunner) Run(...string) ([]byte, error) { return nil, e.err }
+
+type exitErr struct{}
+
+func (exitErr) Error() string { return "exit status 3" }
+func (exitErr) ExitCode() int { return 3 }
+
+func TestDiscoverPropagatesQueryErrors(t *testing.T) {
+	for _, err := range []error{errors.New("boom"), fmt.Errorf("bazel query: %w: partial", exitErr{})} {
+		got, derr := Discover(errRunner{err}, "")
+		if derr == nil || got != nil {
+			t.Errorf("err %v: got %v, %v", err, got, derr)
+		}
+	}
+}
+
+func TestCurrentVersionBelowLatestTag(t *testing.T) {
+	repo, dir := newRepo(t)
+	commit(t, dir, "VERSION", "4.0.0\n")
+	gitCmd(t, dir, "tag", "v4.0.0")
+	c41 := commit(t, dir, "a", "2")
+	gitCmd(t, dir, "tag", "v4.1.0")
+	tags, _ := ListTags(repo)
+	st, warns, err := Current(repo, Component{Name: "api", TagFormat: "v{version}", VersionFile: "VERSION"}, tags)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Current == nil || st.Current.String() != "4.1.0" || st.BaselineSHA != c41 {
+		t.Errorf("state = %+v", st)
+	}
+	if !reflect.DeepEqual(warns, []string{"VERSION 4.0.0 of api is below the latest tag v4.1.0; using v4.1.0"}) {
+		t.Errorf("warnings = %q", warns)
 	}
 }
