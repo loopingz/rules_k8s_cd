@@ -521,3 +521,22 @@ func TestMappedFileMatchingNoRepoGlobal(t *testing.T) {
 		t.Errorf("want warning %q once, got %v", want, r.Warnings)
 	}
 }
+
+// A gitops target outside the universe that still exists is not removed.
+func TestRemovedSkipsExisting(t *testing.T) {
+	in := input(map[string]graph.Closure{
+		"//a:a": cl([]string{"a/BUILD"}, []string{"a"}, nil),
+	})
+	in.Gitops = &gitops.Result{Targets: map[string][]string{
+		"//live:x":   {"gitops/live.yaml"},
+		"//old:gone": {"gitops/z.yaml"},
+	}}
+	in.Existing = map[string]bool{"//live:x": true}
+	r := Build(in)
+	expect(t, r, "//old:gone", Removed)
+	for _, tg := range r.Targets {
+		if tg.Label == "//live:x" {
+			t.Errorf("existing target reported: %+v", tg)
+		}
+	}
+}

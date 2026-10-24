@@ -324,11 +324,16 @@ func TestIntegration(t *testing.T) {
 		e.write("deploy/gone.yaml", "# rules_k8s_cd:target //gone:gitops.prod\nkind: ConfigMap\n")
 		e.write("deploy/prod.yaml", "# rules_k8s_cd:target //app:gitops.prod\nkind: ConfigMap\n")
 		e.write("deploy/plain.yaml", "kind: ConfigMap\n")
+		// //gen:out exists but is outside the universe: never removed.
+		e.write("deploy/live.yaml", "# rules_k8s_cd:target //gen:out\nkind: ConfigMap\n")
 		e.commit("add gitops dir")
 		dir := filepath.Join(e.ws, "deploy")
 		out, errOut := e.run(0, "--since", e.head(), "--format", "removed", "--gitops-dir", dir)
 		if want := lines(filepath.Join(dir, "gone.yaml")); out != want {
 			t.Errorf("got %q, want %q (stderr %s)", out, want, errOut)
+		}
+		if !strings.Contains(errOut, "1 gitops target(s) outside --targets still exist and were not marked removed") {
+			t.Errorf("want still-existing warning, stderr %s", errOut)
 		}
 		if !strings.Contains(errOut, "1 gitops file(s) without a rules_k8s_cd:target header") {
 			t.Errorf("want unlabeled warning, stderr %s", errOut)

@@ -2,6 +2,7 @@ package bazelq
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"reflect"
 	"strings"
@@ -97,3 +98,40 @@ func TestVersion(t *testing.T) {
 		t.Error("expected error")
 	}
 }
+
+type exitErr int
+
+func (e exitErr) Error() string { return "exit status " + string(rune('0'+int(e))) }
+func (e exitErr) ExitCode() int { return int(e) }
+
+func TestExistingLabels(t *testing.T) {
+	f := &fakeRunner{out: "@@//a:a\n", err: fmtWrap(exitErr(3))}
+	got, err := ExistingLabels(f, []string{"//a:a", "//gone:x"})
+	if err != nil {
+		t.Fatalf("exit 3 must be accepted: %v", err)
+	}
+	if !reflect.DeepEqual(got, []string{"@@//a:a"}) {
+		t.Errorf("got %v", got)
+	}
+	args := strings.Join(f.args[0], " ")
+	for _, w := range []string{"query", "--keep_going", "--consistent_labels", "--output=label", `set("//a:a" "//gone:x")`} {
+		if !strings.Contains(args, w) {
+			t.Errorf("args %q missing %q", args, w)
+		}
+	}
+
+	if got, err := ExistingLabels(&fakeRunner{out: "//b:b\n"}, []string{"//b:b"}); err != nil || !reflect.DeepEqual(got, []string{"//b:b"}) {
+		t.Errorf("exit 0: got %v, %v", got, err)
+	}
+	if _, err := ExistingLabels(&fakeRunner{out: "//b:b\n", err: fmtWrap(exitErr(7))}, []string{"//b:b"}); err == nil {
+		t.Error("exit 7 must be an error")
+	}
+	if _, err := ExistingLabels(&fakeRunner{err: errors.New("boom")}, []string{"//b:b"}); err == nil {
+		t.Error("plain failure must be an error")
+	}
+	if _, err := ExistingLabels(&fakeRunner{}, []string{`//b:"x`}); err == nil {
+		t.Error("unquotable label must be an error")
+	}
+}
+
+func fmtWrap(err error) error { return fmt.Errorf("bazel query: %w: stderr", err) }

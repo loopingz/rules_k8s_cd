@@ -12,12 +12,14 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"loopingz.com/rules_k8s_cd/change_report/pkg/bazelq"
 	"loopingz.com/rules_k8s_cd/change_report/pkg/cache"
 	"loopingz.com/rules_k8s_cd/change_report/pkg/gitops"
 	"loopingz.com/rules_k8s_cd/change_report/pkg/gitx"
+	"loopingz.com/rules_k8s_cd/change_report/pkg/label"
 	"loopingz.com/rules_k8s_cd/change_report/pkg/render"
 	"loopingz.com/rules_k8s_cd/change_report/pkg/report"
 )
@@ -189,6 +191,7 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 		}
 		gres = &res
 	}
+	existing := existingOutsideUniverse(runner, gres, snap.Universe, warn)
 
 	fileWarned := false
 	rep := report.Build(report.Input{
@@ -217,6 +220,7 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 		GlobalGlobs:    globalFiles,
 		ModuleBzlFiles: snap.ModuleBzlFiles,
 		Gitops:         gres,
+		Existing:       existing,
 	})
 	for _, w := range rep.Warnings {
 		warn(w)
@@ -248,6 +252,54 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 		return fail("%v", err)
 	}
 	return 0
+}
+
+// existingOutsideUniverse returns the gitops header labels outside universe
+// that must not be marked removed: those `bazel query` still finds, or all of
+// them if the query fails (a destructive output resolves doubt to "keep").
+func existingOutsideUniverse(r bazelq.Runner, gres *gitops.Result, universe []string, warn func(string)) map[string]bool {
+	if gres == nil {
+		return nil
+	}
+	in := make(map[string]bool, len(universe))
+	for _, l := range universe {
+		in[l] = true
+	}
+	var candidates []string
+	for l := range gres.Targets {
+		if !in[l] {
+			candidates = append(candidates, l)
+		}
+	}
+	if len(candidates) == 0 {
+		return nil
+	}
+	sort.Strings(candidates)
+	existing := map[string]bool{}
+	found, err := bazelq.ExistingLabels(r, candidates)
+	if err != nil {
+		warn(fmt.Sprintf("cannot check whether %d gitops target(s) outside --targets still exist, none marked removed: %v", len(candidates), err))
+		for _, l := range candidates {
+			existing[l] = true
+		}
+		return existing
+	}
+	for _, f := range found {
+		if l, err := label.Parse(f); err == nil {
+			f = l.String()
+		}
+		existing[f] = true
+	}
+	n := 0
+	for _, l := range candidates {
+		if existing[l] {
+			n++
+		}
+	}
+	if n > 0 {
+		warn(fmt.Sprintf("%d gitops target(s) outside --targets still exist and were not marked removed", n))
+	}
+	return existing
 }
 
 // resolvePath makes a relative path absolute against BUILD_WORKING_DIRECTORY

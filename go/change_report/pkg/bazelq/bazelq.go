@@ -23,7 +23,9 @@ type ExecRunner struct {
 	Bazel, Dir string
 }
 
-// Run executes `Bazel args...` in Dir, returning stdout. stderr is included in the error.
+// Run executes `Bazel args...` in Dir, returning stdout. stderr is included
+// in the error, which wraps the *exec.ExitError (see ExitCode); stdout is
+// returned even on failure.
 func (e ExecRunner) Run(args ...string) ([]byte, error) {
 	bin := e.Bazel
 	if bin == "" {
@@ -35,7 +37,7 @@ func (e ExecRunner) Run(args ...string) ([]byte, error) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("%s %s: %w: %s", bin, strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
+		return stdout.Bytes(), fmt.Errorf("%s %s: %w: %s", bin, strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
 	}
 	return stdout.Bytes(), nil
 }
@@ -113,6 +115,42 @@ func Labels(r Runner, expr string) ([]string, error) {
 	}
 	sort.Strings(labels)
 	return labels, nil
+}
+
+// ExitCode returns the process exit code carried by err (an error with an
+// ExitCode() int method in its chain, such as *exec.ExitError), or -1.
+func ExitCode(err error) int {
+	var ec interface{ ExitCode() int }
+	if errors.As(err, &ec) {
+		return ec.ExitCode()
+	}
+	return -1
+}
+
+// ExistingLabels returns the labels among labels that exist, as printed by
+// `bazel query --keep_going 'set(...)'` (sorted, in the --consistent_labels
+// form). Exit code 3 (some labels do not exist) is expected; any other
+// failure is an error, and the caller cannot tell which labels exist.
+func ExistingLabels(r Runner, labels []string) ([]string, error) {
+	quoted := make([]string, len(labels))
+	for i, l := range labels {
+		if strings.ContainsAny(l, "\"\n") {
+			return nil, fmt.Errorf("cannot quote label %q in a query", l)
+		}
+		quoted[i] = `"` + l + `"`
+	}
+	out, err := r.Run("query", "--keep_going", "--consistent_labels", "--output=label", "set("+strings.Join(quoted, " ")+")")
+	if err != nil && ExitCode(err) != 3 {
+		return nil, err
+	}
+	var res []string
+	for _, l := range strings.Split(string(out), "\n") {
+		if l = strings.TrimSpace(l); l != "" {
+			res = append(res, l)
+		}
+	}
+	sort.Strings(res)
+	return res, nil
 }
 
 // Version returns the "Build label:" value of `bazel version`.

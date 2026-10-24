@@ -2,10 +2,14 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+
+	"loopingz.com/rules_k8s_cd/change_report/pkg/gitops"
 )
 
 func runCLI(args ...string) (int, string, string) {
@@ -109,5 +113,61 @@ func TestWriteFileAtomic(t *testing.T) {
 		if strings.HasSuffix(e.Name(), ".tmp") {
 			t.Errorf("leftover %s", e.Name())
 		}
+	}
+}
+
+type fakeBazel struct {
+	out   string
+	code  int // exit code; 0 = success
+	calls [][]string
+}
+
+type fakeExit int
+
+func (e fakeExit) Error() string { return fmt.Sprintf("exit status %d", int(e)) }
+func (e fakeExit) ExitCode() int { return int(e) }
+
+func (f *fakeBazel) Run(args ...string) ([]byte, error) {
+	f.calls = append(f.calls, args)
+	if f.code != 0 {
+		return []byte(f.out), fmt.Errorf("bazel: %w", fakeExit(f.code))
+	}
+	return []byte(f.out), nil
+}
+
+func TestExistingOutsideUniverse(t *testing.T) {
+	gres := &gitops.Result{Targets: map[string][]string{
+		"//in:u":   {"u.yaml"},
+		"//live:x": {"x.yaml"},
+		"//gone:y": {"y.yaml"},
+	}}
+	universe := []string{"//in:u"}
+	var warns []string
+	warn := func(s string) { warns = append(warns, s) }
+
+	f := &fakeBazel{out: "@@//live:x\n", code: 3}
+	got := existingOutsideUniverse(f, gres, universe, warn)
+	if want := map[string]bool{"//live:x": true}; !reflect.DeepEqual(got, want) {
+		t.Errorf("exit 3: got %v, want %v", got, want)
+	}
+	if q := f.calls[0][len(f.calls[0])-1]; q != `set("//gone:y" "//live:x")` {
+		t.Errorf("query %q", q)
+	}
+	if len(warns) != 1 || warns[0] != "1 gitops target(s) outside --targets still exist and were not marked removed" {
+		t.Errorf("warnings %v", warns)
+	}
+
+	warns = nil
+	got = existingOutsideUniverse(&fakeBazel{code: 2}, gres, universe, warn)
+	if want := map[string]bool{"//live:x": true, "//gone:y": true}; !reflect.DeepEqual(got, want) {
+		t.Errorf("query failure: got %v, want every candidate", got)
+	}
+	if len(warns) != 1 || !strings.Contains(warns[0], "none marked removed") {
+		t.Errorf("warnings %v", warns)
+	}
+
+	f = &fakeBazel{}
+	if got := existingOutsideUniverse(f, &gitops.Result{Targets: map[string][]string{"//in:u": nil}}, universe, warn); got != nil || len(f.calls) != 0 {
+		t.Errorf("no candidates: got %v, calls %v", got, f.calls)
 	}
 }

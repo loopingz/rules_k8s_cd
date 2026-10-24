@@ -20,6 +20,7 @@ go_library(
         "//go/change_report/pkg/cache",
         "//go/change_report/pkg/gitops",
         "//go/change_report/pkg/gitx",
+        "//go/change_report/pkg/label",
         "//go/change_report/pkg/render",
         "//go/change_report/pkg/report",
     ],
@@ -35,6 +36,9 @@ go_test(
     name = "change_report_test",
     srcs = ["main_test.go"],
     embed = [":go_default_library"],
+    deps = [
+        "//go/change_report/pkg/gitops",
+    ],
 )
 
 # End-to-end test against a real Bazel. Run it with

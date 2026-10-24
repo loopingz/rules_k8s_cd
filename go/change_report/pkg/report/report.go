@@ -76,6 +76,9 @@ type Input struct {
 	// no target closure but affect every target.
 	ModuleBzlFiles []string
 	Gitops         *gitops.Result
+	// Existing holds gitops labels outside Universe that still exist (or
+	// whose existence could not be checked): they are never marked removed.
+	Existing map[string]bool
 }
 
 // Build computes the report.
@@ -158,7 +161,7 @@ func Build(in Input) Report {
 
 	if in.Gitops != nil {
 		for label, fs := range in.Gitops.Targets {
-			if universe[label] {
+			if universe[label] || in.Existing[label] {
 				continue
 			}
 			files := append([]string(nil), fs...)
