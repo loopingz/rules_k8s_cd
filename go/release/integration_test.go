@@ -44,6 +44,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"loopingz.com/rules_k8s_cd/release/pkg/release"
 )
@@ -190,7 +191,7 @@ func TestIntegration(t *testing.T) {
 		if pr.Base != "main" || pr.Title != "chore(release): api 0.1.0" {
 			t.Errorf("PR base %q title %q, want main and %q", pr.Base, pr.Title, "chore(release): api 0.1.0")
 		}
-		for _, s := range []string{"<!-- rules_k8s_cd:release api -->", "Initial release", "add endpoint"} {
+		for _, s := range []string{"<!-- rules_k8s_cd:release api -->\n\n## 0.1.0 (" + e.today() + ")\n\nInitial release\n", "add endpoint"} {
 			if !strings.Contains(pr.Body, s) {
 				t.Errorf("PR body lacks %q:\n%s", s, pr.Body)
 			}
@@ -202,11 +203,14 @@ func TestIntegration(t *testing.T) {
 		if got := e.git("rev-parse", "origin/release/api^"); got != e.head() {
 			t.Errorf("release commit parent %s, want main %s", got, e.head())
 		}
-		if got := e.git("diff", "--name-only", "HEAD", "origin/release/api"); got != "ws/api/CHANGELOG.md\nws/api/VERSION" {
-			t.Errorf("release commit changes %q, want api/CHANGELOG.md and api/VERSION", got)
+		if got, want := e.git("diff", "--name-only", "HEAD", "origin/release/api"), "ws/api/CHANGELOG.md\nws/api/VERSION\nws/lib/versions.txt"; got != want {
+			t.Errorf("release commit changes %q, want %q", got, want)
 		}
 		if got := e.git("show", "origin/release/api:./api/VERSION"); got != "0.1.0" {
 			t.Errorf("api/VERSION on the release branch = %q, want 0.1.0", got)
+		}
+		if got, want := e.git("show", "origin/release/api:./lib/versions.txt"), `api_version = "0.1.0"`; got != want {
+			t.Errorf("bump file on the release branch = %q, want %q", got, want)
 		}
 		if tags := e.git("ls-remote", "--tags", "origin"); tags != "" {
 			t.Errorf("tags on origin = %q, want none", tags)
@@ -225,35 +229,81 @@ func TestIntegration(t *testing.T) {
 		}
 	})
 
+	// web is released first, so that afterwards a release commit wrongly
+	// attributed to it would show up against its tag.
+	e.sub(t, "WebRelease", func(t *testing.T) {
+		e.write("web/index.html", "<html>page</html>\n")
+		e.commit("feat(web): add page")
+		e.run(0, "run")
+		pr := e.forge.openPR("release/web")
+		if pr == nil || pr.Title != "chore(release): web 0.1.0" {
+			t.Fatalf("web PR = %+v, want one for 0.1.0", pr)
+		}
+		for _, s := range []string{"<!-- rules_k8s_cd:release web -->\n\n## 0.1.0 (" + e.today() + ")\n\nInitial release\n", "add page"} {
+			if !strings.Contains(pr.Body, s) {
+				t.Errorf("PR body lacks %q:\n%s", s, pr.Body)
+			}
+		}
+
+		merged := e.squashMerge(pr)
+		e.run(0, "run")
+		if got := e.remoteTag("web@v0.1.0"); got != merged {
+			t.Errorf("tag web@v0.1.0 on origin at %q, want the squash commit %s", got, merged)
+		}
+		e.checkNotes("web@v0.1.0", pr.Body)
+		if web := e.forge.openPR("release/web"); web != nil {
+			t.Errorf("unexpected web PR %+v", web)
+		}
+		// api's PR is still open, rebased onto the new main.
+		e.git("fetch", "-q", "origin")
+		if api := e.forge.openPR("release/api"); api == nil {
+			t.Error("api PR closed")
+		}
+		if got := e.git("rev-parse", "origin/release/api^"); got != e.head() {
+			t.Errorf("api release commit parent %s, want main %s", got, e.head())
+		}
+		if got := e.attributed("web"); len(got) != 0 {
+			t.Errorf("commits attributed to web = %q, want none", got)
+		}
+	})
+
 	e.sub(t, "DependencyRelease", func(t *testing.T) {
 		pr := e.forge.openPR("release/api")
 		if pr == nil {
 			t.Fatal("no open PR for api")
 		}
 		merged := e.squashMerge(pr)
-		e.write("lib/util.sh", "util() { echo \"${1:-none}\"; }\n")
-		e.commit("fix(lib): handle empty input")
-		e.run(0, "run")
+		out, _ := e.run(0, "run")
 
 		if got := e.remoteTag("api@v0.1.0"); got != merged {
 			t.Errorf("tag api@v0.1.0 on origin at %q, want the squash commit %s", got, merged)
 		}
-		rel, ok := e.forge.release("api@v0.1.0")
-		if !ok {
-			t.Error("no forge release api@v0.1.0")
-		} else if !strings.Contains(rel.Body, "add endpoint") {
-			t.Errorf("release notes lack the changelog section:\n%s", rel.Body)
-		}
+		e.checkNotes("api@v0.1.0", pr.Body)
 		if got, want := e.releases(), []string{"api@v0.1.0 0.1.0"}; !reflect.DeepEqual(got, want) {
 			t.Errorf("release target runs = %q, want %q", got, want)
 		}
+		// The squash release commit changed lib/versions.txt, a bump file in
+		// both closures: it releases neither api nor the already released web.
+		if prs := e.forge.openPRs(); len(prs) != 0 {
+			t.Errorf("open PRs after merging the release = %+v, want none (stdout %s)", prs, out)
+		}
+		for _, c := range []string{"api", "web"} {
+			if got := e.attributed(c); len(got) != 0 {
+				t.Errorf("commits attributed to %s = %q, want none", c, got)
+			}
+		}
 
+		e.write("lib/util.sh", "util() { echo \"${1:-none}\"; }\n")
+		fix := e.commit("fix(lib): handle empty input")
+		e.run(0, "run")
 		next := e.forge.openPR("release/api")
 		if next == nil || next.Number == pr.Number || next.Title != "chore(release): api 0.1.1" {
 			t.Fatalf("api PR = %+v, want a new PR for 0.1.1", next)
 		}
-		if !strings.Contains(next.Body, "handle empty input") || strings.Contains(next.Body, "add endpoint") {
-			t.Errorf("0.1.1 PR body should list only the lib fix:\n%s", next.Body)
+		want := "<!-- rules_k8s_cd:release api -->\n\n## 0.1.1 (" + e.today() + ")\n\n### Bug Fixes\n\n" +
+			"- **lib:** handle empty input (" + e.short(fix) + ") — via `lib/util.sh`\n"
+		if next.Body != want {
+			t.Errorf("0.1.1 PR body:\n%s\nwant:\n%s", next.Body, want)
 		}
 		if web := e.forge.openPR("release/web"); web != nil {
 			t.Errorf("unexpected web PR %+v", web)
@@ -271,23 +321,17 @@ func TestIntegration(t *testing.T) {
 		if got := e.remoteTag("api@v0.1.1"); got != releaseCommit {
 			t.Errorf("tag api@v0.1.1 on origin at %q, want the release commit %s", got, releaseCommit)
 		}
-		if _, ok := e.forge.release("api@v0.1.1"); !ok {
-			t.Error("no forge release api@v0.1.1")
-		}
+		e.checkNotes("api@v0.1.1", pr.Body)
 		if got, want := e.releases(), []string{"api@v0.1.0 0.1.0", "api@v0.1.1 0.1.1"}; !reflect.DeepEqual(got, want) {
 			t.Errorf("release target runs = %q, want %q", got, want)
 		}
 		if prs := e.forge.openPRs(); len(prs) != 0 {
 			t.Errorf("open PRs after merging the release = %+v, want none (stdout %s)", prs, out)
 		}
-		// Release commits (squash or merged) and the VERSION/CHANGELOG they
-		// change are never attributed, although api/VERSION is in api's
-		// closure.
-		if got := e.attributed("api"); len(got) != 0 {
-			t.Errorf("commits attributed to api = %q, want none", got)
-		}
-		if got, want := e.attributed("web"), []string{"chore(web): tweak page", "chore: initial import"}; !reflect.DeepEqual(got, want) {
-			t.Errorf("commits attributed to web = %q, want %q", got, want)
+		for _, c := range []string{"api", "web"} {
+			if got := e.attributed(c); len(got) != 0 {
+				t.Errorf("commits attributed to %s = %q, want none", c, got)
+			}
 		}
 	})
 
@@ -297,8 +341,8 @@ func TestIntegration(t *testing.T) {
 		if c, _ := e.forge.counts(); c != calls {
 			t.Errorf("tag again made %d forge call(s), want none", c-calls)
 		}
-		if got := e.releases(); len(got) != 2 {
-			t.Errorf("tag again ran release targets: %q", got)
+		if got, want := e.releases(), []string{"api@v0.1.0 0.1.0", "api@v0.1.1 0.1.1"}; !reflect.DeepEqual(got, want) {
+			t.Errorf("tag again: release target runs = %q, want %q", got, want)
 		}
 
 		e.run(0, "tag", "--retry-targets")
@@ -312,11 +356,16 @@ func TestIntegration(t *testing.T) {
 
 	e.sub(t, "StalePRClosed", func(t *testing.T) {
 		e.write("web/extra.txt", "extra\n")
-		e.commit("feat(web): add extra page")
+		feat := e.commit("feat(web): add extra page")
 		e.run(0, "run")
 		pr := e.forge.openPR("release/web")
-		if pr == nil || pr.Title != "chore(release): web 0.1.0" {
-			t.Fatalf("web PR = %+v, want one for 0.1.0", pr)
+		if pr == nil || pr.Title != "chore(release): web 0.1.1" {
+			t.Fatalf("web PR = %+v, want one for 0.1.1", pr)
+		}
+		want := "<!-- rules_k8s_cd:release web -->\n\n## 0.1.1 (" + e.today() + ")\n\n### Features\n\n" +
+			"- **web:** add extra page (" + e.short(feat) + ")\n"
+		if pr.Body != want {
+			t.Errorf("web PR body:\n%s\nwant:\n%s", pr.Body, want)
 		}
 
 		build := e.read("web/BUILD.bazel")
@@ -328,7 +377,7 @@ func TestIntegration(t *testing.T) {
 		e.commit("chore(web): ignore extra.txt")
 
 		// The feat commit only touched the now ignored file.
-		if got, want := e.attributed("web"), []string{"chore(web): ignore extra.txt", "chore(web): tweak page", "chore: initial import"}; !reflect.DeepEqual(got, want) {
+		if got, want := e.attributed("web"), []string{"chore(web): ignore extra.txt"}; !reflect.DeepEqual(got, want) {
 			t.Errorf("commits attributed to web = %q, want %q", got, want)
 		}
 		out, _ := e.run(0, "run")
@@ -486,6 +535,28 @@ func (e *itEnv) attributed(name string) []string {
 	}
 	e.t.Fatalf("no plan for %s", name)
 	return nil
+}
+
+// today is the date release sections are headed with.
+func (e *itEnv) today() string { return time.Now().UTC().Format("2006-01-02") }
+
+// short is git's abbreviation of sha, as in changelog entries.
+func (e *itEnv) short(sha string) string { e.t.Helper(); return e.git("rev-parse", "--short", sha) }
+
+// checkNotes checks that the forge release of tag exists and that its notes
+// are the changelog section of the release PR body (without its heading).
+func (e *itEnv) checkNotes(tag, prBody string) {
+	e.t.Helper()
+	rel, ok := e.forge.release(tag)
+	if !ok {
+		e.t.Errorf("no forge release %s", tag)
+		return
+	}
+	_, section, _ := strings.Cut(prBody, "\n## ")
+	_, want, _ := strings.Cut(section, "\n")
+	if want = strings.TrimSpace(want); rel.Name != tag || rel.Body != want {
+		e.t.Errorf("forge release %s: name %q notes:\n%s\nwant name %q notes:\n%s", tag, rel.Name, rel.Body, tag, want)
+	}
 }
 
 // squashMerge merges pr like a forge squash merge: one commit on main with

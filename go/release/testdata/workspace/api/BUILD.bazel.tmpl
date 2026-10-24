@@ -4,14 +4,14 @@ load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
 sh_binary(
     name = "bin",
     srcs = ["bin.sh"],
-    # The binary embeds its version: api/VERSION is in the component's
-    # closure, so a merged release must not trigger another one.
-    data = [":api.version"],
     deps = ["//lib:util"],
 )
 
 release_component(
     name = "api",
+    # A shared file records every component's version, like a MODULE.bazel
+    # version: it is in api's and web's closures.
+    bump_files = {"../lib/versions.txt": "api_version = \"([^\"]*)\""},
     release_targets = ["//tools:record_api"],
     targets = [":bin"],
     visibility = ["//visibility:public"],
