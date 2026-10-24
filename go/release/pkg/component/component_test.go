@@ -267,6 +267,24 @@ func TestCurrentVersionWithoutTag(t *testing.T) {
 	}
 }
 
+func TestCurrentWithRemoteTags(t *testing.T) {
+	repo, dir := newRepo(t)
+	c0 := commit(t, dir, "VERSION", "1.0.0\n")
+	gitCmd(t, dir, "tag", "api@v1.0.0")
+	c1 := commit(t, dir, "VERSION", "1.1.0\n")
+	commit(t, dir, "x", "x")
+	c := Component{Name: "api", TagFormat: "{name}@v{version}", VersionFile: "VERSION"}
+	tags, _ := ListTags(repo)
+	// api@v1.1.0 is only on the remote (a clone without tags).
+	st, warns, err := CurrentWithRemoteTags(repo, c, tags, map[string]string{"api@v1.1.0": c1})
+	if err != nil || len(warns) != 0 {
+		t.Fatalf("warns %v err %v", warns, err)
+	}
+	if st.Current == nil || st.Current.String() != "1.1.0" || st.Source != "version_file" || st.BaselineSHA != c1 {
+		t.Errorf("state = %+v, want baseline %s (not the local api@v1.0.0 %s)", st, c1, c0)
+	}
+}
+
 func TestCurrentInvalidVersionFile(t *testing.T) {
 	repo, dir := newRepo(t)
 	commit(t, dir, "VERSION", "banana\n")

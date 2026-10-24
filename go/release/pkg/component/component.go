@@ -182,13 +182,25 @@ func ListTags(repo gitx.Repo) ([]string, error) {
 // present, else the highest tag of the component, else none. tags is the
 // repository's tag list (see ListTags).
 func Current(repo gitx.Repo, c Component, tags []string) (State, []string, error) {
+	return CurrentWithRemoteTags(repo, c, tags, nil)
+}
+
+// CurrentWithRemoteTags is Current with remote, tags known to exist on the
+// remote but missing locally (tag -> commit), counted as tags of the
+// repository: a clone without tags then still finds the baseline of its
+// released version.
+func CurrentWithRemoteTags(repo gitx.Repo, c Component, tags []string, remote map[string]string) (State, []string, error) {
 	parse := tagfmt.Parser(c.TagFormat, c.Name)
 	var (
 		highest    semver.Version
 		highestTag string
 		owned      = map[string]bool{}
 	)
-	for _, t := range tags {
+	all := append([]string(nil), tags...)
+	for t := range remote {
+		all = append(all, t)
+	}
+	for _, t := range all {
 		v, ok := parse(t)
 		if !ok {
 			continue
@@ -202,6 +214,9 @@ func Current(repo gitx.Repo, c Component, tags []string) (State, []string, error
 	commitOf := func(tag string) (string, bool, error) {
 		if !owned[tag] {
 			return "", false, nil
+		}
+		if sha, ok := remote[tag]; ok {
+			return sha, true, nil
 		}
 		return repo.TagCommit(tag)
 	}

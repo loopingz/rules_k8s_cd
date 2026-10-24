@@ -232,8 +232,15 @@ func TestCreateTagFreshClone(t *testing.T) {
 	if err := CreateTag(crepo, "origin", "x@v1", c1, "m"); err != nil {
 		t.Fatalf("fresh clone same commit: %v", err)
 	}
-	if _, ok, _ := crepo.TagCommit("x@v1"); ok {
-		t.Error("CreateTag created a local tag although the remote already had it")
+	// The remote tag is fetched, so later steps (status, pr) see it locally.
+	if got, ok, _ := crepo.TagCommit("x@v1"); !ok || got != c1 {
+		t.Errorf("remote tag not fetched: local x@v1 = %q, %v", got, ok)
+	}
+	if got := git(t, clone, "cat-file", "-t", "refs/tags/x@v1"); got != "tag" {
+		t.Errorf("fetched tag is %s, want the remote's annotated tag", got)
+	}
+	if err := CreateTag(crepo, "origin", "x@v1", c1, "m"); err != nil {
+		t.Fatalf("rerun after fetch: %v", err)
 	}
 	c2, err := CommitFiles(crepo, c1, map[string][]byte{"f": []byte("a")}, "a")
 	if err != nil {

@@ -179,8 +179,9 @@ func RemoteTagCommit(repo gitx.Repo, remote, tag string) (string, bool, error) {
 	return direct, direct != "", nil
 }
 
-// CreateTag creates annotated tag at sha (a no-op if it already points
-// there, locally or on remote) and pushes it to remote. A tag that exists at
+// CreateTag creates annotated tag at sha and pushes it to remote. A tag
+// already on remote at sha is fetched instead (a no-op if the local tag is
+// there too). A tag that exists at
 // another commit, locally or on remote, is an error.
 func CreateTag(repo gitx.Repo, remote, tag, sha, message string) error {
 	for _, c := range [][2]string{{"remote", remote}, {"sha", sha}, {"tag", tag}} {
@@ -195,16 +196,24 @@ func CreateTag(repo gitx.Repo, remote, tag, sha, message string) error {
 	if err != nil {
 		return err
 	}
-	if rc, ok, err := RemoteTagCommit(repo, remote, tag); err != nil {
+	rc, onRemote, err := RemoteTagCommit(repo, remote, tag)
+	if err != nil {
 		return err
-	} else if ok {
-		if rc != want {
-			return fmt.Errorf("gitwrite: tag %s already exists on %s at %s, refusing to move it to %s", tag, remote, rc, want)
-		}
-		return nil
+	}
+	if onRemote && rc != want {
+		return fmt.Errorf("gitwrite: tag %s already exists on %s at %s, refusing to move it to %s", tag, remote, rc, want)
 	}
 	have, exists, err := repo.TagCommit(tag)
 	if err != nil {
+		return err
+	}
+	if onRemote {
+		if exists && have == want {
+			return nil
+		}
+		// Fetch it so later steps (status, pr) see it locally; a local tag
+		// at another commit makes the fetch fail.
+		_, err := repo.Git("fetch", "--no-tags", remote, "refs/tags/"+tag+":refs/tags/"+tag)
 		return err
 	}
 	switch {

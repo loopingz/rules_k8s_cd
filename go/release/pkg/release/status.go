@@ -115,24 +115,76 @@ func sortedComps(comps []component.Component) []component.Component {
 	return out
 }
 
-// tagPublished reports whether tag is on the remote, as Tag decides it (the
-// local tag list without a remote).
-func tagPublished(e Env, tag string) (bool, error) {
-	if e.Remote == "" {
-		_, ok, err := e.Repo.TagCommit(tag)
-		return ok, err
+// remoteTags looks tags up on the remote once each, as Tag decides "tag
+// published" (the local tag list without a remote).
+type remoteTags struct {
+	e    Env
+	seen map[string]remoteTag
+}
+
+type remoteTag struct {
+	sha string
+	ok  bool
+}
+
+// commit returns the commit tag points to where it is published.
+func (r *remoteTags) commit(tag string) (string, bool, error) {
+	if t, ok := r.seen[tag]; ok {
+		return t.sha, t.ok, nil
 	}
-	_, ok, err := gitwrite.RemoteTagCommit(e.Repo, e.Remote, tag)
-	return ok, err
+	var (
+		sha string
+		ok  bool
+		err error
+	)
+	if r.e.Remote == "" {
+		sha, ok, err = r.e.Repo.TagCommit(tag)
+	} else {
+		sha, ok, err = gitwrite.RemoteTagCommit(r.e.Repo, r.e.Remote, tag)
+	}
+	if err != nil {
+		return "", false, err
+	}
+	if r.seen == nil {
+		r.seen = map[string]remoteTag{}
+	}
+	r.seen[tag] = remoteTag{sha, ok}
+	return sha, ok, nil
+}
+
+// versionTagOnRemote returns {tag: commit} when the tag of the component's
+// VERSION at HEAD is missing locally but published on the remote (a clone
+// without tags), else nil.
+func versionTagOnRemote(e Env, rt *remoteTags, c component.Component, local map[string]bool) (map[string]string, error) {
+	if c.VersionFile == "" || e.Remote == "" {
+		return nil, nil
+	}
+	b, ok, err := e.Repo.Show("HEAD", c.VersionFile)
+	if err != nil || !ok {
+		return nil, err
+	}
+	v, err := semver.Parse(strings.TrimSpace(string(b)))
+	if err != nil {
+		return nil, nil // reported by component.Current
+	}
+	tag := c.Tag(v)
+	if local[tag] {
+		return nil, nil
+	}
+	sha, ok, err := rt.commit(tag)
+	if err != nil || !ok {
+		return nil, err
+	}
+	return map[string]string{tag: sha}, nil
 }
 
 // pendingRelease returns the release commit of the component's VERSION at
 // HEAD when that version's tag is not published yet.
-func pendingRelease(e Env, c component.Component, st component.State) (gitx.Commit, bool, error) {
+func pendingRelease(e Env, rt *remoteTags, c component.Component, st component.State) (gitx.Commit, bool, error) {
 	if st.Source != "version_file" || st.Current == nil {
 		return gitx.Commit{}, false, nil
 	}
-	if published, err := tagPublished(e, c.Tag(*st.Current)); err != nil || published {
+	if _, published, err := rt.commit(c.Tag(*st.Current)); err != nil || published {
 		return gitx.Commit{}, false, err
 	}
 	last, ok, err := gitwrite.LastCommitTouching(e.Repo, c.VersionFile)
@@ -151,17 +203,29 @@ func Status(e Env, comps []component.Component) ([]Plan, error) {
 	if err != nil {
 		return nil, err
 	}
+	local := make(map[string]bool, len(tags))
+	for _, t := range tags {
+		local[t] = true
+	}
+	rt := &remoteTags{e: e}
 	var errs []error
 	var ok []component.Component
 	states := map[string]component.State{}
 	pending := map[string]bool{}
 	for _, c := range comps {
-		st, warns, err := component.Current(e.Repo, c, tags)
+		// Like tag, trust the remote: a VERSION tag missing locally but
+		// published there is the baseline.
+		remote, err := versionTagOnRemote(e, rt, c, local)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", c.Name, err))
 			continue
 		}
-		rc, isPending, err := pendingRelease(e, c, st)
+		st, warns, err := component.CurrentWithRemoteTags(e.Repo, c, tags, remote)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", c.Name, err))
+			continue
+		}
+		rc, isPending, err := pendingRelease(e, rt, c, st)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", c.Name, err))
 			continue

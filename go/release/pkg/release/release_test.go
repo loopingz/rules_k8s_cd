@@ -735,6 +735,38 @@ func TestStatusLocalOnlyTagIsPending(t *testing.T) {
 	}
 }
 
+// A clone without tags (or a CI checkout fetching none): the released
+// version's tag is only on the remote.
+func TestStatusRemoteOnlyTag(t *testing.T) {
+	f := setup(t)
+	rc := f.release()
+	if err := Tag(f.env(), comps()[1:]); err != nil {
+		t.Fatal(err)
+	}
+	f.commit("fix: next", map[string]string{"a/y.go": "y\n"})
+	// After the commit: its fetch would bring the tag back.
+	git(t, f.dir, "tag", "-d", "a@v1.1.0")
+	f.warns = nil
+	plans, err := Status(f.env(), comps()[1:])
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := plans[0]
+	if p.State.BaselineSHA != rc || p.TagPending || len(p.Entries) != 1 || p.Entries[0].Commit.Subject != "fix: next" {
+		t.Errorf("plan: baseline %s (want %s) pending %v entries %+v", p.State.BaselineSHA, rc, p.TagPending, p.Entries)
+	}
+	if contains(f.warns, "has no tag") {
+		t.Errorf("spurious baseline warning: %v", f.warns)
+	}
+	if err := PR(f.env(), comps()[1:]); err != nil {
+		t.Fatal(err)
+	}
+	pr := f.forge.prs["release/a"]
+	if pr == nil || pr.Title != "chore(release): a 1.1.1" || strings.Contains(pr.Body, "feat") {
+		t.Errorf("PR re-proposes released commits: %+v", pr)
+	}
+}
+
 func TestTagThenPR(t *testing.T) {
 	f := setup(t)
 	f.release()
