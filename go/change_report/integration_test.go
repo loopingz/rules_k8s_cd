@@ -51,7 +51,10 @@ var (
 )
 
 type itEnv struct {
+	// t is the test currently running (the subtest inside e.sub); helpers
+	// fail it, never a parent.
 	t        *testing.T
+	failed   bool   // a subtest failed; later ones are skipped
 	root     string // git toplevel
 	ws       string // Bazel workspace, a subdirectory of root
 	cacheDir string
@@ -65,13 +68,24 @@ func TestIntegration(t *testing.T) {
 		t.Skip("bazel not on PATH")
 	}
 
-	// Isolate git from the user's configuration; run() inherits this env.
+	// Isolate git and Bazel from the user's configuration (~/.gitconfig,
+	// ~/.bazelrc); run() and every helper inherit this env. On macOS Bazel's
+	// output root and repository cache (/private/var/tmp/_bazel_$USER) are not
+	// under HOME and stay warm; on Linux the default lives under ~/.cache, so
+	// the first run may fetch Bazel's own modules from the network. bazelisk's
+	// download cache depends on HOME: BAZELISK_HOME keeps the user's.
 	home := t.TempDir()
 	gitconfig := filepath.Join(home, "gitconfig")
 	if err := os.WriteFile(gitconfig, nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if os.Getenv("BAZELISK_HOME") == "" {
+		if uc, err := os.UserCacheDir(); err == nil {
+			t.Setenv("BAZELISK_HOME", filepath.Join(uc, "bazelisk"))
+		}
+	}
 	for k, v := range map[string]string{
+		"HOME":                home,
 		"GIT_CONFIG_NOSYSTEM": "1",
 		"GIT_CONFIG_GLOBAL":   gitconfig,
 		"GIT_AUTHOR_NAME":     "t",
@@ -105,7 +119,9 @@ func TestIntegration(t *testing.T) {
 	}
 	e.commit("initial")
 
-	// Warm up: every target is changed without a baseline; the cache is built.
+	// Subtests below are order-dependent: each builds on the previous commit,
+	// and this warm-up creates MODULE.bazel.lock and the graph cache.
+	// Warm up: every target is changed without a baseline.
 	out, errOut := e.run(0, "--debug-cache")
 	if want := lines(itAll...); out != want {
 		t.Fatalf("initial run: got %q, want %q (stderr %s)", out, want, errOut)
@@ -114,7 +130,7 @@ func TestIntegration(t *testing.T) {
 		t.Errorf("initial run: want cache: full, stderr %s", errOut)
 	}
 
-	t.Run("ChangeOutsideWorkspace", func(t *testing.T) {
+	e.sub(t, "ChangeOutsideWorkspace", func(t *testing.T) {
 		prev := e.head()
 		if err := os.WriteFile(filepath.Join(e.root, "README.md"), []byte("changed\n"), 0o644); err != nil {
 			t.Fatal(err)
@@ -129,7 +145,7 @@ func TestIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("EditFile", func(t *testing.T) {
+	e.sub(t, "EditFile", func(t *testing.T) {
 		prev := e.head()
 		e.write("pkg/manifests/a.yaml", "a: 2\n")
 		e.commit("edit a.yaml")
@@ -143,7 +159,7 @@ func TestIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("AddFileUnderMacroGlob", func(t *testing.T) {
+	e.sub(t, "AddFileUnderMacroGlob", func(t *testing.T) {
 		prev := e.head()
 		e.write("pkg/manifests/c.yaml", "c: 1\n")
 		sha := e.commit("add c.yaml")
@@ -176,7 +192,7 @@ func TestIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("DeleteFile", func(t *testing.T) {
+	e.sub(t, "DeleteFile", func(t *testing.T) {
 		prev := e.head()
 		e.remove("pkg/manifests/b.yaml")
 		e.commit("delete b.yaml")
@@ -189,12 +205,19 @@ func TestIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("CacheHit", func(t *testing.T) {
+	e.sub(t, "CacheHit", func(t *testing.T) {
 		prev := e.head()
+		// Start from an empty cache so the first run cannot be a hit.
+		if err := os.RemoveAll(e.cacheDir); err != nil {
+			t.Fatal(err)
+		}
 		for i := 0; i < 2; i++ {
 			out, errOut := e.run(0, "--since", prev, "--debug-cache")
 			if out != "" {
 				t.Errorf("run %d: got %q, want nothing", i, out)
+			}
+			if i == 0 && !strings.Contains(errOut, "cache: full") && !strings.Contains(errOut, "cache: partial") {
+				t.Errorf("first run: want cache: full or partial, stderr %s", errOut)
 			}
 			if i == 1 && !strings.Contains(errOut, "cache: hit") {
 				t.Errorf("second run: want cache: hit, stderr %s", errOut)
@@ -202,7 +225,7 @@ func TestIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("GeneratedFileAcrossPartialRequery", func(t *testing.T) {
+	e.sub(t, "GeneratedFileAcrossPartialRequery", func(t *testing.T) {
 		prev := e.head()
 		e.write("gen/extra.txt", "x\n")
 		e.commit("add unrelated file to gen")
@@ -228,7 +251,7 @@ func TestIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("EditMacroBzl", func(t *testing.T) {
+	e.sub(t, "EditMacroBzl", func(t *testing.T) {
 		prev := e.head()
 		e.write("pkg/m.bzl", e.read("pkg/m.bzl")+"# comment\n")
 		e.commit("edit macro")
@@ -241,7 +264,7 @@ func TestIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("EditBuildFile", func(t *testing.T) {
+	e.sub(t, "EditBuildFile", func(t *testing.T) {
 		prev := e.head()
 		e.write("other/BUILD.bazel", e.read("other/BUILD.bazel")+"# comment\n")
 		e.commit("edit other BUILD")
@@ -254,7 +277,7 @@ func TestIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("DirtyTree", func(t *testing.T) {
+	e.sub(t, "DirtyTree", func(t *testing.T) {
 		e.write("other/o.yaml", "o: dirty\n")
 		out, errOut := e.run(0, "--since", e.head(), "--debug-cache")
 		if out != "" {
@@ -266,7 +289,7 @@ func TestIntegration(t *testing.T) {
 		e.git("checkout", "--", "other/o.yaml")
 	})
 
-	t.Run("ModuleBazelChange", func(t *testing.T) {
+	e.sub(t, "ModuleBazelChange", func(t *testing.T) {
 		prev := e.head()
 		e.write("MODULE.bazel", e.read("MODULE.bazel")+"# a comment\n")
 		e.commit("comment MODULE.bazel")
@@ -282,7 +305,7 @@ func TestIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("RemovedTarget", func(t *testing.T) {
+	e.sub(t, "RemovedTarget", func(t *testing.T) {
 		e.write("deploy/gone.yaml", "# rules_k8s_cd:target //gone:gitops.prod\nkind: ConfigMap\n")
 		e.write("deploy/prod.yaml", "# rules_k8s_cd:target //app:gitops.prod\nkind: ConfigMap\n")
 		e.write("deploy/plain.yaml", "kind: ConfigMap\n")
@@ -301,7 +324,7 @@ func TestIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("ExtensionFileAttribution", func(t *testing.T) {
+	e.sub(t, "ExtensionFileAttribution", func(t *testing.T) {
 		lock, err := os.ReadFile(filepath.Join(e.ws, "MODULE.bazel.lock"))
 		if err != nil {
 			t.Fatalf("reading generated lockfile: %v", err)
@@ -366,7 +389,7 @@ func TestIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("AddAndRemovePackage", func(t *testing.T) {
+	e.sub(t, "AddAndRemovePackage", func(t *testing.T) {
 		prev := e.head()
 		e.write("new/BUILD.bazel", "filegroup(name = \"gitops.new\", srcs = [\"n.yaml\"])\n")
 		e.write("new/n.yaml", "n: 1\n")
@@ -385,6 +408,25 @@ func TestIntegration(t *testing.T) {
 		if out != "" {
 			t.Errorf("remove: got %q, want nothing (stderr %s)", out, errOut)
 		}
+	})
+}
+
+// sub runs fn as a subtest with e.t set to it. Subtests share one workspace
+// and are order-dependent, so after a failure the remaining ones are skipped.
+func (e *itEnv) sub(t *testing.T, name string, fn func(t *testing.T)) {
+	t.Run(name, func(t *testing.T) {
+		if e.failed {
+			t.Skip("earlier subtest failed; shared workspace state is unreliable")
+		}
+		parent := e.t
+		e.t = t
+		defer func() {
+			e.t = parent
+			if t.Failed() {
+				e.failed = true
+			}
+		}()
+		fn(t)
 	})
 }
 
