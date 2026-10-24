@@ -20,10 +20,13 @@ import (
 // the tag, creates the forge release (notes: the changelog section of v at
 // the release commit) and runs the release targets.
 //
-// An existing tag is never created again; its forge release is created if
-// missing. Release targets run only when the tag was published in this run,
-// or, with RetryTargets, when HEAD made the release (the release commit is
-// HEAD or was merged by it). Errors of one component do not stop the others.
+// An existing tag is never created again. The forge release and the release
+// targets follow only a tag published in this run; with RetryTargets they
+// also follow the already published tag of the current VERSION, provided it
+// points at that version's release commit (the forge release is then created
+// if missing and every target re-runs). A failure after tagging is reported
+// with a warning to rerun with --retry-targets. Errors of one component do
+// not stop the others.
 func Tag(e Env, comps []component.Component) error {
 	if e.Remote == "" {
 		return errors.New("release tag: remote is required")
@@ -58,12 +61,21 @@ func tagOne(e Env, c component.Component) error {
 	if err != nil {
 		return err
 	}
-	if !published {
-		last, ok, err := gitwrite.LastCommitTouching(e.Repo, c.VersionFile)
-		if err != nil {
-			return err
+	if published && !e.RetryTargets {
+		return nil
+	}
+	last, ok, err := gitwrite.LastCommitTouching(e.Repo, c.VersionFile)
+	if err != nil {
+		return err
+	}
+	isRelease := ok && isReleaseOf(last.Subject, c.Name, v)
+	if published {
+		if !isRelease || last.SHA != sha {
+			e.out("%s: %s is not at the release commit of %s; nothing to retry", c.Name, tag, c.VersionFile)
+			return nil
 		}
-		if !ok || !isReleaseOf(last.Subject, c.Name, v) {
+	} else {
+		if !isRelease {
 			e.warn("VERSION of %s changed outside a release commit; not releasing", c.Name)
 			return nil
 		}
@@ -79,16 +91,10 @@ func tagOne(e Env, c component.Component) error {
 	}
 
 	if err := ensureRelease(e, c, tag, sha, v); err != nil {
+		e.warn("%s: %s was tagged but release failed; rerun with --retry-targets", c.Name, tag)
 		return err
 	}
-
-	run := !published
-	if !run && e.RetryTargets {
-		if run, err = releasedByHead(e, sha); err != nil {
-			return err
-		}
-	}
-	if !run || len(c.ReleaseTargets) == 0 {
+	if len(c.ReleaseTargets) == 0 {
 		return nil
 	}
 	if e.DryRun {
@@ -132,31 +138,6 @@ func ensureRelease(e Env, c component.Component, tag, sha string, v semver.Versi
 	return nil
 }
 
-// releasedByHead reports whether sha is HEAD or a commit merged by HEAD
-// (reachable from HEAD but not from its first parent).
-func releasedByHead(e Env, sha string) (bool, error) {
-	head, err := e.Repo.RevParse("HEAD")
-	if err != nil {
-		return false, err
-	}
-	if head == sha {
-		return true, nil
-	}
-	if _, err := e.Repo.RevParse("HEAD^1"); err != nil {
-		return false, nil // root commit
-	}
-	out, err := e.Repo.Git("rev-list", "HEAD^1..HEAD")
-	if err != nil {
-		return false, err
-	}
-	for _, s := range strings.Fields(string(out)) {
-		if s == sha {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
 // runTargets runs the release targets in order, in the workspace when HEAD
 // is the release commit, else in a temporary worktree of it.
 func runTargets(e Env, c component.Component, v semver.Version, tag, sha string) (err error) {
@@ -181,6 +162,7 @@ func runTargets(e Env, c component.Component, v semver.Version, tag, sha string)
 	for _, t := range c.ReleaseTargets {
 		e.out("%s: running %s for %s", c.Name, t, tag)
 		if err := run(t, env, dir); err != nil {
+			e.warn("%s: %s was tagged but target %s failed; rerun with --retry-targets", c.Name, tag, t)
 			return fmt.Errorf("release target %s: %w", t, err)
 		}
 	}
@@ -207,7 +189,8 @@ func worktree(e Env, sha string) (string, func(), error) {
 			e.warn("removing worktree %s: %v", wt, err)
 		}
 		os.RemoveAll(tmp)
-		e.Repo.Git("worktree", "prune")
+		// Best effort: a stale registration is harmless and pruned later.
+		_, _ = e.Repo.Git("worktree", "prune")
 	}
 	prefix, err := e.Repo.Git("rev-parse", "--show-prefix")
 	if err != nil {

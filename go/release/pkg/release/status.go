@@ -47,8 +47,9 @@ type Env struct {
 	Cache       cache.Options
 	GlobalGlobs []string
 	DryRun      bool
-	// RetryTargets re-runs the release targets of components released by
-	// HEAD even though their tag already exists.
+	// RetryTargets makes Tag finish the release of each component's current
+	// VERSION although its tag is already published: create the forge
+	// release if missing and re-run the release targets.
 	RetryTargets bool
 	Now          func() time.Time
 	Out, Warn    func(string)
@@ -114,13 +115,24 @@ func sortedComps(comps []component.Component) []component.Component {
 	return out
 }
 
+// tagPublished reports whether tag is on the remote, as Tag decides it (the
+// local tag list without a remote).
+func tagPublished(e Env, tag string) (bool, error) {
+	if e.Remote == "" {
+		_, ok, err := e.Repo.TagCommit(tag)
+		return ok, err
+	}
+	_, ok, err := gitwrite.RemoteTagCommit(e.Repo, e.Remote, tag)
+	return ok, err
+}
+
 // pendingRelease returns the release commit of the component's VERSION at
-// HEAD when that version is not tagged locally yet.
+// HEAD when that version's tag is not published yet.
 func pendingRelease(e Env, c component.Component, st component.State) (gitx.Commit, bool, error) {
 	if st.Source != "version_file" || st.Current == nil {
 		return gitx.Commit{}, false, nil
 	}
-	if _, ok, err := e.Repo.TagCommit(c.Tag(*st.Current)); err != nil || ok {
+	if published, err := tagPublished(e, c.Tag(*st.Current)); err != nil || published {
 		return gitx.Commit{}, false, err
 	}
 	last, ok, err := gitwrite.LastCommitTouching(e.Repo, c.VersionFile)

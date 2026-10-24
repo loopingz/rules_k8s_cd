@@ -91,8 +91,6 @@ func setup(t *testing.T) *fixture {
 	git(t, f.dir, "tag", "b@v1.0.0")
 	f.push()
 	git(t, f.dir, "push", "-q", "origin", "--tags")
-	f.forge.releases["a@v1.0.0"] = "old"
-	f.forge.releases["b@v1.0.0"] = "old"
 	return f
 }
 
@@ -213,10 +211,12 @@ func (f *fixture) remoteFile(rev, path string) string {
 // --- fake forge ------------------------------------------------------------
 
 type fakeForge struct {
-	prs      map[string]*forge.PR // open PRs by head
-	next     int
-	calls    []string
-	releases map[string]string // tag -> notes
+	prs   map[string]*forge.PR // open PRs by head
+	next  int
+	calls []string
+	// failRelease makes CreateRelease fail.
+	failRelease bool
+	releases    map[string]string // tag -> notes
 }
 
 func newFakeForge() *fakeForge {
@@ -263,6 +263,9 @@ func (f *fakeForge) ReleaseExists(tag string) (bool, error) {
 }
 
 func (f *fakeForge) CreateRelease(tag, name, notes string) error {
+	if f.failRelease {
+		return fmt.Errorf("forge down")
+	}
 	f.calls = append(f.calls, fmt.Sprintf("release %s %s", tag, name))
 	f.releases[tag] = notes
 	return nil
@@ -545,20 +548,33 @@ func TestTagReleaseCommit(t *testing.T) {
 	}
 }
 
-func TestTagRetryOnlyForReleaseAtHead(t *testing.T) {
+func TestTagRetryAfterHeadMoved(t *testing.T) {
 	f := setup(t)
-	f.release()
+	rc := f.release()
 	if err := Tag(f.env(), comps()); err != nil {
 		t.Fatal(err)
 	}
 	f.commit("fix: later", map[string]string{"b/b.txt": "b3\n"})
 	f.runs = nil
+	n := len(f.forge.writes())
 	f.retryTargets = true
 	if err := Tag(f.env(), comps()); err != nil {
 		t.Fatal(err)
 	}
-	if len(f.runs) != 0 {
-		t.Errorf("retry re-ran targets of a release not made by HEAD: %+v", f.runs)
+	if len(f.runs) != 2 || f.runs[0].Dir == f.dir || f.runs[0].Version != "1.1.0\n" {
+		t.Errorf("retry runs = %+v", f.runs)
+	}
+	if len(f.forge.writes()) != n {
+		t.Errorf("retry wrote to the forge: %v", f.forge.writes())
+	}
+	if got := f.remoteRef("refs/tags/a@v1.1.0^{commit}"); got != rc {
+		t.Errorf("tag moved to %q", got)
+	}
+	// b's VERSION was not set by a release commit: no retry for it.
+	for _, r := range f.runs {
+		if strings.Contains(strings.Join(r.Env, " "), "RELEASE_COMPONENT=b") {
+			t.Errorf("retried b: %+v", r)
+		}
 	}
 }
 
@@ -624,6 +640,9 @@ func TestTagTargetFailureCleansWorktree(t *testing.T) {
 	if len(f.runs) != 1 {
 		t.Errorf("ran past the failing target: %+v", f.runs)
 	}
+	if !contains(f.warns, "a: a@v1.1.0 was tagged but target //a:push failed; rerun with --retry-targets") {
+		t.Errorf("warns = %v", f.warns)
+	}
 	if _, err := os.Stat(f.runs[0].Dir); !os.IsNotExist(err) {
 		t.Errorf("worktree not removed after failure")
 	}
@@ -641,20 +660,103 @@ func TestTagPushesLocalOnlyTag(t *testing.T) {
 	}
 }
 
-func TestTagCreatesMissingRelease(t *testing.T) {
+func TestTagExistingTagWithoutRelease(t *testing.T) {
 	f := setup(t)
 	f.release()
-	// Tag pushed by an earlier run that failed before creating the release.
+	// Tag pushed by an earlier run (or by hand) without a forge release.
 	git(t, f.dir, "tag", "-a", "a@v1.1.0", "-m", "x")
 	git(t, f.dir, "push", "-q", "origin", "a@v1.1.0")
+	if err := Tag(f.env(), comps()); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.forge.writes(); len(got) != 0 || len(f.runs) != 0 {
+		t.Fatalf("plain rerun published: writes %v runs %+v", got, f.runs)
+	}
+	f.retryTargets = true
 	if err := Tag(f.env(), comps()); err != nil {
 		t.Fatal(err)
 	}
 	if got := f.forge.writes(); !reflect.DeepEqual(got, []string{"release a@v1.1.0 a@v1.1.0"}) {
 		t.Errorf("writes = %v", got)
 	}
-	if len(f.runs) != 0 {
-		t.Errorf("targets ran without retry: %+v", f.runs)
+	if len(f.runs) != 2 {
+		t.Errorf("targets not run on retry: %+v", f.runs)
+	}
+}
+
+func TestTagReleaseFailureThenRetry(t *testing.T) {
+	f := setup(t)
+	rc := f.release()
+	f.forge.failRelease = true
+	err := Tag(f.env(), comps())
+	if err == nil || !strings.Contains(err.Error(), "forge down") {
+		t.Fatalf("err = %v", err)
+	}
+	if !contains(f.warns, "a: a@v1.1.0 was tagged but release failed; rerun with --retry-targets") {
+		t.Errorf("warns = %v", f.warns)
+	}
+	if f.remoteRef("refs/tags/a@v1.1.0^{commit}") != rc || len(f.runs) != 0 {
+		t.Fatalf("tag missing or targets ran: %+v", f.runs)
+	}
+	// A plain rerun does nothing; the retry finishes the release.
+	f.forge.failRelease = false
+	if err := Tag(f.env(), comps()); err != nil || len(f.forge.writes()) != 0 {
+		t.Fatalf("plain rerun: err %v writes %v", err, f.forge.writes())
+	}
+	f.retryTargets = true
+	if err := Tag(f.env(), comps()); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.forge.writes(); !reflect.DeepEqual(got, []string{"release a@v1.1.0 a@v1.1.0"}) || len(f.runs) != 2 {
+		t.Errorf("retry: writes %v runs %+v", got, f.runs)
+	}
+	if n := strings.Count(strings.Join(f.out, "\n"), "tagged a@v1.1.0"); n != 1 {
+		t.Errorf("retagged: %v", f.out)
+	}
+}
+
+func TestStatusLocalOnlyTagIsPending(t *testing.T) {
+	f := setup(t)
+	rc := f.release()
+	git(t, f.dir, "tag", "-a", "a@v1.1.0", "-m", "x", rc)
+	f.commit("fix: after release", map[string]string{"a/y.go": "y\n"})
+	plans, err := Status(f.env(), comps()[1:])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !plans[0].TagPending {
+		t.Errorf("unpublished tag not pending: %+v", plans[0])
+	}
+	if err := PR(f.env(), comps()[1:]); err != nil {
+		t.Fatal(err)
+	}
+	if w := f.forge.writes(); len(w) != 0 || f.remoteRef("refs/heads/release/a") != "" {
+		t.Errorf("pr proposed over an unpublished tag: %v", w)
+	}
+}
+
+func TestTagThenPR(t *testing.T) {
+	f := setup(t)
+	f.release()
+	if err := Tag(f.env(), comps()[1:]); err != nil {
+		t.Fatal(err)
+	}
+	if err := PR(f.env(), comps()[1:]); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.forge.writes(); !reflect.DeepEqual(got, []string{"release a@v1.1.0 a@v1.1.0"}) {
+		t.Fatalf("PR right after the release proposed something: %v", got)
+	}
+	f.commit("fix: next", map[string]string{"a/y.go": "y\n"})
+	if err := PR(f.env(), comps()[1:]); err != nil {
+		t.Fatal(err)
+	}
+	pr := f.forge.prs["release/a"]
+	if pr == nil || pr.Title != "chore(release): a 1.1.1" {
+		t.Fatalf("pr = %+v", pr)
+	}
+	if strings.Contains(pr.Body, "feat") || strings.Contains(pr.Body, "- a (") || !strings.Contains(pr.Body, "next") {
+		t.Errorf("body re-proposes released commits:\n%s", pr.Body)
 	}
 }
 
