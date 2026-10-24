@@ -27,8 +27,9 @@ func identityEnv(repo gitx.Repo) []string {
 
 // CommitFiles creates (without checking out) a commit on top of parent whose
 // tree is parent's tree plus files. Keys of files are relative to repo.Dir;
-// parent is a revision. It returns the new commit SHA. The working tree, the
-// real index and HEAD are untouched.
+// parent is a revision. A file keeps its mode in parent (an executable stays
+// executable); new files are 100644. It returns the new commit SHA. The
+// working tree, the real index and HEAD are untouched.
 func CommitFiles(repo gitx.Repo, parent string, files map[string][]byte, message string) (string, error) {
 	out, err := repo.Git("rev-parse", "--show-prefix")
 	if err != nil {
@@ -72,7 +73,11 @@ func CommitFiles(repo gitx.Repo, parent string, files map[string][]byte, message
 			return "", err
 		}
 		p := prefix + path.Clean(filepath.ToSlash(name))
-		if _, err := repo.GitEnv(env, "update-index", "--add", "--cacheinfo", "100644,"+blob+","+p); err != nil {
+		mode, err := fileMode(repo, parentSHA, p)
+		if err != nil {
+			return "", err
+		}
+		if _, err := repo.GitEnv(env, "update-index", "--add", "--cacheinfo", mode+","+blob+","+p); err != nil {
 			return "", err
 		}
 	}
@@ -88,6 +93,25 @@ func CommitFiles(repo gitx.Repo, parent string, files map[string][]byte, message
 		return "", err
 	}
 	return strings.TrimSpace(string(sha)), nil
+}
+
+// fileMode returns the mode of the blob at p (relative to the toplevel) in
+// commit, so an executable or a symlink keeps its mode; 100644 for a new
+// file. A non-blob entry (a directory or a submodule) is an error.
+func fileMode(repo gitx.Repo, commit, p string) (string, error) {
+	out, err := repo.Git("--literal-pathspecs", "ls-tree", "--full-tree", commit, "--", p)
+	if err != nil {
+		return "", err
+	}
+	line := strings.TrimSpace(string(out))
+	if line == "" {
+		return "100644", nil
+	}
+	f := strings.Fields(line)
+	if len(f) < 2 || f[1] != "blob" {
+		return "", fmt.Errorf("gitwrite: %s is not a regular file in %s", p, commit)
+	}
+	return f[0], nil
 }
 
 func hashObject(repo gitx.Repo, content []byte) (string, error) {

@@ -326,3 +326,33 @@ func TestCreateTagBogusRemote(t *testing.T) {
 		t.Error("expected error for unreachable remote")
 	}
 }
+
+func TestCommitFilesKeepsMode(t *testing.T) {
+	for _, sub := range []string{"", "ws"} {
+		t.Run("sub="+sub, func(t *testing.T) {
+			top, _ := setup(t)
+			prefix := ""
+			if sub != "" {
+				prefix = sub + "/"
+			}
+			write(t, top, prefix+"bump.sh", "#!/bin/sh\necho 1.0.0\n")
+			git(t, top, "update-index", "--add", "--chmod=+x", prefix+"bump.sh")
+			git(t, top, "commit", "-q", "-m", "exec")
+			parent := git(t, top, "rev-parse", "HEAD")
+			sha, err := CommitFiles(gitx.Repo{Dir: filepath.Join(top, sub)}, parent, map[string][]byte{
+				"bump.sh": []byte("#!/bin/sh\necho 1.1.0\n"),
+				"VERSION": []byte("1.1.0\n"),
+				"new.txt": []byte("n\n"),
+			}, "m")
+			if err != nil {
+				t.Fatal(err)
+			}
+			for p, want := range map[string]string{"bump.sh": "100755", "VERSION": "100644", "new.txt": "100644"} {
+				out := git(t, top, "ls-tree", "--full-tree", sha, "--", prefix+p)
+				if got := strings.Fields(out); len(got) == 0 || got[0] != want {
+					t.Errorf("%s: ls-tree %q, want mode %s", p, out, want)
+				}
+			}
+		})
+	}
+}
