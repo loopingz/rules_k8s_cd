@@ -124,8 +124,14 @@ func PushBranch(repo gitx.Repo, remote, sha, branch string) error {
 	return err
 }
 
-// remoteTagCommit returns the commit tag points to on remote, if present.
-func remoteTagCommit(repo gitx.Repo, remote, tag string) (string, bool, error) {
+// RemoteTagCommit returns the commit tag points to on remote (peeling
+// annotated tags), if present there.
+func RemoteTagCommit(repo gitx.Repo, remote, tag string) (string, bool, error) {
+	for _, c := range [][2]string{{"remote", remote}, {"tag", tag}} {
+		if err := checkArg(c[0], c[1]); err != nil {
+			return "", false, err
+		}
+	}
 	out, err := repo.Git("ls-remote", "--tags", remote, "refs/tags/"+tag, "refs/tags/"+tag+"^{}")
 	if err != nil {
 		return "", false, err
@@ -165,7 +171,7 @@ func CreateTag(repo gitx.Repo, remote, tag, sha, message string) error {
 	if err != nil {
 		return err
 	}
-	if rc, ok, err := remoteTagCommit(repo, remote, tag); err != nil {
+	if rc, ok, err := RemoteTagCommit(repo, remote, tag); err != nil {
 		return err
 	} else if ok {
 		if rc != want {
