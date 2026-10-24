@@ -494,3 +494,30 @@ func TestSourceDirectoryInClosure(t *testing.T) {
 		t.Errorf("files %v", tg.Files)
 	}
 }
+
+// A mapped dependency file whose repos match no repo of any closure (e.g.
+// Bazel 7 "~" canonical names) cannot be scoped: it is global, with a warning.
+func TestMappedFileMatchingNoRepoGlobal(t *testing.T) {
+	in := input(map[string]graph.Closure{
+		"//a:a": cl([]string{"a/BUILD"}, []string{"a"}, []string{"rules_go+"}),
+		"//b:b": cl([]string{"b/BUILD"}, []string{"b"}, []string{"gazelle++go_deps+com_github_x"}),
+	}, commit("c2", fc('M', "go.sum")), commit("c1", fc('M', "go.sum")))
+	in.Mapping.FileRepos = map[string][]string{"go.sum": {"gazelle~~go_deps~*"}}
+	r := Build(in)
+	for _, l := range []string{"//a:a", "//b:b"} {
+		tg := expect(t, r, l, Changed, "c2", "c1")
+		if !reflect.DeepEqual(tg.Files, []string{"go.sum"}) {
+			t.Errorf("%s: files %v", l, tg.Files)
+		}
+	}
+	want := "dependency file go.sum maps to repositories not used by any target; treating it as global"
+	n := 0
+	for _, w := range r.Warnings {
+		if w == want {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Errorf("want warning %q once, got %v", want, r.Warnings)
+	}
+}

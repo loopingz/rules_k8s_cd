@@ -84,13 +84,14 @@ func Build(in Input) Report {
 
 	// Classify each non-merge commit's files once.
 	var commits []classified
+	usage := newMappedUsage(in)
 	for _, c := range in.Commits {
 		if len(c.Parents) > 1 {
 			r.Unmanaged = append(r.Unmanaged, c.SHA)
 			r.Commits[c.SHA] = c
 			continue
 		}
-		commits = append(commits, classify(in, c))
+		commits = append(commits, classify(in, c, usage, &r.Warnings))
 	}
 
 	universe := map[string]bool{}

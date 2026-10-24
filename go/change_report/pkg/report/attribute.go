@@ -1,6 +1,7 @@
 package report
 
 import (
+	"fmt"
 	"path"
 	"sort"
 	"strings"
@@ -32,8 +33,43 @@ type classified struct {
 	scoped map[string][][]string
 }
 
+// mappedUsage tells whether a mapped dependency file's repo patterns match
+// some repo of the universe closures, memoized per file.
+type mappedUsage struct {
+	repos []string // union of the universe closures' repos
+	used  map[string]bool
+}
+
+func newMappedUsage(in Input) *mappedUsage {
+	set := map[string]bool{}
+	for _, l := range in.Universe {
+		for _, r := range in.Closures[l].Repos {
+			set[r] = true
+		}
+	}
+	return &mappedUsage{repos: sortedKeys(set), used: map[string]bool{}}
+}
+
+// isUsed reports whether some pattern of patterns matches a closure repo;
+// first is true the first time p is asked about.
+func (u *mappedUsage) isUsed(p string, patterns []string) (used, first bool) {
+	if v, ok := u.used[p]; ok {
+		return v, false
+	}
+	v := false
+	for _, r := range u.repos {
+		if anyMatch(patterns, r) {
+			v = true
+			break
+		}
+	}
+	u.used[p] = v
+	return v, true
+}
+
 // classify applies the global and external-dependency rules to c's files.
-func classify(in Input, c gitx.Commit) classified {
+// Warnings are appended to warns.
+func classify(in Input, c gitx.Commit, usage *mappedUsage, warns *[]string) classified {
 	cc := classified{c: c, global: map[string]bool{}, scoped: map[string][][]string{}}
 
 	touched := map[string]bool{}
@@ -71,6 +107,15 @@ func classify(in Input, c gitx.Commit) classified {
 			cc.global[p] = true
 		case len(in.Mapping.FileRepos[p]) > 0:
 			mapped := in.Mapping.FileRepos[p]
+			if used, first := usage.isUsed(p, mapped); !used {
+				// The mapping names repos no target uses (e.g. other
+				// canonical-name conventions): it cannot be trusted.
+				if first {
+					*warns = append(*warns, fmt.Sprintf("dependency file %s maps to repositories not used by any target; treating it as global", p))
+				}
+				cc.global[p] = true
+				continue
+			}
 			groups := [][]string{mapped}
 			if level2 {
 				// Narrow to the changed repos, but never to nothing: the file
