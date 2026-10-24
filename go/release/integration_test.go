@@ -46,6 +46,7 @@ import (
 	"testing"
 	"time"
 
+	"loopingz.com/rules_k8s_cd/change_report/pkg/gitx"
 	"loopingz.com/rules_k8s_cd/release/pkg/release"
 )
 
@@ -80,8 +81,8 @@ func TestIntegration(t *testing.T) {
 	// Isolate git and Bazel from the user's configuration (~/.gitconfig,
 	// ~/.bazelrc); run(), the release targets and every helper inherit this
 	// env. The test's own ~/.bazelrc shares a disk cache between the
-	// workspace and the release worktrees (each has its own output base, so
-	// stampver and its Go toolchain would otherwise be rebuilt every time).
+	// workspace and the release worktree (it has its own output base, so
+	// stampver and its Go toolchain would otherwise be rebuilt).
 	// bazelisk's download cache depends on HOME: BAZELISK_HOME keeps the
 	// user's.
 	home := t.TempDir()
@@ -140,30 +141,32 @@ func TestIntegration(t *testing.T) {
 			t.Logf("bazel clean --expunge: %v\n%s", err, out)
 		}
 	})
-	// Release targets run in a fresh worktree (and so a fresh Bazel output
-	// base) whenever HEAD is not the release commit; expunge each one once
-	// its targets ran so no server or output base outlives the test.
-	old := newEnv
-	newEnv = func(o options, env func(string) string, out, warn func(string)) (deps, error) {
-		d, err := old(o, env, out, warn)
-		if err != nil || d.Env.RunTarget == nil {
-			return d, err
+	// Release targets run in the release worktree whenever HEAD is not the
+	// release commit; the tool shuts its Bazel server down after each run,
+	// and its output base (stable per repository) is expunged at the end.
+	t.Cleanup(func() {
+		wt, err := release.WorktreeDir(gitx.Repo{Dir: e.ws}, e.cacheDir)
+		if err != nil {
+			t.Logf("release worktree: %v", err)
+			return
 		}
-		inner := d.Env.RunTarget
-		d.Env.RunTarget = func(target string, env []string, dir string) error {
-			err := inner(target, env, dir)
-			if dir != e.ws {
-				cmd := exec.Command("bazel", "clean", "--expunge")
-				cmd.Dir = dir
-				if out, cerr := cmd.CombinedOutput(); cerr != nil {
-					t.Logf("bazel clean --expunge in %s: %v\n%s", dir, cerr, out)
-				}
+		ws := filepath.Join(wt, "ws")
+		for _, c := range [][]string{
+			{"git", "-C", e.ws, "worktree", "add", "-q", "--detach", wt, "HEAD"},
+			{"bazel", "clean", "--expunge"},
+			{"git", "-C", e.ws, "worktree", "remove", "--force", wt},
+		} {
+			cmd := exec.Command(c[0], c[1:]...)
+			cmd.Dir = ws
+			if c[0] == "git" {
+				cmd.Dir = e.ws
 			}
-			return err
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Logf("%v: %v\n%s", c, err, out)
+				return
+			}
 		}
-		return d, nil
-	}
-	t.Cleanup(func() { newEnv = old })
+	})
 
 	e.git("-C", e.root, "init", "-q")
 	e.git("init", "-q", "--bare", e.origin)

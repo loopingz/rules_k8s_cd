@@ -43,7 +43,7 @@ type Env struct {
 	// PRs target. CommitURL is a commit URL template with {sha} (or "").
 	Remote, MainBranch, CommitURL string
 	// Cache configures attribution; its Repo and Runner default to Repo
-	// and Runner. CacheDir also hosts release worktrees.
+	// and Runner. CacheDir also hosts the release worktree (WorktreeDir).
 	Cache       cache.Options
 	GlobalGlobs []string
 	DryRun      bool
@@ -56,6 +56,9 @@ type Env struct {
 	// RunTarget runs a release target with extra env entries in dir;
 	// default BazelRunTarget(Bazel).
 	RunTarget func(target string, env []string, dir string) error
+	// Shutdown stops the Bazel server of the release worktree's workspace
+	// dir before the worktree is removed; default BazelShutdown(Bazel).
+	Shutdown func(dir string) error
 	// Attribute defaults to attrib.Attribute.
 	Attribute AttributeFunc
 }

@@ -1,6 +1,8 @@
 package release
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -9,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 
+	"loopingz.com/rules_k8s_cd/change_report/pkg/gitx"
 	"loopingz.com/rules_k8s_cd/release/pkg/attrib"
 	"loopingz.com/rules_k8s_cd/release/pkg/changelog"
 	"loopingz.com/rules_k8s_cd/release/pkg/component"
@@ -189,7 +192,7 @@ func ensureRelease(e Env, c component.Component, tag, sha string, v semver.Versi
 }
 
 // runTargets runs the release targets in order, in the workspace when HEAD
-// is the release commit, else in a temporary worktree of it.
+// is the release commit, else in the release worktree (see WorktreeDir).
 func runTargets(e Env, c component.Component, v semver.Version, tag, sha string) (err error) {
 	head, err := e.Repo.RevParse("HEAD")
 	if err != nil {
@@ -219,39 +222,89 @@ func runTargets(e Env, c component.Component, v semver.Version, tag, sha string)
 	return nil
 }
 
-// worktree checks sha out in a detached worktree under the cache dir (or
-// the temp dir) and returns the workspace directory inside it.
-func worktree(e Env, sha string) (string, func(), error) {
-	base := e.Cache.CacheDir
+// WorktreeDir is where Tag checks a release commit out when HEAD is not
+// that commit: a stable path per repository under cacheDir (or the temp
+// dir), so its Bazel output base is reused across runs instead of leaking.
+func WorktreeDir(repo gitx.Repo, cacheDir string) (string, error) {
+	base := cacheDir
 	if base == "" {
 		base = os.TempDir()
 	}
-	if err := os.MkdirAll(base, 0o755); err != nil {
-		return "", nil, err
+	out, err := repo.Git("rev-parse", "--git-common-dir")
+	if err != nil {
+		return "", err
 	}
-	tmp, err := os.MkdirTemp(base, "release-worktree-")
+	common := strings.TrimSpace(string(out))
+	if !filepath.IsAbs(common) {
+		common = filepath.Join(repo.Dir, common)
+	}
+	if abs, err := filepath.Abs(common); err == nil {
+		common = abs
+	}
+	sum := sha256.Sum256([]byte(common))
+	return filepath.Join(base, "rules_k8s_cd-release-worktree-"+hex.EncodeToString(sum[:])[:12]), nil
+}
+
+// worktree checks sha out in a detached worktree at WorktreeDir (replacing
+// a stale one) and returns the workspace directory inside it. cleanup
+// shuts the worktree's Bazel server down, then removes the worktree.
+func worktree(e Env, sha string) (string, func(), error) {
+	wt, err := WorktreeDir(e.Repo, e.Cache.CacheDir)
 	if err != nil {
 		return "", nil, err
 	}
-	wt := filepath.Join(tmp, "wt")
-	cleanup := func() {
-		if _, err := e.Repo.Git("worktree", "remove", "--force", wt); err != nil {
-			e.warn("removing worktree %s: %v", wt, err)
-		}
-		os.RemoveAll(tmp)
-		// Best effort: a stale registration is harmless and pruned later.
-		_, _ = e.Repo.Git("worktree", "prune")
+	if err := os.MkdirAll(filepath.Dir(wt), 0o755); err != nil {
+		return "", nil, err
 	}
 	prefix, err := e.Repo.Git("rev-parse", "--show-prefix")
 	if err != nil {
-		os.RemoveAll(tmp)
 		return "", nil, err
 	}
+	ws := filepath.Join(wt, strings.TrimSpace(string(prefix)))
+	remove := func(stale bool) {
+		if _, err := os.Lstat(wt); err != nil {
+			return
+		}
+		if _, err := e.Repo.Git("worktree", "remove", "--force", wt); err != nil && !stale {
+			e.warn("removing worktree %s: %v", wt, err)
+		}
+		if err := os.RemoveAll(wt); err != nil {
+			e.warn("removing worktree %s: %v", wt, err)
+		}
+		// Best effort: a stale registration is harmless and pruned later.
+		_, _ = e.Repo.Git("worktree", "prune")
+	}
+	cleanup := func() {
+		shutdown := e.Shutdown
+		if shutdown == nil {
+			shutdown = BazelShutdown(e.Bazel)
+		}
+		if err := shutdown(ws); err != nil {
+			e.warn("bazel shutdown in %s: %v", ws, err)
+		}
+		remove(false)
+	}
+	remove(true)
 	if _, err := e.Repo.Git("-c", "core.hooksPath=/dev/null", "worktree", "add", "--detach", wt, sha); err != nil {
-		cleanup()
+		remove(true)
 		return "", nil, err
 	}
-	return filepath.Join(wt, strings.TrimSpace(string(prefix))), cleanup, nil
+	return ws, cleanup, nil
+}
+
+// BazelShutdown returns a Shutdown that runs `bazel shutdown` in dir;
+// output goes to stderr.
+func BazelShutdown(bazel string) func(dir string) error {
+	if bazel == "" {
+		bazel = "bazel"
+	}
+	return func(dir string) error {
+		cmd := exec.Command(bazel, "shutdown")
+		cmd.Dir = dir
+		cmd.Stdout = os.Stderr
+		cmd.Stderr = os.Stderr
+		return cmd.Run()
+	}
 }
 
 // BazelRunTarget returns a RunTarget that runs

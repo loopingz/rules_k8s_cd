@@ -59,5 +59,8 @@ go_test(
     embed = [":go_default_library"],
     gotags = ["integration"],
     tags = ["manual"],
-    deps = ["//go/release/pkg/release"],
+    deps = [
+        "//go/change_report/pkg/gitx",
+        "//go/release/pkg/release",
+    ],
 )

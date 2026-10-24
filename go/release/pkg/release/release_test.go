@@ -51,10 +51,19 @@ type fixture struct {
 	forge        *fakeForge
 	out, warns   []string
 	runs         []targetRun
+	shutdowns    []shutdown
+	cacheDir     string
 	failTarget   string
 	retryTargets bool
 	dryRun       bool
 	noForge      bool
+}
+
+// shutdown is a recorded `bazel shutdown`: its directory and whether that
+// directory still existed.
+type shutdown struct {
+	Dir    string
+	Exists bool
 }
 
 type targetRun struct {
@@ -75,7 +84,7 @@ func setup(t *testing.T) *fixture {
 	t.Setenv("GIT_AUTHOR_EMAIL", "t@t")
 	t.Setenv("GIT_COMMITTER_NAME", "T")
 	t.Setenv("GIT_COMMITTER_EMAIL", "t@t")
-	f := &fixture{t: t, dir: t.TempDir(), origin: t.TempDir(), forge: newFakeForge()}
+	f := &fixture{t: t, dir: t.TempDir(), origin: t.TempDir(), cacheDir: t.TempDir(), forge: newFakeForge()}
 	git(t, f.origin, "init", "-q", "--bare")
 	git(t, f.dir, "init", "-q")
 	git(t, f.dir, "remote", "add", "origin", f.origin)
@@ -188,7 +197,12 @@ func (f *fixture) env() Env {
 			return nil
 		},
 	}
-	e.Cache.CacheDir = f.t.TempDir()
+	e.Cache.CacheDir = f.cacheDir
+	e.Shutdown = func(dir string) error {
+		_, err := os.Stat(dir)
+		f.shutdowns = append(f.shutdowns, shutdown{dir, err == nil})
+		return nil
+	}
 	if !f.noForge {
 		e.Forge = f.forge
 	}
@@ -745,6 +759,45 @@ func TestTagWorktreeWhenHeadMoved(t *testing.T) {
 	}
 	if out := git(t, f.dir, "worktree", "list", "--porcelain"); strings.Count(out, "worktree ") != 1 {
 		t.Errorf("worktree left registered:\n%s", out)
+	}
+}
+
+func TestTagWorktreeStablePath(t *testing.T) {
+	f := setup(t)
+	f.release()
+	f.commit("docs: after", map[string]string{"b/b.txt": "b9\n"})
+	wt, err := WorktreeDir(gitx.Repo{Dir: f.dir}, f.cacheDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Dir(wt) != f.cacheDir || !strings.HasPrefix(filepath.Base(wt), "rules_k8s_cd-release-worktree") {
+		t.Errorf("worktree dir %s, want rules_k8s_cd-release-worktree* in %s", wt, f.cacheDir)
+	}
+	// A stale worktree of a crashed run is replaced.
+	git(t, f.dir, "worktree", "add", "-q", "--detach", wt, "HEAD")
+	write(t, wt, "junk", "j\n")
+	if err := Tag(f.env(), comps()); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.runs) != 2 || f.runs[0].Dir != wt || f.runs[0].Version != "1.1.0\n" {
+		t.Fatalf("runs = %+v, want them in %s", f.runs, wt)
+	}
+	if want := []shutdown{{wt, true}}; !reflect.DeepEqual(f.shutdowns, want) {
+		t.Errorf("shutdowns = %+v, want %+v (before removal)", f.shutdowns, want)
+	}
+	if _, err := os.Stat(wt); !os.IsNotExist(err) {
+		t.Errorf("worktree %s not removed: %v", wt, err)
+	}
+	if out := git(t, f.dir, "worktree", "list", "--porcelain"); strings.Count(out, "worktree ") != 1 {
+		t.Errorf("worktree left registered:\n%s", out)
+	}
+	// The retry reuses the same path (and so the same Bazel output base).
+	f.runs, f.retryTargets = nil, true
+	if err := Tag(f.env(), comps()); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.runs) != 2 || f.runs[0].Dir != wt {
+		t.Errorf("retry runs = %+v, want them in %s", f.runs, wt)
 	}
 }
 
