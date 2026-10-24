@@ -102,7 +102,7 @@ The files (relative to the repository root) that belong to removed gitops target
 
 ### `markdown`
 
-A changelog suitable for a pull request body. Commit subjects and bodies are HTML-escaped. Abridged example with a baseline (the `Full commit messages` section of `//apps/web:deploy` is omitted):
+A changelog suitable for a pull request body. Commit subjects and bodies are HTML-escaped. Abridged example with a baseline (the `//apps/web:deploy` section and the second paragraph of the full message of commit 2222222 are cut):
 
 ````markdown
 # Changes aaaaaaa..ddddddd
@@ -221,8 +221,8 @@ jobs:
             # Merged only: a closed-unmerged PR never landed its changes, so using it
             # would move the baseline past them and under-report.
             # GitHub (gh):
-            SINCE=$(GH_TOKEN="$TOKEN" gh pr list --label gitops --state merged --limit 1 \
-              --json body --jq '.[0].body' 2>/dev/null \
+            SINCE=$(GH_TOKEN="$TOKEN" gh pr list --label gitops --state merged --limit 50 \
+              --json mergedAt,body --jq 'sort_by(.mergedAt) | last | .body // ""' 2>/dev/null \
               | sed -n 's/^Baseline: \([0-9a-f]\{40\}\)$/\1/p' | head -n1 || true)
             # Forgejo (curl) alternative:
             # SINCE=$(curl -fsS -H "Authorization: token $TOKEN" \
@@ -259,10 +259,10 @@ jobs:
       - name: Regenerate gitops files
         run: |
           while read -r target; do
-            [ -n "$target" ] && bazel run "$target" < /dev/null
+            if [ -n "$target" ]; then bazel run "$target" < /dev/null; fi
           done < "$OUT/changed.txt"
           while read -r f; do
-            [ -n "$f" ] && git rm -f -- "$f"
+            if [ -n "$f" ]; then git rm -f -- "$f"; fi
           done < "$OUT/removed.txt"
           { cat "$OUT/changelog.md"; echo; echo "Baseline: $(git rev-parse HEAD)"; } > "$OUT/pr-body.md"
 
@@ -277,7 +277,7 @@ jobs:
           git add -A gitops
           git commit -m "chore: update gitops manifests"
           git push -f origin gitops/update
-          if [ -n "$(gh pr list --head gitops/update --state open --json number --jq '.[0].number')" ]; then
+          if [ -n "$(gh pr list --head gitops/update --state open --json number --jq '.[0].number // empty')" ]; then
             gh pr edit gitops/update --body-file "$OUT/pr-body.md"
           else
             gh pr create --title "Update gitops manifests" --body-file "$OUT/pr-body.md" \
@@ -290,6 +290,7 @@ Notes:
 
 - Write the outputs outside the workspace (`$RUNNER_TEMP` above) and run all `change_report` calls before generating files: any uncommitted or untracked file in the workspace disables the graph cache for that run.
 - `github.api_url`, `GITHUB_ENV` and `actions/cache` are available in Forgejo Actions, but Forgejo's API lives at `https://FORGE_HOST/api/v1`, `gh` is GitHub-only (use `curl` or `tea`), and actions are resolved from your Forgejo instance (mirrors of common actions are on `code.forgejo.org`). The `runs-on` value must match a label registered on your runner.
+- `gh pr list` returns the most recently created PRs, so the example fetches 50 merged ones and picks the latest `mergedAt` itself.
 - The cache `key` is unique per commit while `restore-keys` restores the newest earlier cache, which `change_report` then refreshes.
 
 ## Known limitations
