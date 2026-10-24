@@ -204,6 +204,9 @@ func TestCommitURLTemplate(t *testing.T) {
 		"https://github.com/org/repo.git":        want,
 		"ssh://git@github.com:2222/org/repo.git": want,
 		"ssh://git@github.com/org/repo.git":      want,
+		"https://host:3000/o/r.git":              "https://host:3000/o/r/commit/{sha}",
+		"https://user:tok@host:3000/o/r.git":     "https://host:3000/o/r/commit/{sha}",
+		"http://host:3000/o/r.git":               "http://host:3000/o/r/commit/{sha}",
 		"/local/path":                            "",
 		"":                                       "",
 	} {

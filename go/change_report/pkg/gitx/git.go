@@ -150,7 +150,7 @@ func (r Repo) Tracked(path string) (bool, error) {
 	return false, err
 }
 
-// CommitURLTemplate returns a https commit URL template with a {sha}
+// CommitURLTemplate returns a http(s) commit URL template with a {sha}
 // placeholder derived from the origin remote, or "".
 func (r Repo) CommitURLTemplate() string {
 	out, err := r.run("remote", "get-url", "origin")
@@ -162,9 +162,11 @@ func (r Repo) CommitURLTemplate() string {
 
 func commitURLFromRemote(remote string) string {
 	var host, path string
+	scheme := "https"
 	switch {
 	case strings.HasPrefix(remote, "https://") || strings.HasPrefix(remote, "http://") || strings.HasPrefix(remote, "ssh://"):
-		rest := remote[strings.Index(remote, "://")+3:]
+		sep := strings.Index(remote, "://")
+		rest := remote[sep+3:]
 		slash := strings.IndexByte(rest, '/')
 		if slash < 0 {
 			return ""
@@ -173,8 +175,13 @@ func commitURLFromRemote(remote string) string {
 		if at := strings.LastIndexByte(host, '@'); at >= 0 {
 			host = host[at+1:]
 		}
-		if colon := strings.IndexByte(host, ':'); colon >= 0 {
-			host = host[:colon]
+		if s := remote[:sep]; s == "ssh" {
+			// An ssh port is not the web server's: drop it.
+			if colon := strings.IndexByte(host, ':'); colon >= 0 {
+				host = host[:colon]
+			}
+		} else {
+			scheme = s // http(s) remotes are served by the web server itself
 		}
 	case strings.Contains(remote, "@") && strings.Contains(remote, ":") && !strings.HasPrefix(remote, "/"):
 		// scp-like: user@host:org/repo.git
@@ -188,7 +195,7 @@ func commitURLFromRemote(remote string) string {
 	if host == "" || path == "" || !strings.Contains(path, "/") {
 		return ""
 	}
-	return "https://" + host + "/" + path + "/commit/{sha}"
+	return scheme + "://" + host + "/" + path + "/commit/{sha}"
 }
 
 // Dirty reports whether the working tree under Dir has uncommitted changes,
