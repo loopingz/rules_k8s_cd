@@ -1,0 +1,4 @@
+module(name = "it")
+
+myext = use_extension("//:ext.bzl", "myext")
+use_repo(myext, "myrepo")

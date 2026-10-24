@@ -36,3 +36,22 @@ go_test(
     srcs = ["main_test.go"],
     embed = [":go_default_library"],
 )
+
+# End-to-end test against a real Bazel. Run it with
+#   cd go && go test -tags integration ./change_report/ -run Integration -v -timeout 30m
+# It is manual and not expected to pass under `bazel test` (Bazel inside the
+# Bazel sandbox is not supported).
+go_test(
+    name = "integration_test",
+    srcs = ["integration_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":go_default_library"],
+    gotags = ["integration"],
+    tags = ["manual"],
+    deps = [
+        "//go/change_report/pkg/bazelq",
+        "//go/change_report/pkg/cache",
+        "//go/change_report/pkg/extdeps",
+        "//go/change_report/pkg/gitx",
+    ],
+)
