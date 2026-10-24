@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.2.0 (2026-10-24)
+
+### Features
+
+- add a Bazel-aware release tool and replace release-please (#412) ([fb062db](https://github.com/loopingz/rules_k8s_cd/commit/fb062dbaff07b492c68157bb5eff3a900069c29c))
+- add change_report to detect changed Bazel targets and build gitops changelogs (#410) ([de9755a](https://github.com/loopingz/rules_k8s_cd/commit/de9755ae94fcdc754cc7fa054d27e4329aa99a01))
+
 ## [4.1.0](https://github.com/loopingz/rules_k8s_cd/compare/v4.0.3...v4.1.0) (2026-10-23)
 
 
