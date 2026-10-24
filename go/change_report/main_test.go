@@ -200,3 +200,16 @@ func TestWorkingDir(t *testing.T) {
 		t.Errorf("got %q, want cwd %q", got, wd)
 	}
 }
+
+func TestIgnoreFlag(t *testing.T) {
+	f := ignorePathFunc([]string{"docs/**", "*.md"})
+	if f == nil || !f("//a:a", "docs/x/y.txt") || !f("//a:a", "README.md") || f("//a:a", "src/a.go") {
+		t.Error("ignore globs not applied")
+	}
+	if ignorePathFunc(nil) != nil {
+		t.Error("no globs must give nil")
+	}
+	if code, _, _ := runCLI("--targets", "//...", "--ignore", "docs/**", "--ignore", "*.md", "--format", "bogus"); code != 2 {
+		t.Errorf("repeatable --ignore rejected: code %d", code)
+	}
+}

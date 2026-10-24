@@ -4,7 +4,10 @@ go_library(
     name = "bazelq",
     srcs = ["bazelq.go"],
     importpath = "loopingz.com/rules_k8s_cd/change_report/pkg/bazelq",
-    visibility = ["//go/change_report:__subpackages__"],
+    visibility = [
+        "//go/change_report:__subpackages__",
+        "//go/release:__subpackages__",
+    ],
 )
 
 go_test(

@@ -49,6 +49,9 @@ func ResolveBaselines(repo gitx.Repo, head string, universe []string, since stri
 		if rev == "" {
 			return ""
 		}
+		if rev == RootBaseline {
+			return RootBaseline
+		}
 		r, ok := cache[rev]
 		if !ok {
 			sha, err := repo.RevParse(rev)
@@ -103,8 +106,14 @@ func CollectHistory(repo gitx.Repo, head string, baselines map[string]string) (c
 	}
 	sort.Strings(distinct)
 
+	// The root baseline covers all history: log from the root and every
+	// commit is in its range. Other baselines still get their own RevSet.
+	root := seen[RootBaseline]
 	oldest := ""
 	for _, cand := range distinct {
+		if root {
+			break
+		}
 		ok := true
 		for _, other := range distinct {
 			if other == cand {
@@ -130,6 +139,14 @@ func CollectHistory(repo gitx.Repo, head string, baselines map[string]string) (c
 		return nil, nil, err
 	}
 	for _, b := range distinct {
+		if b == RootBaseline {
+			all := make(map[string]bool, len(commits))
+			for _, c := range commits {
+				all[c.SHA] = true
+			}
+			inRange[b] = all
+			continue
+		}
 		set, err := repo.RevSet(b, head)
 		if err != nil {
 			return nil, nil, err

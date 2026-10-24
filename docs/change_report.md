@@ -33,6 +33,7 @@ Under `bazel run`, relative paths given to `--since-file`, `--output`, `--cache-
 | `--format` | `targets` | One of `targets`, `json`, `markdown`, `removed` (see below). |
 | `--output` | stdout | Write the result to this file (atomically) instead of stdout. |
 | `--gitops-dir` | | Directory scanned for exported gitops manifests. Repeatable. Enables removed-target detection. |
+| `--ignore` | | Glob of files never attributed to any target (same glob syntax as `--global-file`). Repeatable. |
 | `--global-file` | | Extra glob of files that affect every target. Repeatable. |
 | `--commit-url` | derived from `origin` | Commit URL template containing `{sha}`, e.g. `https://git.example.com/org/repo/commit/{sha}`. The default keeps the scheme and port of an http(s) remote and uses `https://<host>` for ssh remotes. |
 | `--cache-dir` | `$XDG_CACHE_HOME/rules_k8s_cd/change_report`, else the OS user cache dir | Directory for the dependency graph cache. |

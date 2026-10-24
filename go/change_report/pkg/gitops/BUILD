@@ -4,7 +4,10 @@ go_library(
     name = "gitops",
     srcs = ["scan.go"],
     importpath = "loopingz.com/rules_k8s_cd/change_report/pkg/gitops",
-    visibility = ["//go/change_report:__subpackages__"],
+    visibility = [
+        "//go/change_report:__subpackages__",
+        "//go/release:__subpackages__",
+    ],
     deps = ["//go/change_report/pkg/label"],
 )
 

@@ -29,6 +29,22 @@ type stringSlice []string
 func (s *stringSlice) String() string     { return strings.Join(*s, ",") }
 func (s *stringSlice) Set(v string) error { *s = append(*s, v); return nil }
 
+// ignorePathFunc returns an IgnorePath hook matching any of globs for every
+// label, or nil when there are none.
+func ignorePathFunc(globs []string) func(label, path string) bool {
+	if len(globs) == 0 {
+		return nil
+	}
+	return func(_, p string) bool {
+		for _, g := range globs {
+			if report.MatchGlob(g, p) {
+				return true
+			}
+		}
+		return false
+	}
+}
+
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr, os.Getenv))
 }
@@ -49,9 +65,11 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 		debugCache  = fs.Bool("debug-cache", false, "print the graph cache mode to stderr")
 		gitopsDirs  stringSlice
 		globalFiles stringSlice
+		ignores     stringSlice
 	)
 	fs.Var(&gitopsDirs, "gitops-dir", "directory scanned for gitops manifests (repeatable)")
 	fs.Var(&globalFiles, "global-file", "extra glob of files affecting every target (repeatable)")
+	fs.Var(&ignores, "ignore", "glob of files never attributed to any target (repeatable)")
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
 			return 0
@@ -218,6 +236,7 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 			return err == nil && ok
 		},
 		GlobalGlobs:    globalFiles,
+		IgnorePath:     ignorePathFunc(ignores),
 		ModuleBzlFiles: snap.ModuleBzlFiles,
 		Gitops:         gres,
 		Existing:       existing,

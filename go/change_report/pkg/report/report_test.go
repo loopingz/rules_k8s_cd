@@ -540,3 +540,55 @@ func TestRemovedSkipsExisting(t *testing.T) {
 		}
 	}
 }
+
+func TestRootBaselineAttributesAllHistory(t *testing.T) {
+	in := input(map[string]graph.Closure{
+		"//a:a": cl([]string{"a/BUILD", "a/a.go"}, []string{"a"}, nil),
+	}, commit("c2", fc('M', "a/a.go")), commit("c1", fc('M', "a/BUILD")))
+	in.Baselines["//a:a"] = RootBaseline
+	in.InRange = nil
+	r := Build(in)
+	tg := expect(t, r, "//a:a", Changed, "c2", "c1")
+	if tg.Since != RootBaseline {
+		t.Errorf("since %q", tg.Since)
+	}
+	if len(r.Warnings) != 0 {
+		t.Errorf("warnings %v", r.Warnings)
+	}
+}
+
+func TestRootBaselineNoReleasableCommits(t *testing.T) {
+	in := input(map[string]graph.Closure{
+		"//a:a": cl([]string{"a/BUILD"}, []string{"a"}, nil),
+	}, commit("c1", fc('M', "other/x.go")))
+	in.Baselines["//a:a"] = RootBaseline
+	in.InRange = nil
+	expect(t, Build(in), "//a:a", Unchanged)
+}
+
+func TestIgnorePath(t *testing.T) {
+	in := input(map[string]graph.Closure{
+		"//a:a": cl([]string{"x/f.go"}, []string{"x"}, nil),
+		"//b:b": cl([]string{"x/f.go"}, []string{"x"}, nil),
+	}, commit("c1", fc('M', "x/f.go")), commit("c2", fc('A', "x/new.go")), commit("c3", fc('M', ".bazelrc")))
+	in.IgnorePath = func(label, p string) bool { return label == "//a:a" }
+	r := Build(in)
+	expect(t, r, "//a:a", Unchanged)
+	expect(t, r, "//b:b", Changed, "c1", "c2", "c3")
+}
+
+func TestIgnoreCommit(t *testing.T) {
+	in := input(map[string]graph.Closure{
+		"//a:a": cl([]string{"a/f.go"}, []string{"a"}, nil),
+	}, commit("c2", fc('M', "a/f.go")), commit("c1", fc('M', "a/f.go")))
+	in.Commits = append([]gitx.Commit{{SHA: "m", Parents: []string{"p1", "p2"}}}, in.Commits...)
+	in.IgnoreCommit = func(c gitx.Commit) bool { return c.SHA == "c1" || c.SHA == "m" }
+	r := Build(in)
+	expect(t, r, "//a:a", Changed, "c2")
+	if _, ok := r.Commits["c1"]; ok {
+		t.Error("ignored commit listed")
+	}
+	if len(r.Unmanaged) != 0 || len(r.Commits) != 1 {
+		t.Errorf("unmanaged %v commits %v", r.Unmanaged, r.Commits)
+	}
+}
