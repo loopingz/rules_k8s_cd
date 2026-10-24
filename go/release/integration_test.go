@@ -23,7 +23,8 @@
 // Components: api (//api:bin, which depends on //lib:util) and web
 // (//web:site); AdoptionNoSurprise adds cli. api's release target
 // //tools:record_api appends "$RELEASE_TAG <resolved //api:api.version>" to
-// $IT_RELEASE_LOG, so the log lists every release target run.
+// $IT_RELEASE_LOG, so the log lists every release target run, and the HEAD
+// of $BUILD_WORKSPACE_DIRECTORY to $IT_RELEASE_LOG.heads.
 package main
 
 import (
@@ -276,7 +277,12 @@ func TestIntegration(t *testing.T) {
 			t.Fatal("no open PR for api")
 		}
 		merged := e.squashMerge(pr)
-		out, _ := e.run(0, "run")
+		out, stderr := e.run(0, "run")
+		// The squash message carries the PR body and its Release-Base
+		// trailer; nothing landed after the PR was last updated.
+		if strings.Contains(stderr, "landed after") {
+			t.Errorf("spurious late-commit warning:\n%s", stderr)
+		}
 
 		if got := e.remoteTag("api@v0.1.0"); got != merged {
 			t.Errorf("tag api@v0.1.0 on origin at %q, want the squash commit %s", got, merged)
@@ -284,6 +290,10 @@ func TestIntegration(t *testing.T) {
 		e.checkNotes("api@v0.1.0", pr.Body)
 		if got, want := e.releases(), []string{"api@v0.1.0 0.1.0"}; !reflect.DeepEqual(got, want) {
 			t.Errorf("release target runs = %q, want %q", got, want)
+		}
+		// HEAD is the release commit: the target ran in the workspace.
+		if got, want := e.releaseHeads(), []string{"api@v0.1.0 " + merged}; !reflect.DeepEqual(got, want) {
+			t.Errorf("release target checkouts = %q, want %q", got, want)
 		}
 		// The squash release commit changed lib/versions.txt, a bump file in
 		// both closures: it releases neither api nor the already released web.
@@ -299,12 +309,14 @@ func TestIntegration(t *testing.T) {
 		e.write("lib/util.sh", "util() { echo \"${1:-none}\"; }\n")
 		fix := e.commit("fix(lib): handle empty input")
 		e.run(0, "run")
+		base := e.head()
 		next := e.forge.openPR("release/api")
 		if next == nil || next.Number == pr.Number || next.Title != "chore(release): api 0.1.1" {
 			t.Fatalf("api PR = %+v, want a new PR for 0.1.1", next)
 		}
 		want := "<!-- rules_k8s_cd:release api -->\n\n## 0.1.1 (" + e.today() + ")\n\n### Bug Fixes\n\n" +
-			"- **lib:** handle empty input (" + e.short(fix) + ") — via `lib/util.sh`\n"
+			"- **lib:** handle empty input (" + e.short(fix) + ") — via `lib/util.sh`\n" +
+			"\nRelease-Base: " + base + "\n"
 		if next.Body != want {
 			t.Errorf("0.1.1 PR body:\n%s\nwant:\n%s", next.Body, want)
 		}
@@ -327,6 +339,11 @@ func TestIntegration(t *testing.T) {
 		e.checkNotes("api@v0.1.1", pr.Body)
 		if got, want := e.releases(), []string{"api@v0.1.0 0.1.0", "api@v0.1.1 0.1.1"}; !reflect.DeepEqual(got, want) {
 			t.Errorf("release target runs = %q, want %q", got, want)
+		}
+		// HEAD is the merge commit: the target ran in the release worktree,
+		// whose $BUILD_WORKSPACE_DIRECTORY is the release commit.
+		if got := e.releaseHeads(); len(got) != 2 || got[1] != "api@v0.1.1 "+releaseCommit {
+			t.Errorf("release target checkouts = %q, want the second at %s", got, releaseCommit)
 		}
 		if prs := e.forge.openPRs(); len(prs) != 0 {
 			t.Errorf("open PRs after merging the release = %+v, want none (stdout %s)", prs, out)
@@ -355,18 +372,23 @@ func TestIntegration(t *testing.T) {
 		if got, want := e.releases(), []string{"api@v0.1.0 0.1.0", "api@v0.1.1 0.1.1", "api@v0.1.1 0.1.1"}; !reflect.DeepEqual(got, want) {
 			t.Errorf("release target runs = %q, want %q", got, want)
 		}
+		if got := e.releaseHeads(); len(got) != 3 || got[2] != got[1] {
+			t.Errorf("retry checkouts = %q, want the release commit again", got)
+		}
 	})
 
 	e.sub(t, "StalePRClosed", func(t *testing.T) {
 		e.write("web/extra.txt", "extra\n")
 		feat := e.commit("feat(web): add extra page")
+		base := e.head()
 		e.run(0, "run")
 		pr := e.forge.openPR("release/web")
 		if pr == nil || pr.Title != "chore(release): web 0.1.1" {
 			t.Fatalf("web PR = %+v, want one for 0.1.1", pr)
 		}
 		want := "<!-- rules_k8s_cd:release web -->\n\n## 0.1.1 (" + e.today() + ")\n\n### Features\n\n" +
-			"- **web:** add extra page (" + e.short(feat) + ")\n"
+			"- **web:** add extra page (" + e.short(feat) + ")\n" +
+			"\nRelease-Base: " + base + "\n"
 		if pr.Body != want {
 			t.Errorf("web PR body:\n%s\nwant:\n%s", pr.Body, want)
 		}
@@ -557,14 +579,16 @@ func (e *itEnv) checkNotes(tag, prBody string) {
 	}
 	_, section, _ := strings.Cut(prBody, "\n## ")
 	_, want, _ := strings.Cut(section, "\n")
+	want, _, _ = strings.Cut(want, "\nRelease-Base: ")
 	if want = strings.TrimSpace(want); rel.Name != tag || rel.Body != want {
 		e.t.Errorf("forge release %s: name %q notes:\n%s\nwant name %q notes:\n%s", tag, rel.Name, rel.Body, tag, want)
 	}
 }
 
 // squashMerge merges pr like a forge squash merge: one commit on main with
-// the release branch's tree and the subject "<title> (#N)". It returns the
-// new main commit.
+// the release branch's tree, the subject "<title> (#N)" and the PR body as
+// message body (GitHub's "pull request title and description"). It returns
+// the new main commit.
 func (e *itEnv) squashMerge(pr *fakePR) string {
 	e.t.Helper()
 	e.git("fetch", "-q", "origin")
@@ -572,7 +596,7 @@ func (e *itEnv) squashMerge(pr *fakePR) string {
 	if parent := e.git("rev-parse", branch+"^"); parent != e.head() {
 		e.t.Fatalf("%s is based on %s, not main %s", branch, parent, e.head())
 	}
-	sha := e.git("commit-tree", branch+"^{tree}", "-p", "HEAD", "-m", fmt.Sprintf("%s (#%d)", pr.Title, pr.Number))
+	sha := e.git("commit-tree", branch+"^{tree}", "-p", "HEAD", "-m", fmt.Sprintf("%s (#%d)", pr.Title, pr.Number), "-m", pr.Body)
 	e.git("merge", "-q", "--ff-only", sha)
 	e.git("push", "-q", "origin", "main")
 	e.forge.markMerged(pr.Number)
@@ -605,7 +629,19 @@ func (e *itEnv) remoteTag(tag string) string {
 // releases returns the lines of the release target log.
 func (e *itEnv) releases() []string {
 	e.t.Helper()
-	b, err := os.ReadFile(e.releaseLog)
+	return e.readLog(e.releaseLog)
+}
+
+// releaseHeads returns the "<tag> <HEAD of $BUILD_WORKSPACE_DIRECTORY>"
+// lines recorded by the release targets.
+func (e *itEnv) releaseHeads() []string {
+	e.t.Helper()
+	return e.readLog(e.releaseLog + ".heads")
+}
+
+func (e *itEnv) readLog(path string) []string {
+	e.t.Helper()
+	b, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		return nil
 	}

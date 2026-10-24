@@ -3,6 +3,11 @@
 # Run by the release tool after it tags a release (release_targets).
 set -euo pipefail
 
+# `bazel run` starts in the runfiles tree, not in the checkout: `gh` needs a
+# git checkout to find the repository (GH_REPO also names it in CI). In a
+# release worktree this is the worktree's workspace.
+cd "${BUILD_WORKSPACE_DIRECTORY:?BUILD_WORKSPACE_DIRECTORY not set; run via bazel run}"
+
 if [ -z "${RELEASE_TAG:-}" ]; then
   echo "error: RELEASE_TAG is not set (it is set by the release tool)" >&2
   exit 1

@@ -46,5 +46,7 @@ jobs:
           ${{ inputs.retry_targets && '--retry-targets' || '' }}
         env:
           FORGE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Read by `gh` in the release targets, which inherit this environment.
+          # Read by `gh` in the release targets, which inherit this environment
+          # (GH_REPO: they run from the runfiles tree, not the checkout).
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
