@@ -124,12 +124,31 @@ func stripComments(mb []byte) string {
 	return b.String()
 }
 
-var moduleNameRe = regexp.MustCompile(`\bmodule\(\s*(?:[^)]*?\bname\s*=\s*)"([^"]+)"`)
+var (
+	moduleCallRe = regexp.MustCompile(`(?s)\bmodule\s*\(([^)]*)\)`)
+	moduleAttrRe = regexp.MustCompile(`\b(name|repo_name)\s*=\s*"([^"]+)"`)
+)
+
+// MainRepoNames returns the apparent names the root module gives itself: the
+// module() name and repo_name, if set. Labels "@<name>//..." refer to the
+// main repository.
+func MainRepoNames(moduleBazel []byte) []string {
+	m := moduleCallRe.FindStringSubmatch(stripComments(moduleBazel))
+	if m == nil {
+		return nil
+	}
+	var out []string
+	for _, a := range moduleAttrRe.FindAllStringSubmatch(m[1], -1) {
+		out = append(out, a[2])
+	}
+	return uniqSorted(out)
+}
 
 // rootID rewrites a bzl label that refers to the root module ("//x",
-// "@//x" or "@<self>//x") to "@@//x", the only form `bazel mod
-// show_extension` accepts for it. Other labels are returned unchanged.
-func rootID(bzl, self string) string {
+// "@//x" or "@<self>//x" for a name in selves) to "@@//x", the only form
+// `bazel mod show_extension` accepts for it. Other labels are returned
+// unchanged.
+func rootID(bzl string, selves []string) string {
 	switch {
 	case strings.HasPrefix(bzl, "@@//"):
 		return bzl
@@ -137,8 +156,11 @@ func rootID(bzl, self string) string {
 		return "@@" + bzl
 	case strings.HasPrefix(bzl, "@//"):
 		return "@" + bzl
-	case self != "" && strings.HasPrefix(bzl, "@"+self+"//"):
-		return "@@" + bzl[len("@"+self):]
+	}
+	for _, self := range selves {
+		if strings.HasPrefix(bzl, "@"+self+"//") {
+			return "@@" + bzl[len("@"+self):]
+		}
 	}
 	return bzl
 }
@@ -149,12 +171,9 @@ func RootExtensions(moduleBazel []byte) []string {
 	var ids []string
 	seen := map[string]bool{}
 	src := stripComments(moduleBazel)
-	self := ""
-	if nm := moduleNameRe.FindStringSubmatch(src); nm != nil {
-		self = nm[1]
-	}
+	selves := MainRepoNames(moduleBazel)
 	for _, m := range useExtRe.FindAllStringSubmatch(src, -1) {
-		id := rootID(m[1], self) + "%" + m[2]
+		id := rootID(m[1], selves) + "%" + m[2]
 		if !seen[id] {
 			seen[id] = true
 			ids = append(ids, id)

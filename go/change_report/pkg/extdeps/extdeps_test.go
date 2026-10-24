@@ -363,3 +363,16 @@ use_repo(oci, "nginx")
 		}
 	}
 }
+
+func TestMainRepoNames(t *testing.T) {
+	mb := "# module(name = \"commented\")\nmodule(\n    name = \"me\",\n    version = \"1\",\n    repo_name = \"alias\",\n)\n"
+	if got, want := MainRepoNames([]byte(mb)), []string{"alias", "me"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+	if got := RootExtensions([]byte(mb + "a = use_extension(\"@alias//lib:x.bzl\", \"a\")\n")); !reflect.DeepEqual(got, []string{"@@//lib:x.bzl%a"}) {
+		t.Errorf("repo_name extension id = %v", got)
+	}
+	if got := MainRepoNames([]byte("bazel_dep(name = \"x\")\n")); got != nil {
+		t.Errorf("no module(): %v", got)
+	}
+}

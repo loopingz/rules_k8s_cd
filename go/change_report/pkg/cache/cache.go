@@ -14,7 +14,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 
@@ -27,7 +26,7 @@ import (
 
 // FormatVersion is the on-disk cache format; bump it on any change to the
 // persisted data or to how it is computed.
-const FormatVersion = 1
+const FormatVersion = 2
 
 // Snapshot is the dependency graph of the universe at HEAD.
 type Snapshot struct {
@@ -107,7 +106,7 @@ func Load(o Options) (*Snapshot, Stats, error) {
 		}
 	}
 
-	s, err := full(o, tree, keys, gk, warn)
+	s, err := full(o, tree, pkgs, keys, gk, warn)
 	if err != nil {
 		return nil, Stats{}, err
 	}
@@ -250,7 +249,7 @@ func incremental(o Options, c *persisted, tree map[string]string, pkgs map[strin
 			bf := path.Join(p, name)
 			delete(s.Graph.Loads, bf)
 			if _, inTree := tree[bf]; inTree {
-				setLoads(s.Graph, o.Workspace, bf, mainNames)
+				setLoads(s.Graph, o.Workspace, bf, p, mainNames)
 			}
 		}
 	}
@@ -270,7 +269,7 @@ func incremental(o Options, c *persisted, tree map[string]string, pkgs map[strin
 }
 
 // full queries the whole universe.
-func full(o Options, tree map[string]string, keys map[string]string, gk string, warn func(string)) (*Snapshot, error) {
+func full(o Options, tree map[string]string, pkgs map[string]bool, keys map[string]string, gk string, warn func(string)) (*Snapshot, error) {
 	universe, err := universeLabels(o.Runner, o.Universe)
 	if err != nil {
 		return nil, fmt.Errorf("querying universe: %w", err)
@@ -283,7 +282,7 @@ func full(o Options, tree map[string]string, keys map[string]string, gk string, 
 	mainNames := moduleNames(o.Workspace)
 	for p := range tree {
 		if isBuildFile(p) || strings.HasSuffix(p, ".bzl") {
-			setLoads(g, o.Workspace, p, mainNames)
+			setLoads(g, o.Workspace, p, filePackage(p, pkgs), mainNames)
 		}
 	}
 
@@ -333,35 +332,34 @@ func universeLabels(r bazelq.Runner, expr string) ([]string, error) {
 	return out, nil
 }
 
-// setLoads records the loads of workspace file p, read from the working tree.
-// A file missing from the working tree is not evaluated by Bazel and is skipped.
-func setLoads(g *graph.Graph, ws, p string, mainNames []string) {
+// setLoads records the loads of workspace file p of package pkg, read from
+// the working tree. A file missing from the working tree is not evaluated by
+// Bazel and is skipped.
+func setLoads(g *graph.Graph, ws, p, pkg string, mainNames []string) {
 	src, err := os.ReadFile(filepath.Join(ws, filepath.FromSlash(p)))
 	if err != nil {
 		return
 	}
-	g.SetLoads(p, graph.ParseLoads(src, p, mainNames))
+	g.SetLoads(p, graph.ParseLoads(src, pkg, mainNames))
 }
 
-var (
-	moduleRe   = regexp.MustCompile(`(?s)\bmodule\(([^)]*)\)`)
-	nameAttrRe = regexp.MustCompile(`\bname\s*=\s*"([^"]+)"`)
-)
+// filePackage returns the package of workspace file p: its nearest enclosing
+// package, else its directory (Bazel cannot load such a file anyway).
+func filePackage(p string, pkgs map[string]bool) string {
+	if o, ok := owner(p, pkgs); ok {
+		return o
+	}
+	return pkgDir(p)
+}
 
-// moduleNames returns the root module name declared in MODULE.bazel, if any.
+// moduleNames returns the names the root module may use for itself in labels
+// (module name and repo_name from MODULE.bazel).
 func moduleNames(ws string) []string {
 	mod, err := os.ReadFile(filepath.Join(ws, "MODULE.bazel"))
 	if err != nil {
 		return nil
 	}
-	m := moduleRe.FindSubmatch(mod)
-	if m == nil {
-		return nil
-	}
-	if n := nameAttrRe.FindSubmatch(m[1]); n != nil {
-		return []string{string(n[1])}
-	}
-	return nil
+	return extdeps.MainRepoNames(mod)
 }
 
 // buildFileFunc returns the BUILD file path of a package: BUILD.bazel if it

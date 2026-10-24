@@ -85,13 +85,31 @@ load("@@self//lib:t.bzl", "s")
 load("@//lib:u.bzl", "s")
 load("//:root.bzl", "r")
 `)
-	got := ParseLoads(src, "pkg/sub/BUILD", []string{"self"})
+	got := ParseLoads(src, "pkg/sub", []string{"self"})
 	want := []string{"pkg/sub/m.bzl", "lib/a.bzl", "lib/s.bzl", "lib/t.bzl", "lib/u.bzl", "root.bzl"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v\nwant %v", got, want)
 	}
-	got = ParseLoads([]byte(`load(":m.bzl")`), "BUILD", nil)
+	got = ParseLoads([]byte(`load(":m.bzl")`), "", nil)
 	if !reflect.DeepEqual(got, []string{"m.bzl"}) {
 		t.Errorf("root: %v", got)
+	}
+}
+
+// A relative load in a .bzl file below its package directory resolves against
+// the package, not the file's directory.
+func TestParseLoadsRelativeToPackage(t *testing.T) {
+	// pkg/defs/x.bzl lives in package "pkg" (no pkg/defs/BUILD).
+	got := ParseLoads([]byte(`load(":y.bzl", "y")`), "pkg", nil)
+	if want := []string{"pkg/y.bzl"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestParseLoadsWhitespaceAndWordBoundary(t *testing.T) {
+	src := []byte("load (\"//a:b.bzl\", \"b\")\nload\t(\"//a:c.bzl\", \"c\")\nautoload(\"//a:no.bzl\")\n")
+	got := ParseLoads(src, "", nil)
+	if want := []string{"a/b.bzl", "a/c.bzl"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
 	}
 }

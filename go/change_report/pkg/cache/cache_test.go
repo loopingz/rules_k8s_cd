@@ -530,3 +530,24 @@ func TestPackagesAndKeys(t *testing.T) {
 		t.Error("universe/version not in global key")
 	}
 }
+
+func TestRepoNameIsMainRepo(t *testing.T) {
+	f := setup(t)
+	f.r.write(t, "MODULE.bazel", "module(\n    name = \"self\",\n    repo_name = \"y\",\n)\n")
+	f.r.write(t, "pkg/BUILD", "load(\":m.bzl\", \"m\")\nload(\"@y//lib:n.bzl\", \"n\")\nm(name = \"viamacro\")\n")
+	f.r.commit(t, "repo_name")
+	s, _ := f.load(t, "full")
+	if !contains(s.Closures["//pkg:viamacro"].Files, "lib/n.bzl") {
+		t.Errorf("closure files = %v, want lib/n.bzl loaded through repo_name", s.Closures["//pkg:viamacro"].Files)
+	}
+}
+
+func TestBzlInSubdirLoadsRelativeToPackage(t *testing.T) {
+	f := setup(t)
+	f.r.write(t, "pkg/defs/x.bzl", "load(\":m.bzl\", \"m\")\n")
+	f.r.commit(t, "bzl in subdir")
+	s, _ := f.load(t, "full")
+	if got := s.Graph.Loads["pkg/defs/x.bzl"]; !reflect.DeepEqual(got, []string{"pkg/m.bzl"}) {
+		t.Errorf("loads of pkg/defs/x.bzl = %v, want [pkg/m.bzl]", got)
+	}
+}
