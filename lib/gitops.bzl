@@ -1,6 +1,6 @@
 load("@aspect_bazel_lib//lib:expand_template.bzl", "expand_template")
 load(":kubectl.bzl", "kubectl")
-load(":kustomizer.bzl", "kustomization_injector", "kustomize_gitops")
+load(":kustomizer.bzl", "gitops_header_label", "kustomization_injector", "kustomize_gitops")
 load(":oci.bzl", "image_pushes")
 load(":utils.bzl", "download_binary", "run_all", "show", "write_source_file")
 
@@ -93,7 +93,7 @@ def gitops(images = {}, environments = {}):
                 out = export_dir + "/" + env + ".yaml",
                 dir = kustomization_target,
                 # The header names the user-facing run target, not this private one
-                target = "//" + native.package_name() + ":gitops." + env,
+                target = gitops_header_label("gitops." + env),
             )
 
             # Allow one target to generate the manifests and push them to the gitops repository

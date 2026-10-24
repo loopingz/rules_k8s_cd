@@ -78,6 +78,26 @@ prepend_header = rule(
 # Consumed by go/change_report (gitops.HeaderPrefix) to detect removed deployments.
 GITOPS_HEADER_PREFIX = "# rules_k8s_cd:target "
 
+def gitops_header_label(name):
+    """Returns the label of target `name` of the calling package, for a gitops header.
+
+    The label is resolved by Bazel (`native.package_relative_label`), so it
+    names the right repository when the macro is called from another module;
+    main-repository labels are written as `//pkg:name`.
+
+    Args:
+      name: target name in the current package.
+
+    Returns:
+      The label as a string.
+    """
+    label = str(native.package_relative_label(":" + name))
+    if label.startswith("@@//"):
+        return label[2:]
+    if label.startswith("@//"):
+        return label[1:]
+    return label
+
 # Creates a kustomization for GitOps deployment using kubectl.
 # And export its result to a file in the given path.
 #
@@ -89,13 +109,14 @@ GITOPS_HEADER_PREFIX = "# rules_k8s_cd:target "
 # - data (List[Label]): The files kustomize needs (kustomization.yaml, resources, patches).
 # - out (str): The path to export the kustomization to.
 # - dir (str): The directory, relative to the package, holding the kustomization.yaml.
-# - target (str): The label written in the header, defaults to "//<package>:<name>".
+# - target (str): The label written in the header, defaults to this package's
+#   <name> target (`//<package>:<name>` in the main repository).
 #
 # Returns:
 # - None
 def kustomize_gitops(name, data, out, dir = "", target = None):
     if target == None:
-        target = "//" + native.package_name() + ":" + name
+        target = gitops_header_label(name)
 
     # Generate the yaml file
     kustomize(
