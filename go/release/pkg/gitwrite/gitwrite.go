@@ -3,10 +3,8 @@
 package gitwrite
 
 import (
-	"bytes"
 	"fmt"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"sort"
@@ -44,11 +42,16 @@ func CommitFiles(repo gitx.Repo, parent string, files map[string][]byte, message
 	}
 
 	names := make([]string, 0, len(files))
+	seen := map[string]string{}
 	for name := range files {
 		clean := path.Clean(filepath.ToSlash(name))
 		if name == "" || path.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, "../") || clean == "." {
 			return "", fmt.Errorf("gitwrite: invalid path %q", name)
 		}
+		if other, dup := seen[clean]; dup {
+			return "", fmt.Errorf("gitwrite: paths %q and %q are the same file", other, name)
+		}
+		seen[clean] = name
 		names = append(names, name)
 	}
 	sort.Strings(names)
@@ -78,6 +81,7 @@ func CommitFiles(repo gitx.Repo, parent string, files map[string][]byte, message
 		return "", err
 	}
 	cenv := append(env, identityEnv(repo)...)
+	// commit-tree honours commit.gpgsign, so override hostile local config.
 	sha, err := repo.GitEnv(cenv, "-c", "commit.gpgsign=false", "commit-tree",
 		strings.TrimSpace(string(tree)), "-p", parentSHA, "-m", message)
 	if err != nil {
@@ -87,33 +91,87 @@ func CommitFiles(repo gitx.Repo, parent string, files map[string][]byte, message
 }
 
 func hashObject(repo gitx.Repo, content []byte) (string, error) {
-	cmd := exec.Command("git", "hash-object", "-w", "--stdin")
-	cmd.Dir = repo.Dir
-	cmd.Stdin = bytes.NewReader(content)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("gitwrite: git hash-object: %v: %s", err, strings.TrimSpace(stderr.String()))
+	out, err := repo.GitEnvStdin(nil, content, "hash-object", "-w", "--stdin")
+	if err != nil {
+		return "", err
 	}
-	return strings.TrimSpace(stdout.String()), nil
+	return strings.TrimSpace(string(out)), nil
 }
 
-// PushBranch force-pushes commit sha to refs/heads/<branch> on remote.
+// checkArg rejects empty values and values git could parse as an option.
+func checkArg(what, v string) error {
+	if v == "" || strings.HasPrefix(v, "-") || strings.HasPrefix(v, "+") {
+		return fmt.Errorf("gitwrite: invalid %s %q", what, v)
+	}
+	return nil
+}
+
+// PushBranch force-pushes commit sha to refs/heads/<branch> on remote. Only
+// branches under release/ may be force-pushed.
 func PushBranch(repo gitx.Repo, remote, sha, branch string) error {
+	for _, c := range [][2]string{{"remote", remote}, {"sha", sha}, {"branch", branch}} {
+		if err := checkArg(c[0], c[1]); err != nil {
+			return err
+		}
+	}
+	if !strings.HasPrefix(branch, "release/") || strings.ContainsAny(branch, ":") {
+		return fmt.Errorf("gitwrite: refusing to force-push branch %q outside release/", branch)
+	}
+	if _, err := repo.Git("check-ref-format", "--branch", branch); err != nil {
+		return fmt.Errorf("gitwrite: invalid branch %q: %w", branch, err)
+	}
 	_, err := repo.Git("-c", "core.hooksPath=/dev/null", "push", "--force", remote, sha+":refs/heads/"+branch)
 	return err
 }
 
+// remoteTagCommit returns the commit tag points to on remote, if present.
+func remoteTagCommit(repo gitx.Repo, remote, tag string) (string, bool, error) {
+	out, err := repo.Git("ls-remote", "--tags", remote, "refs/tags/"+tag, "refs/tags/"+tag+"^{}")
+	if err != nil {
+		return "", false, err
+	}
+	var direct, peeled string
+	for _, l := range strings.Split(string(out), "\n") {
+		f := strings.Fields(l)
+		if len(f) != 2 {
+			continue
+		}
+		switch f[1] {
+		case "refs/tags/" + tag:
+			direct = f[0]
+		case "refs/tags/" + tag + "^{}":
+			peeled = f[0]
+		}
+	}
+	if peeled != "" {
+		return peeled, true, nil
+	}
+	return direct, direct != "", nil
+}
+
 // CreateTag creates annotated tag at sha (a no-op if it already points
-// there) and pushes it to remote. A tag that exists at another commit is an
-// error.
+// there, locally or on remote) and pushes it to remote. A tag that exists at
+// another commit, locally or on remote, is an error.
 func CreateTag(repo gitx.Repo, remote, tag, sha, message string) error {
-	if strings.HasPrefix(tag, "-") {
-		return fmt.Errorf("gitwrite: invalid tag name %q", tag)
+	for _, c := range [][2]string{{"remote", remote}, {"sha", sha}, {"tag", tag}} {
+		if err := checkArg(c[0], c[1]); err != nil {
+			return err
+		}
+	}
+	if _, err := repo.Git("check-ref-format", "refs/tags/"+tag); err != nil {
+		return fmt.Errorf("gitwrite: invalid tag %q: %w", tag, err)
 	}
 	want, err := repo.RevParse(sha)
 	if err != nil {
 		return err
+	}
+	if rc, ok, err := remoteTagCommit(repo, remote, tag); err != nil {
+		return err
+	} else if ok {
+		if rc != want {
+			return fmt.Errorf("gitwrite: tag %s already exists on %s at %s, refusing to move it to %s", tag, remote, rc, want)
+		}
+		return nil
 	}
 	have, exists, err := repo.TagCommit(tag)
 	if err != nil {
@@ -134,7 +192,7 @@ func CreateTag(repo gitx.Repo, remote, tag, sha, message string) error {
 // LastCommitTouching returns the most recent commit that touched path
 // (relative to repo.Dir); false if none did.
 func LastCommitTouching(repo gitx.Repo, path string) (gitx.Commit, bool, error) {
-	out, err := repo.Git("log", "-1", "--format=%H", "--", path)
+	out, err := repo.Git("--literal-pathspecs", "log", "-1", "--format=%H", "--", path)
 	if err != nil {
 		return gitx.Commit{}, false, err
 	}

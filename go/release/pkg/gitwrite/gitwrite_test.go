@@ -122,27 +122,120 @@ func TestCommitFilesRejectsEscape(t *testing.T) {
 	}
 }
 
-func TestCommitFilesNoIdentityFallback(t *testing.T) {
+func TestCommitFilesIdentityFallback(t *testing.T) {
 	top, _ := setup(t)
 	parent := git(t, top, "rev-parse", "HEAD")
-	for _, k := range []string{"GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL"} {
+	git(t, top, "config", "user.useConfigOnly", "true")
+	for _, k := range []string{"GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL", "EMAIL"} {
 		t.Setenv(k, "")
 		os.Unsetenv(k)
 	}
-	t.Setenv("EMAIL", "")
-	os.Unsetenv("EMAIL")
 	t.Setenv("HOME", t.TempDir())
-	t.Setenv("GIT_CONFIG_COUNT", "2")
-	t.Setenv("GIT_CONFIG_KEY_0", "user.useConfigOnly")
-	t.Setenv("GIT_CONFIG_VALUE_0", "true")
-	t.Setenv("GIT_CONFIG_KEY_1", "user.name")
-	t.Setenv("GIT_CONFIG_VALUE_1", "")
+	if _, err := exec.Command("git", "-C", top, "var", "GIT_COMMITTER_IDENT").Output(); err == nil {
+		t.Fatal("test setup: git still resolves an identity")
+	}
 	sha, err := CommitFiles(gitx.Repo{Dir: top}, parent, map[string][]byte{"a": []byte("a")}, "m")
 	if err != nil {
-		t.Skipf("cannot force identity-less environment: %v", err)
+		t.Fatal(err)
 	}
 	if got := git(t, top, "log", "-1", "--format=%an <%ae>", sha); got != "rules_k8s_cd release <release@localhost>" {
 		t.Errorf("identity %q", got)
+	}
+}
+
+func TestCommitFilesRejectsDuplicates(t *testing.T) {
+	top, _ := setup(t)
+	parent := git(t, top, "rev-parse", "HEAD")
+	_, err := CommitFiles(gitx.Repo{Dir: top}, parent, map[string][]byte{"a/b": nil, "a/./b": nil}, "m")
+	if err == nil {
+		t.Error("duplicate cleaned paths accepted")
+	}
+}
+
+func TestHostileConfig(t *testing.T) {
+	top, origin := setup(t)
+	git(t, top, "config", "tag.gpgSign", "true")
+	git(t, top, "config", "commit.gpgsign", "true")
+	git(t, top, "config", "gpg.program", "/bin/false")
+	hook := filepath.Join(top, ".git", "hooks", "pre-push")
+	write(t, top, ".git/hooks/pre-push", "#!/bin/sh\nexit 1\n")
+	if err := os.Chmod(hook, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	repo := gitx.Repo{Dir: top}
+	parent := git(t, top, "rev-parse", "HEAD")
+	sha, err := CommitFiles(repo, parent, map[string][]byte{"f": []byte("a")}, "m")
+	if err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	if err := PushBranch(repo, "origin", sha, "release/x"); err != nil {
+		t.Fatalf("push: %v", err)
+	}
+	if err := CreateTag(repo, "origin", "x@v1", sha, "m"); err != nil {
+		t.Fatalf("tag: %v", err)
+	}
+	if got := git(t, origin, "rev-parse", "refs/heads/release/x"); got != sha {
+		t.Errorf("branch = %s", got)
+	}
+}
+
+func TestPushBranchValidation(t *testing.T) {
+	top, origin := setup(t)
+	repo := gitx.Repo{Dir: top}
+	sha := git(t, top, "rev-parse", "HEAD")
+	for _, b := range []string{"main", "a:b", "release/a b", "release/../x", "-x", "+release/x", "release/"} {
+		if err := PushBranch(repo, "origin", sha, b); err == nil {
+			t.Errorf("branch %q accepted", b)
+		}
+	}
+	if err := PushBranch(repo, "-x", sha, "release/web"); err == nil {
+		t.Error("remote -x accepted")
+	}
+	if err := PushBranch(repo, "origin", "-x", "release/web"); err == nil {
+		t.Error("sha -x accepted")
+	}
+	if err := PushBranch(repo, "origin", sha, "release/web"); err != nil {
+		t.Fatal(err)
+	}
+	if got := git(t, origin, "rev-parse", "refs/heads/release/web"); got != sha {
+		t.Errorf("origin = %s", got)
+	}
+}
+
+func TestCreateTagValidation(t *testing.T) {
+	top, _ := setup(t)
+	repo := gitx.Repo{Dir: top}
+	sha := git(t, top, "rev-parse", "HEAD")
+	for _, tag := range []string{"-x", "a b", "a..b", "x:y", ""} {
+		if err := CreateTag(repo, "origin", tag, sha, "m"); err == nil {
+			t.Errorf("tag %q accepted", tag)
+		}
+	}
+	if err := CreateTag(repo, "-o", "t", sha, "m"); err == nil {
+		t.Error("remote -o accepted")
+	}
+}
+
+func TestCreateTagFreshClone(t *testing.T) {
+	top, origin := setup(t)
+	repo := gitx.Repo{Dir: top}
+	c1 := git(t, top, "rev-parse", "HEAD")
+	if err := CreateTag(repo, "origin", "x@v1", c1, "m"); err != nil {
+		t.Fatal(err)
+	}
+	clone := t.TempDir()
+	git(t, clone, "clone", "-q", origin, ".")
+	crepo := gitx.Repo{Dir: clone}
+	if err := CreateTag(crepo, "origin", "x@v1", c1, "m"); err != nil {
+		t.Fatalf("fresh clone same commit: %v", err)
+	}
+	c2, err := CommitFiles(crepo, c1, map[string][]byte{"f": []byte("a")}, "a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = CreateTag(crepo, "origin", "x@v1", c2, "m")
+	if err == nil || !strings.Contains(err.Error(), c1) || !strings.Contains(err.Error(), c2) {
+		t.Errorf("remote conflict error = %v", err)
 	}
 }
 

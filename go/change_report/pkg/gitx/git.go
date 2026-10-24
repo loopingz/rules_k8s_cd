@@ -34,9 +34,21 @@ func (r Repo) GitEnv(env []string, args ...string) ([]byte, error) {
 	return r.runEnv(env, args...)
 }
 
+// GitEnvStdin is GitEnv with stdin fed to the command.
+func (r Repo) GitEnvStdin(env []string, stdin []byte, args ...string) ([]byte, error) {
+	return r.runStdin(env, stdin, args...)
+}
+
 func (r Repo) runEnv(env []string, args ...string) ([]byte, error) {
+	return r.runStdin(env, nil, args...)
+}
+
+func (r Repo) runStdin(env []string, stdin []byte, args ...string) ([]byte, error) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = r.Dir
+	if stdin != nil {
+		cmd.Stdin = bytes.NewReader(stdin)
+	}
 	if len(env) > 0 {
 		cmd.Env = append(os.Environ(), env...)
 	}
