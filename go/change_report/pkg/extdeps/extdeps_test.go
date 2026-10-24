@@ -107,9 +107,24 @@ oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
 toolchains = use_extension("//lib:extensions.bzl", "toolchains")
 t2 = use_extension("//lib:extensions.bzl", "toolchains", dev_dependency = True)
 `
-	want := []string{"@rules_oci//oci:extensions.bzl%oci", "//lib:extensions.bzl%toolchains"}
+	want := []string{"@rules_oci//oci:extensions.bzl%oci", "@@//lib:extensions.bzl%toolchains"}
 	if got := RootExtensions([]byte(mb)); !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v", got)
+	}
+}
+
+func TestRootExtensionsRootForms(t *testing.T) {
+	mb := `module(name = "me", version = "1")
+a = use_extension("//lib:x.bzl", "a")
+b = use_extension("@//lib:x.bzl", "b")
+c = use_extension("@me//lib:x.bzl", "c")
+d = use_extension("@@//lib:x.bzl", "d")
+e = use_extension("@other//lib:x.bzl", "e")
+f = use_extension("@mealso//lib:x.bzl", "f")
+`
+	want := []string{"@@//lib:x.bzl%a", "@@//lib:x.bzl%b", "@@//lib:x.bzl%c", "@@//lib:x.bzl%d", "@other//lib:x.bzl%e", "@mealso//lib:x.bzl%f"}
+	if got := RootExtensions([]byte(mb)); !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v\nwant %v", got, want)
 	}
 }
 
@@ -243,7 +258,7 @@ func TestLoadSkipsFailingIDs(t *testing.T) {
 	ws := t.TempDir()
 	show := read(t, "testdata/show_extension.txt")
 	f := &fakeRunner{fn: func(a []string) ([]byte, error) {
-		if len(a) > 3 || a[2] == "//bad:x.bzl%bad" {
+		if len(a) > 3 || a[2] == "@@//bad:x.bzl%bad" {
 			return nil, errors.New("boom")
 		}
 		return show, nil
@@ -255,7 +270,7 @@ b = use_extension("//bad:x.bzl", "bad")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(warns, []string{"//bad:x.bzl%bad"}) {
+	if !reflect.DeepEqual(warns, []string{"@@//bad:x.bzl%bad"}) {
 		t.Errorf("warns=%v", warns)
 	}
 	if len(m.FileRepos["pnpm-lock.yaml"]) == 0 {

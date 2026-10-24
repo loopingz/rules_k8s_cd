@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -74,9 +75,13 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 	}
 	warn := func(msg string) { fmt.Fprintf(stderr, "warning: %s\n", msg) }
 
+	// Under `bazel run` the process cwd is the runfiles tree; relative paths
+	// given by the user are relative to BUILD_WORKING_DIRECTORY.
+	resolve := func(p string) string { return resolvePath(env, p) }
+
 	var perTarget map[string]string
 	if *sinceFile != "" {
-		data, err := os.ReadFile(*sinceFile)
+		data, err := os.ReadFile(resolve(*sinceFile))
 		if err != nil {
 			return fail("--since-file: %v", err)
 		}
@@ -86,7 +91,9 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 	}
 
 	ws := *workspace
-	if ws == "" {
+	if ws != "" {
+		ws = resolve(ws)
+	} else {
 		ws = env("BUILD_WORKSPACE_DIRECTORY")
 	}
 	if ws == "" {
@@ -107,7 +114,9 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 	}
 
 	cd := *cacheDir
-	if cd == "" {
+	if cd != "" {
+		cd = resolve(cd)
+	} else {
 		if x := env("XDG_CACHE_HOME"); x != "" {
 			cd = filepath.Join(x, "rules_k8s_cd", "change_report")
 		} else if uc, err := os.UserCacheDir(); err == nil {
@@ -140,7 +149,9 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 	}
 
 	if _, err := os.Stat(filepath.Join(ws, "MODULE.bazel.lock")); err == nil {
-		if tracked, _ := repo.Tracked("MODULE.bazel.lock"); !tracked {
+		if tracked, err := repo.Tracked("MODULE.bazel.lock"); err != nil {
+			warn(fmt.Sprintf("cannot check whether MODULE.bazel.lock is committed: %v", err))
+		} else if !tracked {
 			warn("MODULE.bazel.lock is not committed; dependency changes use extension-level precision only")
 		}
 	}
@@ -158,7 +169,7 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 	if len(gitopsDirs) > 0 {
 		abs := make([]string, len(gitopsDirs))
 		for i, d := range gitopsDirs {
-			a, err := filepath.Abs(d)
+			a, err := filepath.Abs(resolve(d))
 			if err != nil {
 				return fail("%v", err)
 			}
@@ -214,32 +225,63 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 	if url == "" {
 		url = repo.CommitURLTemplate()
 	}
-	var out io.Writer = stdout
-	if *output != "" {
-		f, err := os.Create(*output)
-		if err != nil {
-			return fail("%v", err)
-		}
-		defer f.Close()
-		out = f
-	}
+	var buf bytes.Buffer
 	switch *format {
 	case "targets":
-		err = render.Targets(out, rep)
+		err = render.Targets(&buf, rep)
 	case "removed":
-		err = render.Removed(out, rep)
+		err = render.Removed(&buf, rep)
 	case "json":
-		err = render.JSON(out, rep, url)
+		err = render.JSON(&buf, rep, url)
 	case "markdown":
-		err = render.Markdown(out, rep, url)
+		err = render.Markdown(&buf, rep, url)
 	}
 	if err != nil {
 		return fail("%v", err)
 	}
-	if f, ok := out.(*os.File); ok && out != stdout {
-		if err := f.Close(); err != nil {
+	if *output != "" {
+		if err := writeFileAtomic(resolve(*output), buf.Bytes()); err != nil {
 			return fail("%v", err)
 		}
+	} else if _, err := stdout.Write(buf.Bytes()); err != nil {
+		return fail("%v", err)
 	}
 	return 0
+}
+
+// resolvePath makes a relative path absolute against BUILD_WORKING_DIRECTORY
+// (set by `bazel run`), else leaves it for the process cwd.
+func resolvePath(env func(string) string, p string) string {
+	if p == "" || filepath.IsAbs(p) {
+		return p
+	}
+	if wd := env("BUILD_WORKING_DIRECTORY"); wd != "" {
+		return filepath.Join(wd, p)
+	}
+	return p
+}
+
+// writeFileAtomic writes data to a temp file next to path and renames it into
+// place, so a failure never leaves path truncated.
+func writeFileAtomic(path string, data []byte) error {
+	f, err := os.CreateTemp(filepath.Dir(path), ".change_report-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmp := f.Name()
+	_, err = f.Write(data)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = os.Chmod(tmp, 0o644)
+	}
+	if err == nil {
+		err = os.Rename(tmp, path)
+	}
+	if err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	return nil
 }

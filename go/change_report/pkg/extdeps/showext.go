@@ -124,13 +124,37 @@ func stripComments(mb []byte) string {
 	return b.String()
 }
 
+var moduleNameRe = regexp.MustCompile(`\bmodule\(\s*(?:[^)]*?\bname\s*=\s*)"([^"]+)"`)
+
+// rootID rewrites a bzl label that refers to the root module ("//x",
+// "@//x" or "@<self>//x") to "@@//x", the only form `bazel mod
+// show_extension` accepts for it. Other labels are returned unchanged.
+func rootID(bzl, self string) string {
+	switch {
+	case strings.HasPrefix(bzl, "@@//"):
+		return bzl
+	case strings.HasPrefix(bzl, "//"):
+		return "@@" + bzl
+	case strings.HasPrefix(bzl, "@//"):
+		return "@" + bzl
+	case self != "" && strings.HasPrefix(bzl, "@"+self+"//"):
+		return "@@" + bzl[len("@"+self):]
+	}
+	return bzl
+}
+
 // RootExtensions returns "<bzl>%<name>" ids for the use_extension calls in
 // MODULE.bazel, in the apparent-label form `bazel mod show_extension` accepts.
 func RootExtensions(moduleBazel []byte) []string {
 	var ids []string
 	seen := map[string]bool{}
-	for _, m := range useExtRe.FindAllStringSubmatch(stripComments(moduleBazel), -1) {
-		id := m[1] + "%" + m[2]
+	src := stripComments(moduleBazel)
+	self := ""
+	if nm := moduleNameRe.FindStringSubmatch(src); nm != nil {
+		self = nm[1]
+	}
+	for _, m := range useExtRe.FindAllStringSubmatch(src, -1) {
+		id := rootID(m[1], self) + "%" + m[2]
 		if !seen[id] {
 			seen[id] = true
 			ids = append(ids, id)
