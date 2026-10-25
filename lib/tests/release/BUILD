@@ -26,6 +26,28 @@ release_component(
     version_file = "FRESH_VERSION",
 )
 
+# A component named differently from its target (`component`).
+release_component(
+    name = "named",
+    component = "named-component",
+    tag_format = "named-v{version}",
+    targets = [":demo_files"],
+)
+
+# Its version target is :named.version, for the component named-component.
+release_version_file(
+    name = "named_component",
+    out = "named.component.txt",
+    template = "component.tpl",
+    version = ":named.version",
+)
+
+diff_test(
+    name = "named_component_test",
+    file1 = ":named_component",
+    file2 = "expected/named.component.txt",
+)
+
 # `bazel test` inherits `build --stamp` from .bazelrc: the expectation for
 # :demo.version is checked on an unstamped twin so it does not depend on git.
 release_version(

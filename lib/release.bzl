@@ -40,6 +40,7 @@ def _release_component_impl(_ctx):
 _release_component = rule(
     implementation = _release_component_impl,
     attrs = {
+        "component": attr.string(doc = "Component name, when it differs from the target name"),
         "targets": attr.label_list(allow_files = True, doc = "Targets whose changes release the component"),
         "targets_query": attr.string(doc = "Query selecting the targets, instead of targets"),
         "version_file": attr.string(doc = "Workspace-relative path of the VERSION file"),
@@ -154,11 +155,12 @@ def release_component(
         tag_format = "{name}@v{version}",
         bump_files = {},
         release_targets = [],
+        component = None,
         visibility = None):
     """Declares a release component and its `<name>.version` target.
 
     Args:
-      name: component name, used in tags, the release branch and commits.
+      name: target name, and the component name unless `component` is set.
       targets: targets whose changes release the component (exclusive with targets_query).
       targets_query: Bazel query selecting those targets (exclusive with targets).
       version_file: VERSION file, relative to the package; may not exist yet.
@@ -170,13 +172,18 @@ def release_component(
       tag_format: tag format, with {name} and {version}.
       bump_files: files updated on release, path -> regex.
       release_targets: targets run after the component is tagged.
+      component: component name, used in tags, the release branch and commits;
+        defaults to `name`. Set it when `name` is taken by another target of the
+        package (e.g. the binary the component releases).
       visibility: visibility of the generated targets.
     """
     if bool(targets) == bool(targets_query):
         fail("release_component %s: exactly one of targets or targets_query must be set" % name)
 
+    component = component or name
     _release_component(
         name = name,
+        component = component,
         targets = targets,
         targets_query = targets_query,
         version_file = _workspace_path(version_file),
@@ -194,7 +201,7 @@ def release_component(
     existing = native.glob([version_file], allow_empty = True)
     release_version(
         name = name + ".version",
-        component = name,
+        component = component,
         version_file = ":" + version_file if existing else None,
         version_path = _workspace_path(version_file),
         tag_format = tag_format,

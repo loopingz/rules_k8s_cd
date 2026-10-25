@@ -70,7 +70,7 @@ release_component(
 )
 ```
 
-It declares the component and a `<name>.version` target (a [`release_version`](#release_version)) in the same package.
+It declares the component and a `<name>.version` target (a [`release_version`](#release_version)) in the same package. The component is called `name`, or `component` when set.
 
 | Attribute | Default | Description |
 |-----------|---------|-------------|
@@ -83,8 +83,9 @@ It declares the component and a `<name>.version` target (a [`release_version`](#
 | `initial_version` | `"0.1.0"` | Version of the first release. |
 | `untagged_version` | `"main-{commit}"` | Version of untagged builds (see [Build-time version](#build-time-version)). |
 | `ignore` | `[]` | Paths (relative to the package) whose changes never release the component. |
-| `bump_files` | `{}` | Files updated on release: workspace path (relative to the package) mapped to a Go regular expression with exactly one capturing group; the text of the group is replaced with the new version. A file that does not exist or a pattern that matches nothing is an error. |
+| `bump_files` | `{}` | Files updated on release: path relative to the package (not to the workspace: `tauri/Cargo.toml`, not `app/tauri/Cargo.toml`) mapped to a Go regular expression with exactly one capturing group; the text of the group is replaced with the new version. A file that does not exist or a pattern that matches nothing is an error. |
 | `release_targets` | `[]` | Targets run, in order, after the component is tagged (see below). |
+| `component` | `name` | Component name, used in tags, the release branch, the commit subject and the PR, when it differs from the target name: set it when another target of the package already has the component's name (for example the binary it releases, `go_binary(name = "tool")`). The generated version target is still `<name>.version`. |
 | `visibility` | | Visibility of the generated targets. |
 
 Targets must exist and be in the query universe, and a component whose `targets_query` matches nothing is an error.
