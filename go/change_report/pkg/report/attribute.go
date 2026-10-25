@@ -83,6 +83,26 @@ func newMappedUsage(in Input) *mappedUsage {
 	return &mappedUsage{repos: sortedKeys(set), used: map[string]bool{}}
 }
 
+// sameConvention reports whether patterns use the canonical-name separator
+// of the universe closures ("~" for Bazel 7, "+" since Bazel 8); true when
+// the closures use no external repo.
+func (u *mappedUsage) sameConvention(patterns []string) bool {
+	tilde := func(names []string) (yes, any bool) {
+		for _, n := range names {
+			if strings.Contains(n, "~") {
+				return true, true
+			}
+			if strings.Contains(n, "+") {
+				any = true
+			}
+		}
+		return false, any
+	}
+	ut, uany := tilde(u.repos)
+	pt, pany := tilde(patterns)
+	return !uany || !pany || ut == pt
+}
+
 // isUsed reports whether some pattern of patterns matches a closure repo;
 // first is true the first time p is asked about.
 func (u *mappedUsage) isUsed(p string, patterns []string) (used, first bool) {
@@ -165,9 +185,11 @@ func classify(in Input, pkgs map[string]bool, globs *globCache, c gitx.Commit, u
 			cc.global[p] = true
 		case len(in.Mapping.FileRepos[p]) > 0:
 			mapped := in.Mapping.FileRepos[p]
-			if used, first := usage.isUsed(p, mapped); !used {
-				// The mapping names repos no target uses (e.g. other
-				// canonical-name conventions): it cannot be trusted.
+			if used, first := usage.isUsed(p, mapped); !used && !usage.sameConvention(mapped) {
+				// The mapping names repos no target uses in another
+				// canonical-name convention (Bazel 7 "~"): it cannot be
+				// trusted. In the closures' convention, they are just
+				// repos no target of the universe uses.
 				if first {
 					*warns = append(*warns, fmt.Sprintf("dependency file %s maps to repositories not used by any target; treating it as global", p))
 				}
@@ -375,6 +397,12 @@ func moduleScope(in Input, sha string, usage *mappedUsage) (patterns []string, o
 		return nil, false
 	}
 	for _, p := range patterns {
+		// A use_repo_rule repo ("*+name") that no target uses changes none
+		// (ModuleEditScope keeps those registered as toolchains global); an
+		// extension's repos may be toolchains, which closures do not show.
+		if strings.HasPrefix(p, "*+") {
+			continue
+		}
 		if used, _ := usage.isUsed(moduleFile+"\x00"+p, []string{p}); !used {
 			return nil, false
 		}

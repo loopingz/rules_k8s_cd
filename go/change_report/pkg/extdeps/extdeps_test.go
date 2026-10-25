@@ -424,7 +424,8 @@ VERSION = "1"
 		ok           bool
 	}{
 		{"extension tag", `digest = "sha256:1"`, `digest = "sha256:2"`, []string{"rules_oci++oci+*"}, true},
-		{"use_repo", `use_repo(oci, "nginx")`, `use_repo(oci, "nginx", "redis")`, []string{"rules_oci++oci+*"}, true},
+		{"use_repo", `use_repo(oci, "nginx")`, `use_repo(oci, "nginx", "redis")`, nil, true},
+		{"use_repo_rule definition", `"@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")`, `"@bazel_tools//tools/build_defs/repo:http.bzl", "http_file", dev_dependency = True)`, []string{"*+kubectl"}, true},
 		{"repo_name", `pnpm_lock = "//:pnpm-lock.yaml"`, `pnpm_lock = "//:other.yaml"`, []string{"aspect_rules_js++npm+*"}, true},
 		{"main module extension", `debs.sysroot(name = "root")`, `debs.sysroot(name = "root2")`, []string{"+debs+*"}, true},
 		{"repo rule", `url = "https://x/1"`, `url = "https://x/2"`, []string{"*+kubectl"}, true},
@@ -433,6 +434,7 @@ VERSION = "1"
 		{"bazel_dep", `name = "rules_oci", version = "2.0.0"`, `name = "rules_oci", version = "2.1.0"`, nil, false},
 		{"constant", `VERSION = "1"`, `VERSION = "2"`, nil, false},
 		{"register_toolchains", `VERSION = "1"`, "VERSION = \"1\"\nregister_toolchains(\"//:all\")", nil, false},
+		{"registered repo rule", `url = "https://x/1"`, "url = \"https://x/2\")\nregister_toolchains(\"@kubectl//:all\"", nil, false},
 	} {
 		got, ok := ModuleEditScope([]byte(base), []byte(strings.Replace(base, tc.from, tc.to, 1)), []string{"me", "self"})
 		if ok != tc.ok || !reflect.DeepEqual(got, tc.want) {

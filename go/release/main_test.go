@@ -12,6 +12,7 @@ import (
 
 	"loopingz.com/rules_k8s_cd/change_report/pkg/cache"
 	"loopingz.com/rules_k8s_cd/change_report/pkg/gitx"
+	"loopingz.com/rules_k8s_cd/change_report/pkg/ignorefile"
 	"loopingz.com/rules_k8s_cd/release/pkg/attrib"
 	"loopingz.com/rules_k8s_cd/release/pkg/component"
 	"loopingz.com/rules_k8s_cd/release/pkg/release"
@@ -206,13 +207,13 @@ func TestFlagsReachOptions(t *testing.T) {
 	})
 	code, _, _ := runCLI(nil, "tag", "--forge", "forgejo", "--forge-url", "https://f", "--repo", "o/r",
 		"--remote", "up", "--main-branch", "dev", "--components", "//x/...", "--dry-run", "--retry-targets",
-		"--cache-dir", "c", "--workspace", "w", "--bazel", "bz", "--global-file", "g1", "--global-file", "g2", "--ignore", "i")
+		"--cache-dir", "c", "--workspace", "w", "--bazel", "bz", "--global-file", "g1", "--global-file", "g2", "--ignore", "i", "--ignore-file", "ign")
 	if code != 1 {
 		t.Fatalf("code %d", code)
 	}
 	want := options{command: "tag", forge: "forgejo", forgeURL: "https://f", repo: "o/r", remote: "up", mainBranch: "dev",
 		components: "//x/...", dryRun: true, retryTargets: true, cacheDir: "c", workspace: "w", bazel: "bz",
-		globalFiles: stringSlice{"g1", "g2"}, ignores: stringSlice{"i"}, needsForge: true}
+		globalFiles: stringSlice{"g1", "g2"}, ignores: stringSlice{"i"}, ignoreFile: "ign", needsForge: true}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("options:\n%+v\nwant\n%+v", got, want)
 	}
@@ -326,5 +327,44 @@ func TestIgnoringDropsFullyIgnoredCommits(t *testing.T) {
 	}
 	if !reflect.DeepEqual(r.Files["2"], []string{"src/y.go"}) {
 		t.Errorf("files: %v", r.Files)
+	}
+}
+
+func TestIgnoringCommitsPerComponent(t *testing.T) {
+	const pin = "0123456789abcdef0123456789abcdef01234567"
+	c1 := gitx.Commit{SHA: pin, Subject: "build: pin ui library"}
+	c2 := gitx.Commit{SHA: "2", Subject: "fix: b", Body: "Release-Ignore: web"}
+	c3 := gitx.Commit{SHA: "3", Subject: "fix: c"}
+	inner := func(cache.Options, gitx.Repo, string, []component.Component, map[string]component.State, []string) (map[string]attrib.Result, []string, error) {
+		return map[string]attrib.Result{
+			"//cli:release": {Component: component.Component{Name: "cli"}, Targets: []string{"//cli:bin"}, Commits: []gitx.Commit{c1, c2, c3},
+				Files: map[string][]string{pin: {"MODULE.bazel"}, "2": {"cli/a.go"}, "3": {"cli/b.go"}}},
+			"//web:web": {Component: component.Component{Name: "web"}, Targets: []string{"//web:app"}, Commits: []gitx.Commit{c1, c2, c3},
+				Files: map[string][]string{pin: {"MODULE.bazel"}, "2": {"web/a.ts"}, "3": {"web/b.ts"}}},
+		}, nil, nil
+	}
+	ign, _ := ignorefile.Parse(".release-ignore", []byte(pin+" cli ghost\n"))
+	var warns []string
+	res, _, err := ignoringCommits(inner, ign, func(string) bool { return true }, func(w string) { warns = append(warns, w) })(cache.Options{}, gitx.Repo{}, "HEAD", nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	shas := func(cs []gitx.Commit) (out []string) {
+		for _, c := range cs {
+			out = append(out, c.SHA)
+		}
+		return out
+	}
+	if got := shas(res["//cli:release"].Commits); !reflect.DeepEqual(got, []string{"2", "3"}) {
+		t.Errorf("cli: %v", got)
+	}
+	if got := shas(res["//web:web"].Commits); !reflect.DeepEqual(got, []string{pin, "3"}) {
+		t.Errorf("web: %v", got)
+	}
+	if _, ok := res["//cli:release"].Files[pin]; ok {
+		t.Error("the ignored commit's files stay")
+	}
+	if len(warns) != 1 || !strings.Contains(warns[0], "no release component ghost") {
+		t.Errorf("warnings %q", warns)
 	}
 }

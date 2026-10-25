@@ -92,6 +92,12 @@ func (r Repo) RevParse(rev string) (string, error) {
 }
 
 // IsAncestor reports whether a is an ancestor of (or equal to) b.
+// HasCommit reports whether sha is a commit of the repository.
+func (r Repo) HasCommit(sha string) bool {
+	_, err := r.run("cat-file", "-e", sha+"^{commit}")
+	return err == nil
+}
+
 func (r Repo) IsAncestor(a, b string) (bool, error) {
 	_, err := r.run("merge-base", "--is-ancestor", a, b)
 	if err == nil {

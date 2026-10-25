@@ -24,6 +24,7 @@ import (
 	"loopingz.com/rules_k8s_cd/change_report/pkg/cache"
 	"loopingz.com/rules_k8s_cd/change_report/pkg/cliutil"
 	"loopingz.com/rules_k8s_cd/change_report/pkg/gitx"
+	"loopingz.com/rules_k8s_cd/change_report/pkg/ignorefile"
 	"loopingz.com/rules_k8s_cd/change_report/pkg/report"
 	"loopingz.com/rules_k8s_cd/release/pkg/attrib"
 	"loopingz.com/rules_k8s_cd/release/pkg/component"
@@ -45,6 +46,7 @@ type options struct {
 	dryRun, retryTargets       bool
 	cacheDir, workspace, bazel string
 	globalFiles, ignores       stringSlice
+	ignoreFile                 string
 	needsForge                 bool // the command writes to (or reads) the forge
 }
 
@@ -104,6 +106,7 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 	fs.StringVar(&o.bazel, "bazel", "bazel", "bazel binary")
 	fs.Var(&o.globalFiles, "global-file", "extra glob of files affecting every component (repeatable)")
 	fs.Var(&o.ignores, "ignore", "glob of files never attributed to any component (repeatable)")
+	fs.StringVar(&o.ignoreFile, "ignore-file", ignorefile.DefaultName, "ignore file (commits per component, file globs), relative to the workspace; missing: none")
 	if err := fs.Parse(args[1:]); err != nil {
 		if err == flag.ErrHelp {
 			return 0
@@ -212,6 +215,17 @@ func defaultNewEnv(o options, env func(string) string, out, warn func(string)) (
 	if _, err := repo.RevParse("HEAD"); err != nil {
 		return deps{}, fmt.Errorf("resolving HEAD: %w", err)
 	}
+	ign, iw, err := ignorefile.Load(ws, o.ignoreFile)
+	if err != nil {
+		return deps{}, fmt.Errorf("--ignore-file: %w", err)
+	}
+	for _, w := range iw {
+		warn(w)
+	}
+	ignores := append(append([]string(nil), o.ignores...), ign.Paths...)
+	if o.ignoreFile != "" && !filepath.IsAbs(o.ignoreFile) {
+		ignores = append(ignores, filepath.ToSlash(filepath.Clean(o.ignoreFile)))
+	}
 
 	// Forge. Dry-run never needs one: release tolerates a nil Forge and
 	// then only prints what it would do; with a token the forge is still
@@ -259,7 +273,7 @@ func defaultNewEnv(o options, env func(string) string, out, warn func(string)) (
 		Out:          out,
 		Warn:         warn,
 		RunTarget:    release.BazelRunTarget(o.bazel),
-		Attribute:    ignoring(attrib.Attribute, o.ignores),
+		Attribute:    ignoringCommits(ignoring(attrib.Attribute, ignores), ign, repo.HasCommit, warn),
 	}
 	return deps{
 		Env:      e,
@@ -305,6 +319,53 @@ func defaultMainBranch(repo gitx.Repo, remote string) string {
 		}
 	}
 	return "main"
+}
+
+// ignoringCommits wraps an attribution so the commits the ignore file (or a
+// Release-Ignore trailer) names for a component, or one of its targets, are
+// never attributed to it. Bad entries only warn, once.
+func ignoringCommits(inner release.AttributeFunc, ign ignorefile.File, exists func(string) bool, warn func(string)) release.AttributeFunc {
+	checked := false
+	return func(o cache.Options, repo gitx.Repo, head string, comps []component.Component, states map[string]component.State, globalGlobs []string) (map[string]attrib.Result, []string, error) {
+		res, warns, err := inner(o, repo, head, comps, states, globalGlobs)
+		if err != nil {
+			return res, warns, err
+		}
+		if !checked {
+			checked = true
+			names := map[string]bool{}
+			targets := map[string]bool{}
+			for _, r := range res {
+				names[r.Component.Name] = true
+				for _, t := range r.Targets {
+					targets[t] = true
+				}
+			}
+			for _, c := range comps {
+				names[c.Name] = true
+			}
+			for _, w := range ign.Check(exists, false, func(n string) bool { return names[n] }) {
+				warn(w)
+			}
+			for _, w := range ign.Check(nil, true, func(l string) bool { return targets[l] }) {
+				warn(w)
+			}
+		}
+		for label, r := range res {
+			keys := append([]string{r.Component.Name}, r.Targets...)
+			var commits []gitx.Commit
+			for _, c := range r.Commits {
+				if ign.Ignores(c.SHA, c.Body, keys...) {
+					delete(r.Files, c.SHA)
+					continue
+				}
+				commits = append(commits, c)
+			}
+			r.Commits = commits
+			res[label] = r
+		}
+		return res, warns, nil
+	}
 }
 
 // ignoring wraps an attribution so files matching globs never count: a

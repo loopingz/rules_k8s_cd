@@ -21,6 +21,7 @@ go_library(
         "//go/change_report/pkg/cliutil",
         "//go/change_report/pkg/gitops",
         "//go/change_report/pkg/gitx",
+        "//go/change_report/pkg/ignorefile",
         "//go/change_report/pkg/label",
         "//go/change_report/pkg/render",
         "//go/change_report/pkg/report",
@@ -58,5 +59,6 @@ go_test(
         "//go/change_report/pkg/cache",
         "//go/change_report/pkg/extdeps",
         "//go/change_report/pkg/gitx",
+        "//go/change_report/pkg/ignorefile",
     ],
 )

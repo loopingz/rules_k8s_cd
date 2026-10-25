@@ -92,6 +92,9 @@ type Input struct {
 	// IgnoreCommit reports commits to skip entirely (nil = none); skipped
 	// commits appear nowhere in the report.
 	IgnoreCommit func(c gitx.Commit) bool
+	// IgnoreCommitFor reports commits never attributed to label (nil = none),
+	// e.g. the ignore file's entries for it.
+	IgnoreCommitFor func(label string, c gitx.Commit) bool
 	// Packages are the workspace packages at HEAD ("" for the root). An added
 	// or deleted file can only change a glob of the package owning it (globs
 	// stop at subpackages). nil: every closure package above the file.
@@ -169,6 +172,9 @@ func Build(in Input) Report {
 		files := map[string]bool{}
 		for _, cc := range commits {
 			if known && base != RootBaseline && !inRange[cc.c.SHA] {
+				continue
+			}
+			if in.IgnoreCommitFor != nil && in.IgnoreCommitFor(label, cc.c) {
 				continue
 			}
 			var hit []string
