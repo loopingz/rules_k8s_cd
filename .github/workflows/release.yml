@@ -28,7 +28,7 @@ jobs:
           fetch-tags: true
 
       - name: Cache the release graph
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/rules_k8s_cd/release
           key: release-${{ runner.os }}-${{ github.sha }}
