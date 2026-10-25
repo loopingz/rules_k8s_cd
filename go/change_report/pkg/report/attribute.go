@@ -17,7 +17,11 @@ const (
 )
 
 // depGlobs are dependency-looking files. Without a Mapping.FileRepos entry
-// they are global, since we cannot tell which repos they feed.
+// they are global when the mapping records no file at all, since we cannot
+// tell which repos they feed. Otherwise the mapping lists every file a module
+// extension reads (the lockfile's recorded inputs, plus the files named in
+// the root module's tags): an unlisted file feeds no repository, and only
+// affects the targets whose closure contains it.
 var depGlobs = [...]string{
 	"**/go.mod", "**/go.sum", "**/package.json", "**/pnpm-lock.yaml", "**/package-lock.json",
 	"**/yarn.lock", "**/requirements*.txt", "**/*.lock", "**/Chart.yaml", "**/Chart.lock",
@@ -31,6 +35,24 @@ type classified struct {
 	// scoped maps a file to groups of repo patterns: the file is attributed to
 	// a target with a closure repo that matches some pattern of every group.
 	scoped map[string][][]string
+	// owner maps an added or deleted file to the package owning it, when
+	// Input.Packages is known.
+	owner map[string]string
+}
+
+// packageOwner returns the deepest package of pkgs containing the file p.
+func packageOwner(pkgs map[string]bool, p string) (string, bool) {
+	for dir := path.Dir(p); ; dir = path.Dir(dir) {
+		if dir == "." || dir == "/" {
+			dir = ""
+		}
+		if pkgs[dir] {
+			return dir, true
+		}
+		if dir == "" {
+			return "", false
+		}
+	}
 }
 
 // mappedUsage tells whether a mapped dependency file's repo patterns match
@@ -69,8 +91,17 @@ func (u *mappedUsage) isUsed(p string, patterns []string) (used, first bool) {
 
 // classify applies the global and external-dependency rules to c's files.
 // Warnings are appended to warns.
-func classify(in Input, c gitx.Commit, usage *mappedUsage, warns *[]string) classified {
-	cc := classified{c: c, global: map[string]bool{}, scoped: map[string][][]string{}}
+func classify(in Input, pkgs map[string]bool, c gitx.Commit, usage *mappedUsage, warns *[]string) classified {
+	cc := classified{c: c, global: map[string]bool{}, scoped: map[string][][]string{}, owner: map[string]string{}}
+	if pkgs != nil {
+		for _, f := range c.Files {
+			if f.Status == 'A' || f.Status == 'D' {
+				if o, ok := packageOwner(pkgs, f.Path); ok {
+					cc.owner[f.Path] = o
+				}
+			}
+		}
+	}
 
 	touched := map[string]bool{}
 	for _, f := range c.Files {
@@ -134,7 +165,7 @@ func classify(in Input, c gitx.Commit, usage *mappedUsage, warns *[]string) clas
 				}
 			}
 			cc.scoped[p] = groups
-		case isDependencyFile(p):
+		case isDependencyFile(p) && len(in.Mapping.FileRepos) == 0:
 			cc.global[p] = true
 		}
 	}
@@ -185,6 +216,10 @@ func (cc classified) hits(cl graph.Closure, f gitx.FileChange) bool {
 	}
 	// An added or deleted file can change a glob in its package.
 	if f.Status == 'A' || f.Status == 'D' {
+		if o, ok := cc.owner[p]; ok {
+			i := sort.SearchStrings(cl.Packages, o)
+			return i < len(cl.Packages) && cl.Packages[i] == o
+		}
 		dir := path.Dir(p)
 		if dir == "." {
 			dir = ""

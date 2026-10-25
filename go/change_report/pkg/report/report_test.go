@@ -122,6 +122,19 @@ func TestRootPackageMatchesAll(t *testing.T) {
 	expect(t, Build(in), "//:r", Changed, "c1")
 }
 
+func TestAddedFileOwnedBySubpackage(t *testing.T) {
+	// A target depending on the root package (e.g. //:nogo) is not changed by a
+	// file added to or deleted from another package: globs stop at subpackages.
+	in := input(map[string]graph.Closure{
+		"//:r":    cl([]string{"BUILD"}, []string{""}, nil),
+		"//a/x:x": cl([]string{"a/x/BUILD"}, []string{"", "a/x"}, nil),
+	}, commit("c2", fc('A', "a/x/sub/f.txt")), commit("c1", fc('D', "b/src/old.go")), commit("c0", fc('A', "docs/f.md")))
+	in.Packages = []string{"", "a/x", "b"}
+	r := Build(in)
+	expect(t, r, "//:r", Changed, "c0")
+	expect(t, r, "//a/x:x", Changed, "c2", "c0")
+}
+
 func TestRenameAttributesBothPackages(t *testing.T) {
 	in := input(map[string]graph.Closure{
 		"//a:a": cl([]string{"a/BUILD", "a/f.txt"}, []string{"a"}, nil),
@@ -169,15 +182,34 @@ func TestGlobalFile(t *testing.T) {
 }
 
 func TestUnmappedLockGlobal(t *testing.T) {
+	// Without any mapped file, nothing tells which repos a dependency file feeds.
 	for _, f := range []string{"web/pnpm-lock.yaml", "go.mod", "x/requirements-dev.txt", "Cargo.lock", "charts/c/Chart.yaml"} {
 		in := input(map[string]graph.Closure{
 			"//a:a": cl([]string{"a/BUILD"}, []string{"a"}, nil),
 			"//b:b": cl([]string{"b/BUILD"}, []string{"b"}, []string{"rules_go+"}),
 		}, commit("c1", fc('M', f)))
-		in.Mapping.FileRepos = map[string][]string{"go.sum": {"gazelle++go_deps+*"}}
 		r := Build(in)
 		expect(t, r, "//a:a", Changed, "c1")
 		expect(t, r, "//b:b", Changed, "c1")
+	}
+}
+
+func TestUnmappedDependencyFileByClosure(t *testing.T) {
+	// The mapping lists the files the extensions read: an unlisted dependency
+	// file feeds no repository and only affects the closures containing it.
+	for _, f := range []string{"web/pnpm-lock.yaml", "go.mod", "x/requirements-dev.txt", "Cargo.lock", "charts/c/Chart.yaml", "b/package.json"} {
+		in := input(map[string]graph.Closure{
+			"//a:a": cl([]string{"a/BUILD"}, []string{"a"}, nil),
+			"//b:b": cl([]string{"b/BUILD", "b/package.json"}, []string{"b"}, []string{"rules_go+"}),
+		}, commit("c1", fc('M', f)))
+		in.Mapping.FileRepos = map[string][]string{"go.sum": {"gazelle++go_deps+*"}}
+		r := Build(in)
+		expect(t, r, "//a:a", Unchanged)
+		if f == "b/package.json" {
+			expect(t, r, "//b:b", Changed, "c1")
+		} else {
+			expect(t, r, "//b:b", Unchanged)
+		}
 	}
 }
 

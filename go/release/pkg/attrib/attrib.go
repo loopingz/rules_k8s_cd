@@ -192,6 +192,7 @@ func Attribute(o cache.Options, repo gitx.Repo, head string, comps []component.C
 		Tracked:        tracked,
 		GlobalGlobs:    globalGlobs,
 		ModuleBzlFiles: snap.ModuleBzlFiles,
+		Packages:       snap.Packages(),
 		IgnorePath:     ignorePath,
 		IgnoreCommit:   isRelease,
 	})
