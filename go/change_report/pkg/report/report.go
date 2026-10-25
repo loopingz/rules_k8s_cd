@@ -92,6 +92,10 @@ type Input struct {
 	// IgnoreCommit reports commits to skip entirely (nil = none); skipped
 	// commits appear nowhere in the report.
 	IgnoreCommit func(c gitx.Commit) bool
+	// Packages are the workspace packages at HEAD ("" for the root). An added
+	// or deleted file can only change a glob of the package owning it (globs
+	// stop at subpackages). nil: every closure package above the file.
+	Packages []string
 }
 
 // Build computes the report.
@@ -101,6 +105,13 @@ func Build(in Input) Report {
 	// Classify each non-merge commit's files once.
 	var commits []classified
 	usage := newMappedUsage(in)
+	var pkgs map[string]bool
+	if in.Packages != nil {
+		pkgs = make(map[string]bool, len(in.Packages))
+		for _, p := range in.Packages {
+			pkgs[p] = true
+		}
+	}
 	for _, c := range in.Commits {
 		if in.IgnoreCommit != nil && in.IgnoreCommit(c) {
 			continue
@@ -110,7 +121,7 @@ func Build(in Input) Report {
 			r.Commits[c.SHA] = c
 			continue
 		}
-		commits = append(commits, classify(in, c, usage, &r.Warnings))
+		commits = append(commits, classify(in, pkgs, c, usage, &r.Warnings))
 	}
 
 	universe := map[string]bool{}

@@ -46,6 +46,16 @@ type Snapshot struct {
 	Tree map[string]string `json:"-"`
 }
 
+// Packages returns the workspace packages ("" for the root), sorted.
+func (s *Snapshot) Packages() []string {
+	out := make([]string, 0, len(s.PackageKeys))
+	for p := range s.PackageKeys {
+		out = append(out, p)
+	}
+	sort.Strings(out)
+	return out
+}
+
 // Stats describes how a Snapshot was obtained.
 type Stats struct {
 	Mode              string // "full", "partial" or "hit"

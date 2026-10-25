@@ -222,6 +222,7 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 		GlobalGlobs:    globalFiles,
 		IgnorePath:     ignorePathFunc(ignores),
 		ModuleBzlFiles: snap.ModuleBzlFiles,
+		Packages:       snap.Packages(),
 		Gitops:         gres,
 		Existing:       existing,
 	})
