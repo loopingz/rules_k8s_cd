@@ -184,6 +184,12 @@ oci.pull(name = "nginx", digest = "sha256:%s")
 	// a bazel_dep change is still global without the lockfile diff
 	files["c1"] = strings.Replace(files["c1^"], `"0.40.0"`, `"0.41.0"`, 1)
 	expect(t, Build(in), "//go:g", Changed, "c1")
+	// a use_repo_rule repo no target uses changes nothing
+	files["c1^"] = fmt.Sprintf(mod, "1") + "http_file = use_repo_rule(\"@bazel_tools//tools/build_defs/repo:http.bzl\", \"http_file\")\nhttp_file(name = \"chart\", url = \"1\")\n"
+	files["c1"] = strings.Replace(files["c1^"], `url = "1"`, `url = "2"`, 1)
+	r = Build(in)
+	expect(t, r, "//go:g", Unchanged)
+	expect(t, r, "//img:i", Unchanged)
 	// an extension whose repos no target uses (a toolchain?) stays global
 	files["c1^"] = strings.Replace(fmt.Sprintf(mod, "1"), "oci.pull", "go_deps.module", 1)
 	files["c1"] = strings.Replace(fmt.Sprintf(mod, "2"), "oci.pull", "go_deps.module", 1)
@@ -671,6 +677,20 @@ func TestSourceDirectoryInClosure(t *testing.T) {
 
 // A mapped dependency file whose repos match no repo of any closure (e.g.
 // Bazel 7 "~" canonical names) cannot be scoped: it is global, with a warning.
+func TestMappedFileOfUnusedReposChangesNothing(t *testing.T) {
+	// In the closures' naming convention, repos no target uses are just that:
+	// the file changes no target of this universe.
+	in := input(map[string]graph.Closure{
+		"//go:g": cl([]string{"go/BUILD"}, []string{"go"}, []string{"gazelle++go_deps+org_x"}),
+	}, commit("c1", fc('M', "pnpm-lock.yaml")))
+	in.Mapping.FileRepos = map[string][]string{"pnpm-lock.yaml": {"aspect_rules_js++npm+npm"}}
+	r := Build(in)
+	expect(t, r, "//go:g", Unchanged)
+	if len(r.Warnings) != 0 {
+		t.Errorf("warnings %v", r.Warnings)
+	}
+}
+
 func TestMappedFileMatchingNoRepoGlobal(t *testing.T) {
 	in := input(map[string]graph.Closure{
 		"//a:a": cl([]string{"a/BUILD"}, []string{"a"}, []string{"rules_go+"}),
@@ -749,6 +769,17 @@ func TestIgnorePath(t *testing.T) {
 	r := Build(in)
 	expect(t, r, "//a:a", Unchanged)
 	expect(t, r, "//b:b", Changed, "c1", "c2", "c3")
+}
+
+func TestIgnoreCommitFor(t *testing.T) {
+	in := input(map[string]graph.Closure{
+		"//a:a": cl([]string{"a/f.go"}, []string{"a"}, nil),
+		"//b:b": cl([]string{"a/f.go"}, []string{"a"}, nil),
+	}, commit("c2", fc('M', "a/f.go")), commit("c1", fc('M', "a/f.go")))
+	in.IgnoreCommitFor = func(label string, c gitx.Commit) bool { return label == "//a:a" && c.SHA == "c2" }
+	r := Build(in)
+	expect(t, r, "//a:a", Changed, "c1")
+	expect(t, r, "//b:b", Changed, "c2", "c1")
 }
 
 func TestIgnoreCommit(t *testing.T) {

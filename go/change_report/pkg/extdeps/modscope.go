@@ -19,11 +19,13 @@ var identRe = regexp.MustCompile(`^\s*([A-Za-z_]\w*)\s*$`)
 // changed statement may affect anything (bazel_dep, overrides, toolchains,
 // register_toolchains, include, constants, unknown calls).
 //
-// A changed tag of an extension (`oci.pull(...)`), a `use_repo` of it or its
-// `use_extension` maps to the extension's repos ("<module>++<ext>+*", "+<ext>+*"
+// A changed tag of an extension (`oci.pull(...)`) or its `use_extension` maps
+// to the extension's repos ("<module>++<ext>+*", "+<ext>+*"
 // for the main module); a changed call of a use_repo_rule (`http_file(name =
-// "x", ...)`) to its repo ("*+x"). mainNames are the apparent names of the
-// main repository (MainRepoNames).
+// "x", ...)`), or its `use_repo_rule` definition, to its repos ("*+x"), unless
+// register_toolchains or register_execution_platforms names them. A changed
+// `use_repo` changes no repo. mainNames are the apparent names of
+// the main repository (MainRepoNames).
 func ModuleEditScope(before, after []byte, mainNames []string) (patterns []string, ok bool) {
 	sb, sa := stmt.Split(string(before)), stmt.Split(string(after))
 	repoNames := map[string]string{} // bazel_dep repo_name -> module name
@@ -48,6 +50,14 @@ func ModuleEditScope(before, after []byte, mainNames []string) (patterns []strin
 			rules[s.Assign] = true
 		}
 	}
+	registered := func(repo string) bool {
+		for _, s := range append(append([]stmt.Stmt(nil), sb...), sa...) {
+			if (s.Call == "register_toolchains" || s.Call == "register_execution_platforms") && strings.Contains(s.Args, "@"+repo+"//") {
+				return true
+			}
+		}
+		return false
+	}
 	seen := map[string]bool{}
 	add := func(p string) bool {
 		if p == "" {
@@ -71,17 +81,26 @@ func ModuleEditScope(before, after []byte, mainNames []string) (patterns []strin
 				return nil, false
 			}
 		case s.Call == "use_repo" && s.Assign == "":
+			// Only which repos the main module can name: a target that starts
+			// (or stops) using one changes its BUILD file, attributed already.
 			args := splitTop(s.Args)
-			if len(args) == 0 {
+			if len(args) == 0 || identRe.FindStringSubmatch(args[0]) == nil {
 				return nil, false
 			}
-			m := identRe.FindStringSubmatch(args[0])
-			if m == nil || !add(exts[m[1]]) {
-				return nil, false
+		case s.Call == "use_repo_rule" && s.Assign != "":
+			// The repos of its calls
+			for _, c := range append(append([]stmt.Stmt(nil), sb...), sa...) {
+				if c.Call != s.Assign || c.Assign != "" {
+					continue
+				}
+				name := c.Kwarg("name")
+				if name == "" || registered(name) || !add("*+"+name) {
+					return nil, false
+				}
 			}
 		case rules[s.Call] && s.Assign == "":
 			name := s.Kwarg("name")
-			if name == "" || !add("*+"+name) {
+			if name == "" || registered(name) || !add("*+"+name) {
 				return nil, false
 			}
 		default:

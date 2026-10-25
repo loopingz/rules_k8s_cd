@@ -20,6 +20,7 @@ go_library(
         "//go/change_report/pkg/cache",
         "//go/change_report/pkg/cliutil",
         "//go/change_report/pkg/gitx",
+        "//go/change_report/pkg/ignorefile",
         "//go/change_report/pkg/report",
         "//go/release/pkg/attrib",
         "//go/release/pkg/component",
@@ -41,6 +42,7 @@ go_test(
     deps = [
         "//go/change_report/pkg/cache",
         "//go/change_report/pkg/gitx",
+        "//go/change_report/pkg/ignorefile",
         "//go/release/pkg/attrib",
         "//go/release/pkg/component",
         "//go/release/pkg/release",
@@ -61,6 +63,7 @@ go_test(
     tags = ["manual"],
     deps = [
         "//go/change_report/pkg/gitx",
+        "//go/change_report/pkg/ignorefile",
         "//go/release/pkg/release",
     ],
 )

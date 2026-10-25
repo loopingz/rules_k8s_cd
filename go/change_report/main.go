@@ -20,6 +20,7 @@ import (
 	"loopingz.com/rules_k8s_cd/change_report/pkg/cliutil"
 	"loopingz.com/rules_k8s_cd/change_report/pkg/gitops"
 	"loopingz.com/rules_k8s_cd/change_report/pkg/gitx"
+	"loopingz.com/rules_k8s_cd/change_report/pkg/ignorefile"
 	"loopingz.com/rules_k8s_cd/change_report/pkg/label"
 	"loopingz.com/rules_k8s_cd/change_report/pkg/render"
 	"loopingz.com/rules_k8s_cd/change_report/pkg/report"
@@ -64,6 +65,7 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 		workspace   = fs.String("workspace", "", "workspace directory (default $BUILD_WORKSPACE_DIRECTORY, else cwd)")
 		bazel       = fs.String("bazel", "bazel", "bazel binary")
 		debugCache  = fs.Bool("debug-cache", false, "print the graph cache mode to stderr")
+		ignoreFile  = fs.String("ignore-file", ignorefile.DefaultName, "ignore file (commits per target, file globs), relative to the workspace; missing: none")
 		gitopsDirs  stringSlice
 		globalFiles stringSlice
 		ignores     stringSlice
@@ -132,6 +134,18 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 	head, err := repo.RevParse("HEAD")
 	if err != nil {
 		return fail("resolving HEAD: %v", err)
+	}
+	ign, iw, err := ignorefile.Load(ws, *ignoreFile)
+	if err != nil {
+		return fail("--ignore-file: %v", err)
+	}
+	for _, w := range iw {
+		warn(w)
+	}
+	// its entries and the file itself are never attributed
+	ignores = append(ignores, ign.Paths...)
+	if !filepath.IsAbs(*ignoreFile) {
+		ignores = append(ignores, filepath.ToSlash(filepath.Clean(*ignoreFile)))
 	}
 
 	cd := *cacheDir
@@ -208,19 +222,30 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 	}
 	existing := existingOutsideUniverse(runner, gres, snap.Universe, warn)
 
+	inUniverse := make(map[string]bool, len(snap.Universe))
+	for _, l := range snap.Universe {
+		inUniverse[l] = true
+	}
+	for _, w := range ign.Check(repo.HasCommit, true, func(l string) bool { return inUniverse[l] }) {
+		warn(w)
+	}
+
 	fileAt, tracked := report.GitAccessors(repo, warn)
 	rep := report.Build(report.Input{
-		Head:           head,
-		Baselines:      baselines,
-		Universe:       snap.Universe,
-		Closures:       snap.Closures,
-		Mapping:        snap.Mapping,
-		Commits:        commits,
-		InRange:        inRange,
-		FileAt:         fileAt,
-		Tracked:        tracked,
-		GlobalGlobs:    globalFiles,
-		IgnorePath:     ignorePathFunc(ignores),
+		Head:        head,
+		Baselines:   baselines,
+		Universe:    snap.Universe,
+		Closures:    snap.Closures,
+		Mapping:     snap.Mapping,
+		Commits:     commits,
+		InRange:     inRange,
+		FileAt:      fileAt,
+		Tracked:     tracked,
+		GlobalGlobs: globalFiles,
+		IgnorePath:  ignorePathFunc(ignores),
+		IgnoreCommitFor: func(label string, c gitx.Commit) bool {
+			return ign.Ignores(c.SHA, c.Body, label)
+		},
 		ModuleBzlFiles: snap.ModuleBzlFiles,
 		Packages:       snap.Packages(),
 		Gitops:         gres,

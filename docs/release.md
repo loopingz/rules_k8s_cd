@@ -47,6 +47,28 @@ A release commit is detected by its subject `chore(release): <name> <version>`, 
 
 A component without a tag needs at least one releasable commit from the root of the history. The version is `initial_version` (`0.1.0` by default) and the changelog is `Initial release` followed by the 50 most recent commits and `... and N earlier commits`.
 
+### Ignoring commits
+
+Attribution follows the dependency graph and never under-reports: a commit that may have changed a component is attributed to it. When you know better (a dependency pin that only concerns other components, a repository-wide reformat), list the commit in `.release-ignore` at the workspace root, in the style of `.git-blame-ignore-revs`:
+
+```
+# Reformat: ignored for every component
+0123456789abcdef0123456789abcdef01234567
+# Pin of a UI library, before MODULE.bazel.lock was committed
+89abcdef0123456789abcdef0123456789abcdef api cli
+# Files never attributed (like --ignore)
+docs/**
+```
+
+- A line starting with a full commit SHA ignores that commit for the components named after it (their `component` name, or a label of one of their targets such as `//cli:bin`), or for every component when none is named. The commit is left out of the changelog and of the version bump of those components only.
+- Any other line is a glob of files never attributed to any component, like `--ignore`.
+- `#` starts a comment. Edits of the file itself never count as changes.
+- Bad entries only warn: a short SHA or a line with several words that is not a commit is skipped, a commit that is not in the repository or a name that is no component is reported.
+
+A commit can ignore itself with a `Release-Ignore:` trailer in its message, for example `Release-Ignore: api, cli` (`Release-Ignore: *`, or an empty value, for every component). With a squash merge, put it in the PR description or the squash message. Use the file for commits already merged.
+
+[`change_report`](change_report.md) reads the same file: there the names are target labels (component names are skipped).
+
 ### Baseline and VERSION
 
 The current version is the content of the VERSION file and the baseline is the commit of its tag. When the VERSION file is ahead of any tag (a merged release PR that is not tagged yet), `pr` leaves the component alone and `tag` cuts the tag. When VERSION is below the highest tag of the component, the tag wins and the tool prints a warning. When the tag of the VERSION is missing but older tags exist, the latest tag is the baseline, with a warning. When no baseline can be resolved (for example after a force-push), all the history is attributed: the tool prefers an unnecessary release over a missed one.
@@ -191,6 +213,7 @@ rules_k8s_cd | 4.1.0   | 4.2.0 | release PR
 | `--retry-targets` | false | `tag`: finish the release of the current VERSION of each component: re-create the forge release when missing and re-run the release targets (see below). |
 | `--global-file` | | Extra glob of files that affect every component. Repeatable. See [change_report](change_report.md#how-a-target-is-judged-changed). |
 | `--ignore` | | Glob of files never attributed to any component. Repeatable. |
+| `--ignore-file` | `.release-ignore` | [Ignore file](#ignoring-commits), relative to the workspace. A missing file is fine. |
 | `--cache-dir` | `$XDG_CACHE_HOME/rules_k8s_cd/release`, else the OS user cache dir | Directory of the dependency graph cache. |
 | `--workspace` | `$BUILD_WORKSPACE_DIRECTORY`, else the current directory | Bazel workspace directory. |
 | `--bazel` | `bazel` | Bazel binary. |
