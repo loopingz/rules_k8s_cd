@@ -400,3 +400,57 @@ mine = use_repo_rule(
 		t.Errorf("got %v\nwant %v", got, want)
 	}
 }
+
+func TestModuleEditScope(t *testing.T) {
+	base := `module(name = "me", repo_name = "self")
+bazel_dep(name = "rules_oci", version = "2.0.0")
+bazel_dep(name = "aspect_rules_js", version = "2.0.0", repo_name = "js")
+oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
+oci.pull(name = "nginx", digest = "sha256:1")
+use_repo(oci, "nginx")
+npm = use_extension("@js//npm:extensions.bzl", "npm")
+npm.npm_translate_lock(name = "npm", pnpm_lock = "//:pnpm-lock.yaml")
+debs = use_extension("//tools:debs.bzl", "debs")
+debs.sysroot(name = "root")
+go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
+go_sdk.download(version = "1.26.0")
+http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
+http_file(name = "kubectl", url = "https://x/1")
+VERSION = "1"
+`
+	for _, tc := range []struct {
+		name, from, to string
+		want         []string
+		ok           bool
+	}{
+		{"extension tag", `digest = "sha256:1"`, `digest = "sha256:2"`, []string{"rules_oci++oci+*"}, true},
+		{"use_repo", `use_repo(oci, "nginx")`, `use_repo(oci, "nginx", "redis")`, []string{"rules_oci++oci+*"}, true},
+		{"repo_name", `pnpm_lock = "//:pnpm-lock.yaml"`, `pnpm_lock = "//:other.yaml"`, []string{"aspect_rules_js++npm+*"}, true},
+		{"main module extension", `debs.sysroot(name = "root")`, `debs.sysroot(name = "root2")`, []string{"+debs+*"}, true},
+		{"repo rule", `url = "https://x/1"`, `url = "https://x/2"`, []string{"*+kubectl"}, true},
+		{"formatting only", `oci.pull(name = "nginx", digest = "sha256:1")`, "oci.pull(\n    name = \"nginx\",\n    digest = \"sha256:1\",\n)  # c", nil, true},
+		{"toolchain tag", `version = "1.26.0"`, `version = "1.26.1"`, nil, false},
+		{"bazel_dep", `name = "rules_oci", version = "2.0.0"`, `name = "rules_oci", version = "2.1.0"`, nil, false},
+		{"constant", `VERSION = "1"`, `VERSION = "2"`, nil, false},
+		{"register_toolchains", `VERSION = "1"`, "VERSION = \"1\"\nregister_toolchains(\"//:all\")", nil, false},
+	} {
+		got, ok := ModuleEditScope([]byte(base), []byte(strings.Replace(base, tc.from, tc.to, 1)), []string{"me", "self"})
+		if ok != tc.ok || !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("%s: got %v %v, want %v %v", tc.name, got, ok, tc.want, tc.ok)
+		}
+	}
+}
+
+func TestModuleDepChanges(t *testing.T) {
+	base := "bazel_dep(name = \"a\", version = \"1\")\ngit_override(module_name = \"b\", commit = \"x\", remote = \"r\")\noci.pull(name = \"n\")\n"
+	got, ok := ModuleDepChanges([]byte(base), []byte(strings.NewReplacer(`"1"`, `"2"`, `"x"`, `"y"`).Replace(base)))
+	if !ok || !reflect.DeepEqual(got, []string{"a", "b"}) {
+		t.Errorf("got %v %v", got, ok)
+	}
+	if _, ok := ModuleDepChanges([]byte(base), []byte(strings.Replace(base, `name = "n"`, `name = "m"`, 1))); ok {
+		t.Error("an extension tag is not a module change")
+	}
+	if _, ok := ModuleDepChanges([]byte(base), []byte(base+"local_path_override(module_name = \"c\", path = \"../c\")\n")); ok {
+		t.Error("local_path_override is not scoped")
+	}
+}

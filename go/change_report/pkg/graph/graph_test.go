@@ -18,7 +18,7 @@ func fixture() []bazelq.Node {
 	return []bazelq.Node{
 		{Label: "@@//pkg:manifests/a.yaml", Kind: "source"},
 		{Label: "@@//pkg:manifests/b.yaml", Kind: "source"},
-		{Label: "@@//pkg:viamacro", Kind: "rule", RuleClass: "filegroup", Inputs: []string{"@@//pkg:manifests/a.yaml", "@@//pkg:manifests/b.yaml"}},
+		{Label: "@@//pkg:viamacro", Kind: "rule", RuleClass: "filegroup", Generator: "mymacro", Inputs: []string{"@@//pkg:manifests/a.yaml", "@@//pkg:manifests/b.yaml"}},
 		{Label: "@@//sub:g", Kind: "rule", RuleClass: "genrule", Inputs: []string{"@@//pkg:viamacro", "@@bazel_tools//tools/genrule:genrule-setup.sh"}},
 		{Label: "@@//sub:o.txt", Kind: "generated", GeneratingRule: "@@//sub:g"},
 	}
@@ -33,6 +33,8 @@ func TestClosure(t *testing.T) {
 		Files:    []string{"lib/n.bzl", "pkg/BUILD", "pkg/m.bzl", "pkg/manifests/a.yaml", "pkg/manifests/b.yaml", "sub/BUILD"},
 		Packages: []string{"pkg", "sub"},
 		Repos:    []string{"bazel_tools"},
+		Calls:    []string{"pkg:mymacro", "sub:g"},
+		Macros:   []string{"pkg:mymacro"},
 	}
 	if !reflect.DeepEqual(c, want) {
 		t.Errorf("got %+v\nwant %+v", c, want)
@@ -52,6 +54,8 @@ func TestClosureGeneratedAndCycleAndMissing(t *testing.T) {
 		Files:    []string{"a/BUILD", "b/BUILD", "m/BUILD", "m/missing.txt"},
 		Packages: []string{"a", "b", "m"},
 		Repos:    []string{},
+		Calls:    []string{"a:r1", "a:r2", "b:r3"},
+		Macros:   []string{},
 	}
 	if !reflect.DeepEqual(c, want) {
 		t.Errorf("got %+v\nwant %+v", c, want)

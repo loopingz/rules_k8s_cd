@@ -18,6 +18,11 @@ type Graph struct {
 // Closure is everything a target depends on. All slices are sorted and non-nil.
 type Closure struct {
 	Files, Packages, Repos []string
+	// Calls are the top-level BUILD calls of its main-repo rules, as
+	// "pkg:name": the rule's name, or the macro call that generated it
+	// (Macros holds those). A BUILD edit that changes no other call
+	// changes none of them.
+	Calls, Macros []string
 }
 
 // key normalizes a label to its canonical "@@repo//pkg:name" form. Unparseable
@@ -71,6 +76,8 @@ func (g *Graph) Closure(target string, buildFile func(pkg string) string) Closur
 	files := map[string]bool{}
 	pkgs := map[string]bool{}
 	repos := map[string]bool{}
+	calls := map[string]bool{}
+	macros := map[string]bool{}
 	seen := map[string]bool{}
 
 	stack := []string{key(target)}
@@ -99,6 +106,14 @@ func (g *Graph) Closure(target string, buildFile func(pkg string) string) Closur
 		}
 		switch n.Kind {
 		case "rule":
+			if l.IsMain() {
+				name := l.Name
+				if n.Generator != "" {
+					name = n.Generator
+					macros[l.Pkg+":"+name] = true
+				}
+				calls[l.Pkg+":"+name] = true
+			}
 			for _, in := range n.Inputs {
 				stack = append(stack, key(in))
 			}
@@ -113,7 +128,8 @@ func (g *Graph) Closure(target string, buildFile func(pkg string) string) Closur
 		bf := buildFile(p)
 		g.addLoadClosure(bf, files)
 	}
-	return Closure{Files: sortedKeys(files), Packages: sortedKeys(pkgs), Repos: sortedKeys(repos)}
+	return Closure{Files: sortedKeys(files), Packages: sortedKeys(pkgs), Repos: sortedKeys(repos),
+		Calls: sortedKeys(calls), Macros: sortedKeys(macros)}
 }
 
 // LoadClosure returns the sorted workspace files reachable from starts

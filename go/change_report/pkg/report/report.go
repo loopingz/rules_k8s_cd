@@ -105,6 +105,7 @@ func Build(in Input) Report {
 	// Classify each non-merge commit's files once.
 	var commits []classified
 	usage := newMappedUsage(in)
+	globs := newGlobCache(in)
 	var pkgs map[string]bool
 	if in.Packages != nil {
 		pkgs = make(map[string]bool, len(in.Packages))
@@ -121,7 +122,7 @@ func Build(in Input) Report {
 			r.Commits[c.SHA] = c
 			continue
 		}
-		commits = append(commits, classify(in, pkgs, c, usage, &r.Warnings))
+		commits = append(commits, classify(in, pkgs, globs, c, usage, &r.Warnings))
 	}
 
 	universe := map[string]bool{}
