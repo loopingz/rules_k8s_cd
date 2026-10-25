@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "diff.go",
         "lockfile.go",
+        "modscope.go",
         "showext.go",
     ],
     importpath = "loopingz.com/rules_k8s_cd/change_report/pkg/extdeps",
@@ -15,6 +16,7 @@ go_library(
     deps = [
         "//go/change_report/pkg/bazelq",
         "//go/change_report/pkg/label",
+        "//go/change_report/pkg/stmt",
     ],
 )
 

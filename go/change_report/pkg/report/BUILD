@@ -19,6 +19,7 @@ go_library(
         "//go/change_report/pkg/gitx",
         "//go/change_report/pkg/graph",
         "//go/change_report/pkg/label",
+        "//go/change_report/pkg/stmt",
     ],
 )
 
@@ -34,5 +35,6 @@ go_test(
         "//go/change_report/pkg/gitops",
         "//go/change_report/pkg/gitx",
         "//go/change_report/pkg/graph",
+        "//go/change_report/pkg/stmt",
     ],
 )

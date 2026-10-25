@@ -26,7 +26,7 @@ import (
 
 // FormatVersion is the on-disk cache format; bump it on any change to the
 // persisted data or to how it is computed.
-const FormatVersion = 3
+const FormatVersion = 4
 
 // Snapshot is the dependency graph of the universe at HEAD.
 type Snapshot struct {

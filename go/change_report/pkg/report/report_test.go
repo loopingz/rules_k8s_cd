@@ -1,7 +1,9 @@
 package report
 
 import (
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	"loopingz.com/rules_k8s_cd/change_report/pkg/gitops"
@@ -93,12 +95,13 @@ func TestFileInClosure(t *testing.T) {
 }
 
 func TestAddedFileInPackage(t *testing.T) {
-	// A new file matched by a glob is not yet in the closure files.
+	// The closure is computed at HEAD: a new file a glob matches is in it.
+	// Another new file of the package is not used by the target.
 	in := input(map[string]graph.Closure{
-		"//a:a":   cl([]string{"a/BUILD"}, []string{"a"}, nil),
+		"//a:a":   cl([]string{"a/BUILD", "a/sub/new.txt"}, []string{"a"}, nil),
 		"//a/x:x": cl([]string{"a/x/BUILD"}, []string{"a/x"}, nil),
 		"//b:b":   cl([]string{"b/BUILD"}, []string{"b"}, nil),
-	}, commit("c1", fc('A', "a/sub/new.txt")), commit("c0", fc('M', "a/new2.txt")))
+	}, commit("c2", fc('A', "a/unused.txt")), commit("c1", fc('A', "a/sub/new.txt")), commit("c0", fc('M', "a/new2.txt")))
 	r := Build(in)
 	expect(t, r, "//a:a", Changed, "c1")
 	expect(t, r, "//a/x:x", Unchanged)
@@ -116,9 +119,11 @@ func TestDeletedFileInPackage(t *testing.T) {
 }
 
 func TestRootPackageMatchesAll(t *testing.T) {
+	// Without Input.Packages, a deleted file may have been in any closure
+	// package above it.
 	in := input(map[string]graph.Closure{
 		"//:r": cl([]string{"BUILD"}, []string{""}, nil),
-	}, commit("c1", fc('A', "deep/dir/f.txt")))
+	}, commit("c1", fc('D', "deep/dir/f.txt")))
 	expect(t, Build(in), "//:r", Changed, "c1")
 }
 
@@ -128,17 +133,143 @@ func TestAddedFileOwnedBySubpackage(t *testing.T) {
 	in := input(map[string]graph.Closure{
 		"//:r":    cl([]string{"BUILD"}, []string{""}, nil),
 		"//a/x:x": cl([]string{"a/x/BUILD"}, []string{"", "a/x"}, nil),
-	}, commit("c2", fc('A', "a/x/sub/f.txt")), commit("c1", fc('D', "b/src/old.go")), commit("c0", fc('A', "docs/f.md")))
+	}, commit("c2", fc('D', "a/x/sub/f.txt")), commit("c1", fc('D', "b/src/old.go")), commit("c0", fc('D', "docs/f.md")))
 	in.Packages = []string{"", "a/x", "b"}
 	r := Build(in)
 	expect(t, r, "//:r", Changed, "c0")
 	expect(t, r, "//a/x:x", Changed, "c2", "c0")
 }
 
+func TestBazelignoreScopedToItsDirectories(t *testing.T) {
+	files := map[string]string{
+		"c1^": "node_modules\nx/gen\n",
+		"c1":  "node_modules\nx/gen\nweb/node_modules\n",
+	}
+	in := input(map[string]graph.Closure{
+		"//web:w": cl([]string{"web/BUILD"}, []string{"web/node_modules/pkg", "web"}, nil),
+		"//go:g":  cl([]string{"go/BUILD"}, []string{"go"}, nil),
+	}, commit("c1", fc('M', ".bazelignore")))
+	in.FileAt = func(rev, p string) ([]byte, bool) {
+		v, ok := files[rev]
+		return []byte(v), ok && p == ".bazelignore"
+	}
+	r := Build(in)
+	expect(t, r, "//web:w", Changed, "c1")
+	expect(t, r, "//go:g", Unchanged)
+	// a glob entry cannot be scoped
+	files["c1"] = "node_modules\nx/gen\n**/node_modules\n"
+	expect(t, Build(in), "//go:g", Changed, "c1")
+}
+
+func TestModuleEditScopedToExtensionRepos(t *testing.T) {
+	const mod = `module(name = "m")
+bazel_dep(name = "gazelle", version = "0.40.0")
+bazel_dep(name = "rules_oci", version = "2.0.0")
+go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
+oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
+oci.pull(name = "nginx", digest = "sha256:%s")
+`
+	files := map[string]string{"c1^": fmt.Sprintf(mod, "1"), "c1": fmt.Sprintf(mod, "2")}
+	in := input(map[string]graph.Closure{
+		"//img:i": cl([]string{"img/BUILD"}, []string{"img"}, []string{"rules_oci++oci+nginx_linux_amd64"}),
+		"//go:g":  cl([]string{"go/BUILD"}, []string{"go"}, []string{"gazelle++go_deps+org_x"}),
+	}, commit("c1", fc('M', "MODULE.bazel")))
+	in.FileAt = func(rev, p string) ([]byte, bool) {
+		v, ok := files[rev]
+		return []byte(v), ok && p == "MODULE.bazel"
+	}
+	r := Build(in)
+	expect(t, r, "//img:i", Changed, "c1")
+	expect(t, r, "//go:g", Unchanged)
+	// a bazel_dep change is still global without the lockfile diff
+	files["c1"] = strings.Replace(files["c1^"], `"0.40.0"`, `"0.41.0"`, 1)
+	expect(t, Build(in), "//go:g", Changed, "c1")
+	// an extension whose repos no target uses (a toolchain?) stays global
+	files["c1^"] = strings.Replace(fmt.Sprintf(mod, "1"), "oci.pull", "go_deps.module", 1)
+	files["c1"] = strings.Replace(fmt.Sprintf(mod, "2"), "oci.pull", "go_deps.module", 1)
+	r = Build(in)
+	expect(t, r, "//go:g", Changed, "c1")
+	in.Closures["//go:g"] = cl([]string{"go/BUILD"}, []string{"go"}, nil)
+	in.Closures["//img:i"] = cl([]string{"img/BUILD"}, []string{"img"}, nil)
+	expect(t, Build(in), "//img:i", Changed, "c1")
+}
+
+func TestBuildEditOnlyChangesItsCalls(t *testing.T) {
+	const build = `load("@rules_go//go:def.bzl", "nogo")
+
+nogo(name = "nogo", deps = [])
+
+filegroup(name = "docs", srcs = glob(["docs/**"]))
+`
+	files := map[string]string{"c1^": build, "c1": strings.Replace(build, `"docs/**"`, `"docs/**", "more/**"`, 1)}
+	nogo := graph.Closure{Files: []string{"BUILD"}, Packages: []string{""}, Calls: []string{":nogo"}}
+	docs := graph.Closure{Files: []string{"BUILD"}, Packages: []string{""}, Calls: []string{":docs"}}
+	in := input(map[string]graph.Closure{"//go:g": nogo, "//:docs": docs}, commit("c1", fc('M', "BUILD")))
+	in.FileAt = func(rev, p string) ([]byte, bool) {
+		v, ok := files[rev]
+		return []byte(v), ok && p == "BUILD"
+	}
+	r := Build(in)
+	expect(t, r, "//go:g", Unchanged)
+	expect(t, r, "//:docs", Changed, "c1")
+	// a load may change any call of the package
+	files["c1"] = strings.Replace(build, "def.bzl", "defs.bzl", 1)
+	expect(t, Build(in), "//go:g", Changed, "c1")
+}
+
+func TestDeletedFileNeedsAGlob(t *testing.T) {
+	const build = `nogo(name = "nogo", deps = [])
+
+filegroup(name = "docs", srcs = glob(["docs/**"]))
+`
+	in := input(map[string]graph.Closure{
+		"//go:g":   {Files: []string{"BUILD"}, Packages: []string{""}, Calls: []string{":nogo"}},
+		"//:docs":  {Files: []string{"BUILD"}, Packages: []string{""}, Calls: []string{":docs"}},
+		"//m:viam": {Files: []string{"BUILD"}, Packages: []string{""}, Calls: []string{":nogo"}, Macros: []string{":nogo"}},
+	}, commit("c1", fc('D', "clusters/x.yaml")))
+	in.Packages = []string{""}
+	in.FileAt = func(rev, p string) ([]byte, bool) { return []byte(build), rev == "head" && p == "BUILD" }
+	r := Build(in)
+	expect(t, r, "//go:g", Unchanged)
+	expect(t, r, "//:docs", Changed, "c1")
+	// a macro may glob inside
+	expect(t, r, "//m:viam", Changed, "c1")
+}
+
+func TestGitOverrideScopedWithTheLockfile(t *testing.T) {
+	const mod = `bazel_dep(name = "comps", version = "0.0.0")
+git_override(module_name = "comps", commit = "%s", remote = "https://x/comps.git")
+`
+	const lock = `{"lockFileVersion": 1, "registryFileHashes": {}, "moduleExtensions": {}}`
+	files := map[string]string{"c1^": fmt.Sprintf(mod, "a"), "c1": fmt.Sprintf(mod, "b")}
+	locks := map[string]bool{"c1^": true, "c1": true}
+	in := input(map[string]graph.Closure{
+		"//ui:u": cl([]string{"ui/BUILD"}, []string{"ui"}, []string{"comps+"}),
+		"//go:g": cl([]string{"go/BUILD"}, []string{"go"}, []string{"gazelle++go_deps+org_x"}),
+	}, commit("c1", fc('M', "MODULE.bazel")))
+	in.Commits[0].Parents = []string{"c0"}
+	in.FileAt = func(rev, p string) ([]byte, bool) {
+		switch p {
+		case "MODULE.bazel":
+			v, ok := files[rev]
+			return []byte(v), ok
+		case "MODULE.bazel.lock":
+			return []byte(lock), locks[rev]
+		}
+		return nil, false
+	}
+	r := Build(in)
+	expect(t, r, "//ui:u", Changed, "c1")
+	expect(t, r, "//go:g", Unchanged)
+	// before the lockfile was committed, a pin may have changed any module's version
+	locks["c1^"] = false
+	expect(t, Build(in), "//go:g", Changed, "c1")
+}
+
 func TestRenameAttributesBothPackages(t *testing.T) {
 	in := input(map[string]graph.Closure{
 		"//a:a": cl([]string{"a/BUILD", "a/f.txt"}, []string{"a"}, nil),
-		"//b:b": cl([]string{"b/BUILD"}, []string{"b"}, nil),
+		"//b:b": cl([]string{"b/BUILD", "b/f.txt"}, []string{"b"}, nil),
 		"//c:c": cl([]string{"c/BUILD"}, []string{"c"}, nil),
 	}, commit("c1", fc('D', "a/f.txt"), fc('A', "b/f.txt")))
 	r := Build(in)
@@ -330,11 +461,22 @@ func TestModuleBazelExplained(t *testing.T) {
 }
 
 func TestModuleBazelNotExplained(t *testing.T) {
+	// A comment does not change the build: the edit is still the bazel_dep's.
 	in := level2Input(map[string][2]string{
 		"MODULE.bazel.lock": {regBefore, regAfter},
 		"MODULE.bazel":      {`bazel_dep(name = "zlib", version = "1.3")`, `bazel_dep(name = "zlib", version = "1.3.1")` + "\n# comment"},
 	}, fc('M', "MODULE.bazel"), fc('M', "MODULE.bazel.lock"))
 	r := Build(in)
+	expect(t, r, "//zl:zl", Changed, "c1")
+	for _, l := range []string{"//x:x", "//y:y", "//z:z", "//n:n"} {
+		expect(t, r, l, Unchanged)
+	}
+	// Another statement may change anything.
+	in = level2Input(map[string][2]string{
+		"MODULE.bazel.lock": {regBefore, regAfter},
+		"MODULE.bazel":      {`bazel_dep(name = "zlib", version = "1.3")`, `bazel_dep(name = "zlib", version = "1.3.1")` + "\nregister_toolchains(\"//:all\")"},
+	}, fc('M', "MODULE.bazel"), fc('M', "MODULE.bazel.lock"))
+	r = Build(in)
 	for _, l := range []string{"//x:x", "//y:y", "//z:z", "//n:n", "//zl:zl"} {
 		expect(t, r, l, Changed, "c1")
 	}
@@ -600,8 +742,8 @@ func TestRootBaselineNoReleasableCommits(t *testing.T) {
 
 func TestIgnorePath(t *testing.T) {
 	in := input(map[string]graph.Closure{
-		"//a:a": cl([]string{"x/f.go"}, []string{"x"}, nil),
-		"//b:b": cl([]string{"x/f.go"}, []string{"x"}, nil),
+		"//a:a": cl([]string{"x/f.go", "x/new.go"}, []string{"x"}, nil),
+		"//b:b": cl([]string{"x/f.go", "x/new.go"}, []string{"x"}, nil),
 	}, commit("c1", fc('M', "x/f.go")), commit("c2", fc('A', "x/new.go")), commit("c3", fc('M', ".bazelrc")))
 	in.IgnorePath = func(label, p string) bool { return label == "//a:a" }
 	r := Build(in)
