@@ -77,6 +77,9 @@ func fromNode(n bazelq.Node) (Component, error) {
 		return Component{}, fmt.Errorf("release_component %s: %w", c.Label, err)
 	}
 	str := func(name string) string { return n.Attrs[name].String }
+	if name := str("component"); name != "" {
+		c.Name = name
+	}
 	// Task 4 stores version_file and changelog workspace-relative; bump_files
 	// keys and ignore globs are package-relative.
 	inPkg := func(p string) string {

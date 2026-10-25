@@ -73,6 +73,23 @@ func TestDiscover(t *testing.T) {
 	}
 }
 
+func TestDiscoverComponentName(t *testing.T) {
+	// component overrides the target name, e.g. when a binary of the package
+	// already has the component's name.
+	attr := `{"name":"component","type":"STRING","stringValue":"tool","explicitlySpecified":true},`
+	out := strings.Replace(fixture(t), `"attribute":[`, `"attribute":[`+attr, 1)
+	got, err := Discover(&fakeRunner{out: out}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got[0].Name != "fresh" || got[1].Name != "tool" || got[1].Label != "//lib/tests/release:demo" {
+		t.Errorf("names: %q %q (%s)", got[0].Name, got[1].Name, got[1].Label)
+	}
+	if tag := got[1].Tag(semver.Version{Major: 1}); tag != "tool@v1.0.0" {
+		t.Errorf("tag = %q", tag)
+	}
+}
+
 func TestDiscoverScope(t *testing.T) {
 	f := &fakeRunner{out: fixture(t)}
 	if _, err := Discover(f, "//lib/..."); err != nil {
