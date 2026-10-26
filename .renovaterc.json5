@@ -35,9 +35,11 @@
       matchStringsStrategy: 'recursive',
       matchStrings: [
         '_binaries\\W=\\W({[^}]+)',
-        'https://github.com/(?<packageName>[^/]+/(?<depName>[^/]+))/releases/download/(?<currentValue>[^/]+)/kyverno_\\d+\\.\\d+\\.\\d+(?<depType>[^"]*)",\\W"(?<currentDigest>[^"]+)"',
+        // Assets are kyverno-cli_v<version>_<os>_<arch>.tar.gz (the old kyverno_<version> pattern never matched,
+        // which left the CLI on v1.15.1)
+        'https://github.com/(?<packageName>[^/]+/(?<depName>[^/]+))/releases/download/(?<currentValue>[^/]+)/kyverno-cli_v\\d+\\.\\d+\\.\\d+(?<depType>[^"]*)",\\W"(?<currentDigest>[^"]+)"',
       ],
-      autoReplaceStringTemplate: 'https://github.com/{{packageName}}/releases/download/{{newValue}}/kyverno_{{replace "v" "" newValue}}{{depType}}", "{{newDigest}}"',
+      autoReplaceStringTemplate: 'https://github.com/{{packageName}}/releases/download/{{newValue}}/kyverno-cli_{{newValue}}{{depType}}", "{{newDigest}}"',
       datasourceTemplate: 'github-release-attachments',
     },
     {
