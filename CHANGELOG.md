@@ -1,5 +1,22 @@
 # Changelog
 
+## 4.3.0 (2026-10-27)
+
+### Features
+
+- .release-ignore file and Release-Ignore trailer to ignore commits per component (#421) ([97c5e79](https://github.com/loopingz/rules_k8s_cd/commit/97c5e79e6ad004c9d15b28402dc4ab4871dcef85))
+- **release:** component attribute for a name other than the target's (#417) ([0fcbe23](https://github.com/loopingz/rules_k8s_cd/commit/0fcbe23013596142421120bcac7e97d7e2eb13ea))
+
+### Bug Fixes
+
+- **kyverno:** update the CLI to v1.19.2 and fix its Renovate updates (#422) ([8d8f483](https://github.com/loopingz/rules_k8s_cd/commit/8d8f483d33f9214097f77f36f3915a192ab33381))
+- **change_report:** attribute MODULE.bazel, .bazelignore and BUILD edits by statement (#420) ([b93c61d](https://github.com/loopingz/rules_k8s_cd/commit/b93c61d873fd5d05f2e0f4ab5a35d2766fd0c68b))
+- **change_report:** attribute unmapped dependency files and added files by package (#415) ([3164ee7](https://github.com/loopingz/rules_k8s_cd/commit/3164ee72560cbbfc129fdcef8e742e68927ddd87))
+
+### Other
+
+- **deps:** update dependency rules_shell to v0.8.0 (#418) ([64edc23](https://github.com/loopingz/rules_k8s_cd/commit/64edc23aec49e5281cd1bb0f7d00d6a4fc9f2de8))
+
 ## 4.2.0 (2026-10-24)
 
 ### Features
