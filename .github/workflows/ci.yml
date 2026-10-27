@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Run Go tests
-        run: bazel test //go/...
+        run: bazel test //go/... //lib/...
 
   lint:
     runs-on: ubuntu-latest

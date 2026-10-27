@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: compliant
+spec:
+  selector:
+    matchLabels: {app: compliant}
+  template:
+    metadata:
+      labels: {app: compliant}
+    spec:
+      containers:
+        - name: app
+          image: registry.example.com/app:1.0.0
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 16Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+      volumes:
+        - name: tmp
+          emptyDir: {}

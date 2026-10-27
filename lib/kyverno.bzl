@@ -18,9 +18,23 @@ def _kyverno_impl(ctx):
 
     cmd = " ".join(command)
 
+    # A CLI that cannot read the policies (e.g. older than the policy API, like 1.15 with
+    # policies.kyverno.io ValidatingPolicies) loads 0 rules and reports success: fail instead.
+    script = """#!/usr/bin/env bash
+out="$({cmd} 2>&1)"
+rc=$?
+printf '%s\\n' "$out"
+if grep -q 'Applying 0 policy rule' <<<"$out"; then
+  echo 'kyverno loaded no policy rule: unsupported policy kind or CLI version?' >&2
+  exit 1
+fi
+exit $rc
+""".format(cmd = cmd)
+
     ctx.actions.write(
         output = ctx.outputs.test,
-        content = cmd,
+        content = script,
+        is_executable = True,
     )
 
     return [DefaultInfo(

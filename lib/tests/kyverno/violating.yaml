@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: violating
+spec:
+  containers:
+    - name: app
+      image: registry.example.com/app:1.0.0
+  volumes:
+    - name: host
+      hostPath: {path: /}
