@@ -121,11 +121,14 @@ const releaseBaseTrailer = "Release-Base: "
 
 var releaseBaseRe = regexp.MustCompile(`(?m)^` + releaseBaseTrailer + `([0-9a-f]{40})\s*$`)
 
-// warnLateCommits warns about the commits that landed on main between the
-// last pr run (the Release-Base trailer of release commit sha) and the merge
-// of the release PR: they are released but not in its changelog. Merge
-// commits and release commits are not listed. Without a trailer (e.g. a
-// squash message without the PR description) nothing is checked.
+// warnLateCommits warns about the commits attributed to c that landed on
+// main between the last update of the release PR (the Release-Base trailer
+// of release commit sha) and its merge: they are released but not in its
+// changelog. Merge commits and release commits are not listed, nor commits
+// of other components: an unchanged release PR is not rebuilt, so its base
+// may be far behind. Without a trailer (e.g. a squash message without the
+// PR description) nothing is checked. When attribution fails, every commit
+// is listed.
 func warnLateCommits(e Env, c component.Component, v semver.Version, sha string) {
 	msg, err := e.Repo.Git("log", "-1", "--format=%B", sha)
 	if err != nil {
@@ -137,21 +140,43 @@ func warnLateCommits(e Env, c component.Component, v semver.Version, sha string)
 		return
 	}
 	base := string(m[len(m)-1][1])
-	out, err := e.Repo.Git("log", "--no-merges", "--format=%h%x00%s", base+".."+sha+"^")
+	out, err := e.Repo.Git("log", "--no-merges", "--format=%H%x00%h%x00%s", base+".."+sha+"^")
 	if err != nil {
 		e.warn("%s %s: cannot list the commits since the release PR base %s: %v", c.Name, v, base, err)
 		return
 	}
-	var late []string
+	type commit struct{ sha, short string }
+	var candidates []commit
 	for _, l := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		short, subject, ok := strings.Cut(l, "\x00")
-		if !ok {
+		f := strings.SplitN(l, "\x00", 3)
+		if len(f) != 3 {
 			continue
 		}
-		if _, _, rel := attrib.ParseReleaseSubject(subject); rel {
+		if _, _, rel := attrib.ParseReleaseSubject(f[2]); rel {
 			continue
 		}
-		late = append(late, short)
+		candidates = append(candidates, commit{f[0], f[1]})
+	}
+	if len(candidates) == 0 {
+		return
+	}
+	attributed := map[string]bool{}
+	parent, err := e.Repo.RevParse(sha + "^")
+	if err == nil {
+		var results map[string]attrib.Result
+		results, err = e.attribute(parent, []component.Component{c}, map[string]component.State{c.Label: {BaselineSHA: base}})
+		for _, cm := range results[c.Label].Commits {
+			attributed[cm.SHA] = true
+		}
+	}
+	if err != nil {
+		e.warn("%s %s: cannot attribute the commits since the release PR base %s, listing them all: %v", c.Name, v, base, err)
+	}
+	var late []string
+	for _, cm := range candidates {
+		if err != nil || attributed[cm.sha] {
+			late = append(late, cm.short)
+		}
 	}
 	if len(late) > 0 {
 		e.warn("%s %s: %d commit(s) landed after the release PR was last updated and are not in its changelog: %s",

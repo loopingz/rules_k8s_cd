@@ -51,6 +51,7 @@ _release_component = rule(
         "tag_format": attr.string(doc = "Tag format, with {name} and {version}"),
         "bump_files": attr.string_dict(doc = "Files to update on release: path -> regex"),
         "release_targets": attr.string_list(doc = "Targets run after tagging (normalised labels)"),
+        "track_main_tip": attr.bool(doc = "Rebuild the release PR on every push to main, even when unchanged"),
     },
 )
 
@@ -155,6 +156,7 @@ def release_component(
         tag_format = "{name}@v{version}",
         bump_files = {},
         release_targets = [],
+        track_main_tip = False,
         component = None,
         visibility = None):
     """Declares a release component and its `<name>.version` target.
@@ -172,6 +174,10 @@ def release_component(
       tag_format: tag format, with {name} and {version}.
       bump_files: files updated on release, path -> regex.
       release_targets: targets run after the component is tagged.
+      track_main_tip: rebuild the release PR on every push to main, so its
+        Release-Base is always the main tip (e.g. when a check of the PR tests
+        that commit). By default an unchanged release PR is left alone, so its
+        checks do not re-run.
       component: component name, used in tags, the release branch and commits;
         defaults to `name`. Set it when `name` is taken by another target of the
         package (e.g. the binary the component releases).
@@ -194,6 +200,7 @@ def release_component(
         tag_format = tag_format,
         bump_files = bump_files,
         release_targets = [str(native.package_relative_label(t)) for t in release_targets],
+        track_main_tip = track_main_tip,
         visibility = visibility,
     )
 

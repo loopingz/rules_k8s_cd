@@ -1,6 +1,7 @@
 package release
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"regexp"
@@ -117,15 +118,27 @@ func prOne(e Env, p Plan) error {
 		return nil
 	}
 
+	pr, err := findReleasePR(e, c.Name, branch)
+	if err != nil {
+		return err
+	}
+	// Rebuilding an unchanged release PR on every push to main only re-runs
+	// its checks: keep it unless the component tracks the main tip.
+	if pr != nil && !c.TrackMainTip {
+		same, err := branchHasFiles(e, branch, title, files)
+		if err != nil {
+			return err
+		}
+		if same {
+			e.out("%s: PR #%d %q is up to date", c.Name, pr.Number, title)
+			return nil
+		}
+	}
 	sha, err := gitwrite.CommitFiles(e.Repo, base, files, title+"\n\n"+trailer)
 	if err != nil {
 		return err
 	}
 	if err := gitwrite.PushBranch(e.Repo, e.Remote, sha, branch); err != nil {
-		return err
-	}
-	pr, err := findReleasePR(e, c.Name, branch)
-	if err != nil {
 		return err
 	}
 	if pr != nil {
@@ -141,6 +154,53 @@ func prOne(e Env, p Plan) error {
 	}
 	e.out("%s: opened PR #%d %q %s", c.Name, pr.Number, title, pr.URL)
 	return nil
+}
+
+// branchHasFiles reports whether <remote>/<branch> is one release commit
+// titled title, on a commit of main's history (an ancestor of HEAD), that
+// changes only files and gives each of them its content in files. A missing
+// branch is not up to date.
+func branchHasFiles(e Env, branch, title string, files map[string][]byte) (bool, error) {
+	out, err := e.Repo.Git("ls-remote", "--heads", e.Remote, "refs/heads/"+branch)
+	if err != nil {
+		return false, err
+	}
+	sha, _, _ := strings.Cut(strings.TrimSpace(string(out)), "\t")
+	if sha == "" {
+		return false, nil
+	}
+	if !e.Repo.HasCommit(sha) {
+		if _, err := e.Repo.Git("fetch", "--quiet", "--no-tags", e.Remote, "refs/heads/"+branch); err != nil {
+			return false, err
+		}
+	}
+	out, err = e.Repo.Git("log", "-1", "--format=%s%x00%P", sha)
+	if err != nil {
+		return false, err
+	}
+	subject, parents, _ := strings.Cut(strings.TrimSpace(string(out)), "\x00")
+	if subject != title || strings.Contains(parents, " ") || parents == "" {
+		return false, nil
+	}
+	if onMain, err := e.Repo.IsAncestor(parents, "HEAD"); err != nil || !onMain {
+		return false, err
+	}
+	out, err = e.Repo.Git("diff", "--no-renames", "--name-only", "-z", parents, sha)
+	if err != nil {
+		return false, err
+	}
+	for _, name := range strings.Split(strings.TrimRight(string(out), "\x00"), "\x00") {
+		if _, ok := files[name]; !ok {
+			return false, nil
+		}
+	}
+	for name, want := range files {
+		got, ok, err := e.Repo.Show(sha, name)
+		if err != nil || !ok || !bytes.Equal(got, want) {
+			return false, err
+		}
+	}
+	return true, nil
 }
 
 // findReleasePR returns the open release PR of component name on branch:
