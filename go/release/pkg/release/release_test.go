@@ -419,6 +419,76 @@ func TestPRReleaseBaseTrailer(t *testing.T) {
 	}
 }
 
+func TestPRLeavesUnchangedPR(t *testing.T) {
+	f := setup(t)
+	f.commit("feat: add thing", map[string]string{"a/x.go": "x\n"})
+	if err := PR(f.env(), comps()[1:]); err != nil {
+		t.Fatal(err)
+	}
+	br := "refs/heads/release/a"
+	first := f.remoteRef(br)
+
+	// A commit of another component: the release PR of a is not rebuilt.
+	f.commit("fix: b only", map[string]string{"b/b.txt": "b2\n"})
+	if err := PR(f.env(), comps()[1:]); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.remoteRef(br); got != first {
+		t.Errorf("release/a force-pushed to %s, want %s kept", got, first)
+	}
+	want := []string{`create release/a->main "chore(release): a 1.1.0"`}
+	if got := f.forge.writes(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("forge writes = %v, want %v", got, want)
+	}
+	if !contains(f.out, "is up to date") {
+		t.Errorf("out = %v", f.out)
+	}
+
+	// A commit of a changes its changelog: rebuilt on the new tip.
+	head := f.commit("fix: a again", map[string]string{"a/y.go": "y\n"})
+	if err := PR(f.env(), comps()[1:]); err != nil {
+		t.Fatal(err)
+	}
+	if got := git(t, f.origin, "rev-parse", br+"^"); got != head {
+		t.Errorf("release/a parent = %s, want %s", got, head)
+	}
+
+	// A hand-made commit on the branch is replaced.
+	git(t, f.dir, "fetch", "-q", "origin")
+	git(t, f.dir, "checkout", "-q", "origin/release/a")
+	write(t, f.dir, "a/extra.txt", "e\n")
+	git(t, f.dir, "add", "-A")
+	git(t, f.dir, "commit", "-q", "--amend", "--no-edit")
+	git(t, f.dir, "push", "-q", "-f", "origin", "HEAD:"+br)
+	git(t, f.dir, "checkout", "-q", "-")
+	if err := PR(f.env(), comps()[1:]); err != nil {
+		t.Fatal(err)
+	}
+	if got := git(t, f.origin, "ls-tree", "--name-only", br, "a/"); strings.Contains(got, "extra.txt") {
+		t.Errorf("modified release/a kept: %s", got)
+	}
+}
+
+func TestPRTrackMainTip(t *testing.T) {
+	f := setup(t)
+	cs := comps()[1:]
+	cs[0].TrackMainTip = true
+	f.commit("feat: add thing", map[string]string{"a/x.go": "x\n"})
+	if err := PR(f.env(), cs); err != nil {
+		t.Fatal(err)
+	}
+	head := f.commit("fix: b only", map[string]string{"b/b.txt": "b2\n"})
+	if err := PR(f.env(), cs); err != nil {
+		t.Fatal(err)
+	}
+	if got := git(t, f.origin, "rev-parse", "refs/heads/release/a^"); got != head {
+		t.Errorf("release/a parent = %s, want the main tip %s", got, head)
+	}
+	if !strings.HasSuffix(f.forge.prs["release/a"].Body, "Release-Base: "+head+"\n") {
+		t.Errorf("PR body not on the main tip:\n%s", f.forge.prs["release/a"].Body)
+	}
+}
+
 func TestPRNoChangesClosesPR(t *testing.T) {
 	f := setup(t)
 	f.forge.prs["release/a"] = &forge.PR{Number: 7, Head: "release/a", Body: "<!-- rules_k8s_cd:release a -->\n\n## 1.0.1"}
@@ -684,6 +754,7 @@ func TestTagWarnsCommitsMissingFromChangelog(t *testing.T) {
 		t.Fatal(err)
 	}
 	late := f.commit("fix: late", map[string]string{"a/z.go": "z\n"})
+	f.commit("fix: b only", map[string]string{"b/b.txt": "b2\n"})
 	f.commit("chore(release): b 1.0.1", map[string]string{"b/VERSION": "1.0.1\n"})
 	f.squashBranch()
 	if err := Tag(f.env(), comps()[1:]); err != nil {

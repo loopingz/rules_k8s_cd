@@ -35,6 +35,9 @@ type Component struct {
 	Ignore               []string          // workspace-relative paths
 	BumpFiles            map[string]string // workspace-relative path -> regex
 	ReleaseTargets       []string
+	// TrackMainTip rebuilds the release PR on every push to main, even when
+	// its content is unchanged, so its Release-Base is always the main tip.
+	TrackMainTip bool
 }
 
 // Discover queries the release_component rules in scope (default //...) and
@@ -92,6 +95,7 @@ func fromNode(n bazelq.Node) (Component, error) {
 	c.VersionFile = str("version_file")
 	c.Changelog = str("changelog")
 	c.TargetsQuery = str("targets_query")
+	c.TrackMainTip = n.Attrs["track_main_tip"].Bool
 	c.Untagged = str("untagged_version")
 	c.TagFormat = str("tag_format")
 	if c.TagFormat == "" {

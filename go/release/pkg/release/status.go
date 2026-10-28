@@ -82,6 +82,29 @@ func (e Env) now() time.Time {
 	return time.Now()
 }
 
+// attribute attributes the commits up to head to comps from their
+// states' baselines with e.Attribute (default attrib.Attribute), forwarding
+// its warnings.
+func (e Env) attribute(head string, comps []component.Component, states map[string]component.State) (map[string]attrib.Result, error) {
+	attribute := e.Attribute
+	if attribute == nil {
+		attribute = attrib.Attribute
+	}
+	o := e.Cache
+	o.Warn = nil // warnings are returned and forwarded below
+	if o.Repo.Dir == "" {
+		o.Repo = e.Repo
+	}
+	if o.Runner == nil {
+		o.Runner = e.Runner
+	}
+	results, warns, err := attribute(o, e.Repo, head, comps, states, e.GlobalGlobs)
+	for _, w := range warns {
+		e.warn("%s", w)
+	}
+	return results, err
+}
+
 // Plan is what a release of one component would do now.
 type Plan struct {
 	Component component.Component
@@ -249,22 +272,7 @@ func Status(e Env, comps []component.Component) ([]Plan, error) {
 		return nil, errors.Join(errs...)
 	}
 
-	attribute := e.Attribute
-	if attribute == nil {
-		attribute = attrib.Attribute
-	}
-	o := e.Cache
-	o.Warn = nil // warnings are returned and forwarded below
-	if o.Repo.Dir == "" {
-		o.Repo = e.Repo
-	}
-	if o.Runner == nil {
-		o.Runner = e.Runner
-	}
-	results, warns, err := attribute(o, e.Repo, "HEAD", ok, states, e.GlobalGlobs)
-	for _, w := range warns {
-		e.warn("%s", w)
-	}
+	results, err := e.attribute("HEAD", ok, states)
 	if err != nil {
 		return nil, errors.Join(append(errs, err)...)
 	}
