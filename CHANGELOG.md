@@ -1,5 +1,20 @@
 # Changelog
 
+## 4.4.0 (2026-10-31)
+
+### Features
+
+- **release:** leave unchanged release PRs alone (#424) ([a482748](https://github.com/loopingz/rules_k8s_cd/commit/a48274837ad77a3f88fe66d8bf6cb1fdb74f3cd8))
+
+### Bug Fixes
+
+- **deps:** update dependency buildtools to v10.2.0 (#427) ([fb1fe87](https://github.com/loopingz/rules_k8s_cd/commit/fb1fe87cb61b8f1bd2ba5dd23fcc504118fbaa86))
+
+### Other
+
+- **deps:** update nginx docker digest to 5ab5b0b (#426) ([8eddb70](https://github.com/loopingz/rules_k8s_cd/commit/8eddb7066c4b7526badb34a56a21ec7ca9e9954f))
+- **deps:** update kubectl (#428) ([e3b86ef](https://github.com/loopingz/rules_k8s_cd/commit/e3b86ef8e9fd8018ce9aa281b373704e732a2afd))
+
 ## 4.3.0 (2026-10-27)
 
 ### Features
