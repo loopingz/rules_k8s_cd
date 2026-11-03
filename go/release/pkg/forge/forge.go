@@ -25,8 +25,13 @@ type PR struct {
 type Forge interface {
 	// FindOpenPR returns the open PR whose head branch is head, or nil.
 	FindOpenPR(head string) (*PR, error)
-	CreatePR(head, base, title, body string) (*PR, error)
-	UpdatePR(number int, title, body string) error
+	// CreatePR opens a PR; draft opens it as a draft (GitHub) or with the
+	// work-in-progress title prefix that is Forgejo's draft state.
+	CreatePR(head, base, title, body string, draft bool) (*PR, error)
+	// UpdatePR sets the title and body. On Forgejo draft keeps (or restores)
+	// the work-in-progress prefix; GitHub's REST API cannot change the draft
+	// state of an open PR, so a PR marked ready for review stays ready.
+	UpdatePR(number int, title, body string, draft bool) error
 	// ClosePR comments (when comment is non-empty) and closes the PR.
 	ClosePR(number int, comment string) error
 	ReleaseExists(tag string) (bool, error)
@@ -161,9 +166,12 @@ func (p prJSON) pr() *PR {
 
 // Operations that are identical on both forges, parameterised by the shared api.
 
-func (a *api) createPR(head, base, title, body string) (*PR, error) {
+func (a *api) createPR(head, base, title, body string, draft bool) (*PR, error) {
 	var out prJSON
 	in := map[string]any{"head": head, "base": base, "title": title, "body": body}
+	if draft {
+		in["draft"] = true
+	}
 	if _, err := a.do("POST", a.repoPath("/pulls"), in, &out); err != nil {
 		return nil, err
 	}

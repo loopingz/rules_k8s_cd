@@ -85,6 +85,10 @@ func prOne(e Env, p Plan) error {
 		return err
 	}
 	title := releaseSubject(c.Name, p.Next)
+	kind := "PR"
+	if e.Draft {
+		kind = "draft PR"
+	}
 	base, err := e.Repo.RevParse("HEAD")
 	if err != nil {
 		return err
@@ -103,7 +107,7 @@ func prOne(e Env, p Plan) error {
 		sort.Strings(names)
 		e.out("%s: would push %s with %q changing %s", c.Name, branch, title, strings.Join(names, ", "))
 		if e.Forge == nil {
-			e.out("%s: would open or update the release PR %q", c.Name, title)
+			e.out("%s: would open or update the release %s %q", c.Name, kind, title)
 			return nil
 		}
 		pr, err := findReleasePR(e, c.Name, branch)
@@ -111,9 +115,9 @@ func prOne(e Env, p Plan) error {
 			return err
 		}
 		if pr != nil {
-			e.out("%s: would update PR #%d to %q", c.Name, pr.Number, title)
+			e.out("%s: would update %s #%d to %q", c.Name, kind, pr.Number, title)
 		} else {
-			e.out("%s: would open PR %q", c.Name, title)
+			e.out("%s: would open %s %q", c.Name, kind, title)
 		}
 		return nil
 	}
@@ -142,17 +146,17 @@ func prOne(e Env, p Plan) error {
 		return err
 	}
 	if pr != nil {
-		if err := e.Forge.UpdatePR(pr.Number, title, body); err != nil {
+		if err := e.Forge.UpdatePR(pr.Number, title, body, e.Draft); err != nil {
 			return err
 		}
-		e.out("%s: updated PR #%d %q", c.Name, pr.Number, title)
+		e.out("%s: updated %s #%d %q", c.Name, kind, pr.Number, title)
 		return nil
 	}
-	pr, err = e.Forge.CreatePR(branch, e.MainBranch, title, body)
+	pr, err = e.Forge.CreatePR(branch, e.MainBranch, title, body, e.Draft)
 	if err != nil {
 		return err
 	}
-	e.out("%s: opened PR #%d %q %s", c.Name, pr.Number, title, pr.URL)
+	e.out("%s: opened %s #%d %q %s", c.Name, kind, pr.Number, title, pr.URL)
 	return nil
 }
 

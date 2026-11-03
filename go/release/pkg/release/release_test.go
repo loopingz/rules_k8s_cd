@@ -56,6 +56,7 @@ type fixture struct {
 	failTarget   string
 	retryTargets bool
 	dryRun       bool
+	draft        bool
 	noForge      bool
 }
 
@@ -183,6 +184,7 @@ func (f *fixture) env() Env {
 		CommitURL:    "https://example.com/c/{sha}",
 		Cache:        cache.Options{CacheDir: filepath.Join(f.dir, ".cache-not-used")},
 		DryRun:       f.dryRun,
+		Draft:        f.draft,
 		RetryTargets: f.retryTargets,
 		Now:          func() time.Time { return time.Date(2026, 10, 24, 12, 0, 0, 0, time.UTC) },
 		Out:          func(s string) { f.out = append(f.out, s) },
@@ -242,8 +244,8 @@ func (f *fakeForge) FindOpenPR(head string) (*forge.PR, error) {
 	return f.prs[head], nil
 }
 
-func (f *fakeForge) CreatePR(head, base, title, body string) (*forge.PR, error) {
-	f.calls = append(f.calls, fmt.Sprintf("create %s->%s %q", head, base, title))
+func (f *fakeForge) CreatePR(head, base, title, body string, draft bool) (*forge.PR, error) {
+	f.calls = append(f.calls, fmt.Sprintf("create %s->%s %q%s", head, base, title, draftSuffix(draft)))
 	if f.prs[head] != nil {
 		return nil, fmt.Errorf("a pull request already exists for %s", head)
 	}
@@ -253,14 +255,21 @@ func (f *fakeForge) CreatePR(head, base, title, body string) (*forge.PR, error) 
 	return pr, nil
 }
 
-func (f *fakeForge) UpdatePR(number int, title, body string) error {
-	f.calls = append(f.calls, fmt.Sprintf("update #%d %q", number, title))
+func (f *fakeForge) UpdatePR(number int, title, body string, draft bool) error {
+	f.calls = append(f.calls, fmt.Sprintf("update #%d %q%s", number, title, draftSuffix(draft)))
 	for _, pr := range f.prs {
 		if pr.Number == number {
 			pr.Title, pr.Body = title, body
 		}
 	}
 	return nil
+}
+
+func draftSuffix(draft bool) string {
+	if draft {
+		return " draft"
+	}
+	return ""
 }
 
 func (f *fakeForge) ClosePR(number int, comment string) error {
@@ -1033,6 +1042,28 @@ func TestTagThenPR(t *testing.T) {
 	}
 	if strings.Contains(pr.Body, "feat") || strings.Contains(pr.Body, "- a (") || !strings.Contains(pr.Body, "next") {
 		t.Errorf("body re-proposes released commits:\n%s", pr.Body)
+	}
+}
+
+// Env.Draft reaches the forge on creation and on every rebuild of the PR.
+func TestPRDraft(t *testing.T) {
+	f := setup(t)
+	f.draft = true
+	f.commit("feat: add thing", map[string]string{"a/x.go": "x\n"})
+	if err := PR(f.env(), comps()[1:]); err != nil {
+		t.Fatal(err)
+	}
+	f.commit("fix: more", map[string]string{"a/z.go": "z\n"})
+	if err := PR(f.env(), comps()[1:]); err != nil {
+		t.Fatal(err)
+	}
+	got := f.forge.writes()
+	if len(got) != 2 || !strings.HasPrefix(got[0], "create release/a->main ") || !strings.HasSuffix(got[0], " draft") ||
+		!strings.HasPrefix(got[1], "update #1 ") || !strings.HasSuffix(got[1], " draft") {
+		t.Errorf("forge writes = %v, want a draft create then a draft update", got)
+	}
+	if !contains(f.out, "opened draft PR #1") || !contains(f.out, "updated draft PR #1") {
+		t.Errorf("out = %v", f.out)
 	}
 }
 

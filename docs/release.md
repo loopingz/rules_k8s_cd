@@ -211,6 +211,7 @@ rules_k8s_cd | 4.1.0   | 4.2.0 | release PR
 | `--main-branch` | the remote's HEAD branch, else `main` | Branch the release PRs target. `pr` requires `HEAD` to be its tip; when the branch only moved on since the checkout, `pr` warns and is skipped (exit 0): the run triggered by the newer commits updates the PRs. |
 | `--components` | `//...` | Bazel query scope searched for `release_component` targets. |
 | `--dry-run` | false | Prints what would be done; pushes, tags and writes nothing. |
+| `--draft` | false | `pr`: open the release PRs as drafts, so that their checks run once a human marks them ready for review rather than on every rebuild (see [Draft release PRs](#draft-release-prs)). |
 | `--retry-targets` | false | `tag`: finish the release of the current VERSION of each component: re-create the forge release when missing and re-run the release targets (see below). |
 | `--global-file` | | Extra glob of files that affect every component. Repeatable. See [change_report](change_report.md#how-a-target-is-judged-changed). |
 | `--ignore` | | Glob of files never attributed to any component. Repeatable. |
@@ -233,6 +234,29 @@ On GitHub the token needs `contents: write` and `pull-requests: write`. On Forge
 - `tag` first checks the remote, so it can be re-run on a fresh CI clone: a remote tag on the release commit is fetched and left alone, a tag anywhere else is an error. `status` and `pr` also trust the remote: in a clone without tags, the remote tag of VERSION is the baseline.
 - `--retry-targets` finishes the current-VERSION release of every component regardless of `HEAD`: it creates the forge release if it is missing and re-runs the release targets, in a worktree of the release commit when `HEAD` moved. It refuses when the tag does not point at the release commit. Trigger it with the `retry_targets` input of the workflow below after a failed release target.
 - A VERSION already set by a release commit but not tagged yet (tag cut failed, or a push race) is cut by the next `tag`.
+
+### Draft release PRs
+
+A release PR is rebuilt whenever a push to main changes its content, and each rebuild re-runs its checks: a release validated in the morning is validated again after every unrelated merge of the day. With `--draft` the tool opens the release PRs as drafts, and makes them drafts again on every rebuild, so that the PR checks can be skipped on drafts and run once, when a human marks the PR ready for review: the PR is then checked and merged in one go.
+
+- Forgejo has no draft field in its PR API: the draft state is a title prefix (`repository.pull-request.WORK_IN_PROGRESS_PREFIXES`, `WIP:` by default), which "Ready for review" strips. The tool prefixes the PR title with `WIP: ` on creation and on every update, so a PR marked ready is a draft again when its content changes (an unchanged PR is left alone, ready or not). The release commit and the squash merge title are not prefixed. Forgejo refuses to merge a draft PR.
+- On GitHub the PR is created as a draft; the REST API cannot change the draft state of an open PR, so a rebuilt PR that was marked ready stays ready (its checks run on the rebuild).
+
+A workflow skips a draft with a job condition on the event payload, and must run on the `edited` event too, which is what marking a PR ready for review emits (Forgejo has no `ready_for_review` activity type):
+
+```yaml
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+jobs:
+  check:
+    # Release PRs (release/<name>) run once marked ready for review; other PRs
+    # ignore edits of their title or description.
+    if: >-
+      startsWith(github.head_ref, 'release/') && !github.event.pull_request.draft ||
+      !startsWith(github.head_ref, 'release/') && github.event.action != 'edited'
+```
 
 ### Commits merged after the last update
 

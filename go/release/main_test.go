@@ -206,13 +206,13 @@ func TestFlagsReachOptions(t *testing.T) {
 		return deps{}, errors.New("stop")
 	})
 	code, _, _ := runCLI(nil, "tag", "--forge", "forgejo", "--forge-url", "https://f", "--repo", "o/r",
-		"--remote", "up", "--main-branch", "dev", "--components", "//x/...", "--dry-run", "--retry-targets",
+		"--remote", "up", "--main-branch", "dev", "--components", "//x/...", "--dry-run", "--retry-targets", "--draft",
 		"--cache-dir", "c", "--workspace", "w", "--bazel", "bz", "--global-file", "g1", "--global-file", "g2", "--ignore", "i", "--ignore-file", "ign")
 	if code != 1 {
 		t.Fatalf("code %d", code)
 	}
 	want := options{command: "tag", forge: "forgejo", forgeURL: "https://f", repo: "o/r", remote: "up", mainBranch: "dev",
-		components: "//x/...", dryRun: true, retryTargets: true, cacheDir: "c", workspace: "w", bazel: "bz",
+		components: "//x/...", dryRun: true, retryTargets: true, draft: true, cacheDir: "c", workspace: "w", bazel: "bz",
 		globalFiles: stringSlice{"g1", "g2"}, ignores: stringSlice{"i"}, ignoreFile: "ign", needsForge: true}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("options:\n%+v\nwant\n%+v", got, want)

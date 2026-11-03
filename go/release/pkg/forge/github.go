@@ -53,12 +53,15 @@ func (g *github) FindOpenPR(head string) (*PR, error) {
 	return nil, nil
 }
 
-func (g *github) CreatePR(head, base, title, body string) (*PR, error) {
-	return g.createPR(head, base, title, body)
+func (g *github) CreatePR(head, base, title, body string, draft bool) (*PR, error) {
+	return g.createPR(head, base, title, body, draft)
 }
-func (g *github) UpdatePR(n int, title, body string) error { return g.updatePR(n, title, body) }
-func (g *github) ClosePR(n int, comment string) error      { return g.closePR(n, comment) }
-func (g *github) ReleaseExists(tag string) (bool, error)   { return g.releaseExists(tag) }
+
+// UpdatePR ignores draft: the REST API cannot change the draft state of an
+// open PR (that takes the GraphQL API).
+func (g *github) UpdatePR(n int, title, body string, _ bool) error { return g.updatePR(n, title, body) }
+func (g *github) ClosePR(n int, comment string) error              { return g.closePR(n, comment) }
+func (g *github) ReleaseExists(tag string) (bool, error)           { return g.releaseExists(tag) }
 
 func (g *github) CreateRelease(tag, name, notes string) error {
 	return g.createRelease(tag, name, notes, func(e *httpError) bool {
