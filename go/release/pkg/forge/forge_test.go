@@ -66,16 +66,16 @@ func TestGitHubOperations(t *testing.T) {
 		t.Errorf("find request = %+v", r0)
 	}
 
-	p, err = g.CreatePR("release/app", "main", "title", "body")
+	p, err = g.CreatePR("release/app", "main", "title", "body", false)
 	if err != nil || p.Number != 8 {
 		t.Fatalf("CreatePR = %+v, %v", p, err)
 	}
 	b := (*got)[1].body
-	if (*got)[1].method != "POST" || b["head"] != "release/app" || b["base"] != "main" || b["title"] != "title" || b["body"] != "body" {
+	if _, has := b["draft"]; (*got)[1].method != "POST" || b["head"] != "release/app" || b["base"] != "main" || b["title"] != "title" || b["body"] != "body" || has {
 		t.Errorf("create request = %+v", (*got)[1])
 	}
 
-	if err := g.UpdatePR(8, "t2", "b2"); err != nil {
+	if err := g.UpdatePR(8, "t2", "b2", false); err != nil {
 		t.Fatal(err)
 	}
 	if r := (*got)[2]; r.method != "PATCH" || r.path != "/repos/o/r/pulls/8" || r.body["title"] != "t2" || r.body["body"] != "b2" {
@@ -184,10 +184,10 @@ func TestForgejoOperations(t *testing.T) {
 	}
 
 	*got = nil
-	if _, err := f.CreatePR("release/app", "main", "t", "b"); err != nil {
+	if _, err := f.CreatePR("release/app", "main", "t", "b", false); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.UpdatePR(3, "t2", "b2"); err != nil {
+	if err := f.UpdatePR(3, "t2", "b2", false); err != nil {
 		t.Fatal(err)
 	}
 	if err := f.ClosePR(3, "bye"); err != nil {
@@ -216,6 +216,48 @@ func TestForgejoOperations(t *testing.T) {
 	}
 }
 
+// A draft is a "draft" field on GitHub and the WIP title prefix on Forgejo,
+// where UpdatePR puts the prefix back. GitHub's REST API cannot change the
+// draft state of an open PR: UpdatePR sends no draft field there.
+func TestDraftPRs(t *testing.T) {
+	s, got := server(t, func(r rec, w http.ResponseWriter, req *http.Request) {
+		if r.method == "POST" {
+			w.WriteHeader(201)
+		}
+		fmt.Fprint(w, pr(5, "release/app"))
+	})
+	g := NewGitHub(s.URL, "o", "r", tok, nil)
+	if _, err := g.CreatePR("release/app", "main", "title", "body", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.UpdatePR(5, "t2", "b2", true); err != nil {
+		t.Fatal(err)
+	}
+	if c := (*got)[0]; c.body["draft"] != true || c.body["title"] != "title" {
+		t.Errorf("github create = %+v", c)
+	}
+	if _, has := (*got)[1].body["draft"]; has || (*got)[1].body["title"] != "t2" {
+		t.Errorf("github update = %+v", (*got)[1])
+	}
+
+	*got = nil
+	f := NewForgejo(s.URL, "o", "r", tok, nil)
+	if _, err := f.CreatePR("release/app", "main", "title", "body", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.UpdatePR(5, "t2", "b2", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.UpdatePR(5, "t3", "b3", false); err != nil {
+		t.Fatal(err)
+	}
+	for i, want := range []string{DraftPrefix + "title", DraftPrefix + "t2", "t3"} {
+		if _, has := (*got)[i].body["draft"]; has || (*got)[i].body["title"] != want {
+			t.Errorf("forgejo request %d = %+v, want title %q and no draft field", i, (*got)[i], want)
+		}
+	}
+}
+
 func TestReleaseExistsOtherStatusIsError(t *testing.T) {
 	s, _ := server(t, func(r rec, w http.ResponseWriter, req *http.Request) { w.WriteHeader(500) })
 	if _, err := NewForgejo(s.URL, "o", "r", tok, nil).ReleaseExists("t"); err == nil {
@@ -230,8 +272,8 @@ func TestErrorsNeverContainToken(t *testing.T) {
 	})
 	for _, f := range []Forge{NewGitHub(s.URL, "o", "r", tok, nil), NewForgejo(s.URL, "o", "r", tok, nil)} {
 		_, e1 := f.FindOpenPR("h")
-		_, e2 := f.CreatePR("h", "b", "t", "b")
-		e3 := f.UpdatePR(1, "t", "b")
+		_, e2 := f.CreatePR("h", "b", "t", "b", false)
+		e3 := f.UpdatePR(1, "t", "b", false)
 		e4 := f.ClosePR(1, "c")
 		_, e5 := f.ReleaseExists("t")
 		e6 := f.CreateRelease("t", "n", "b")

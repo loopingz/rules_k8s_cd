@@ -47,6 +47,10 @@ type Env struct {
 	Cache       cache.Options
 	GlobalGlobs []string
 	DryRun      bool
+	// Draft opens the release PRs as drafts, and makes them drafts again
+	// whenever they are rebuilt (on forges that allow it): their checks run
+	// once a human marks them ready for review, not on every push to main.
+	Draft bool
 	// RetryTargets makes Tag finish the release of each component's current
 	// VERSION although its tag is already published: create the forge
 	// release if missing and re-run the release targets.

@@ -44,6 +44,7 @@ type options struct {
 	remote, mainBranch         string
 	components                 string
 	dryRun, retryTargets       bool
+	draft                      bool
 	cacheDir, workspace, bazel string
 	globalFiles, ignores       stringSlice
 	ignoreFile                 string
@@ -101,6 +102,7 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 	fs.StringVar(&o.components, "components", "//...", "bazel query scope searched for release_component targets")
 	fs.BoolVar(&o.dryRun, "dry-run", false, "print what would be done; push, tag and write nothing")
 	fs.BoolVar(&o.retryTargets, "retry-targets", false, "tag: finish the release of already published tags (forge release, release targets)")
+	fs.BoolVar(&o.draft, "draft", false, "pr: open the release PRs as drafts (Forgejo: WIP: title prefix, put back whenever the PR is rebuilt); their checks run once marked ready for review")
 	fs.StringVar(&o.cacheDir, "cache-dir", "", "cache directory (default <user cache>/rules_k8s_cd/release)")
 	fs.StringVar(&o.workspace, "workspace", "", "workspace directory (default $BUILD_WORKSPACE_DIRECTORY, else cwd)")
 	fs.StringVar(&o.bazel, "bazel", "bazel", "bazel binary")
@@ -269,6 +271,7 @@ func defaultNewEnv(o options, env func(string) string, out, warn func(string)) (
 		Cache:        cache.Options{Workspace: ws, CacheDir: cd, Repo: repo, Runner: runner},
 		GlobalGlobs:  o.globalFiles,
 		DryRun:       o.dryRun,
+		Draft:        o.draft,
 		RetryTargets: o.retryTargets,
 		Out:          out,
 		Warn:         warn,

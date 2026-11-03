@@ -8,6 +8,19 @@ import (
 
 type forgejo struct{ *api }
 
+// DraftPrefix is the title prefix of a draft PR on Forgejo, which has no
+// draft field in its PR API: a title starting with one of the repository's
+// work-in-progress prefixes (`WIP:` and `[WIP]` by default) makes the PR a
+// draft, and "Ready for review" strips it.
+const DraftPrefix = "WIP: "
+
+func draftTitle(title string, draft bool) string {
+	if draft {
+		return DraftPrefix + title
+	}
+	return title
+}
+
 // NewForgejo returns a Forgejo/Gitea client; the API lives at
 // <baseURL>/api/v1. c defaults to a client with a 30s timeout.
 func NewForgejo(baseURL, owner, repo, token string, c *http.Client) Forge {
@@ -37,12 +50,17 @@ func (f *forgejo) FindOpenPR(head string) (*PR, error) {
 	return nil, nil
 }
 
-func (f *forgejo) CreatePR(head, base, title, body string) (*PR, error) {
-	return f.createPR(head, base, title, body)
+func (f *forgejo) CreatePR(head, base, title, body string, draft bool) (*PR, error) {
+	return f.createPR(head, base, draftTitle(title, draft), body, false)
 }
-func (f *forgejo) UpdatePR(n int, title, body string) error { return f.updatePR(n, title, body) }
-func (f *forgejo) ClosePR(n int, comment string) error      { return f.closePR(n, comment) }
-func (f *forgejo) ReleaseExists(tag string) (bool, error)   { return f.releaseExists(tag) }
+
+// UpdatePR with draft puts the prefix back on a PR that was marked ready for
+// review: a rebuilt release PR is a new proposal, to be checked again.
+func (f *forgejo) UpdatePR(n int, title, body string, draft bool) error {
+	return f.updatePR(n, draftTitle(title, draft), body)
+}
+func (f *forgejo) ClosePR(n int, comment string) error    { return f.closePR(n, comment) }
+func (f *forgejo) ReleaseExists(tag string) (bool, error) { return f.releaseExists(tag) }
 
 func (f *forgejo) CreateRelease(tag, name, notes string) error {
 	return f.createRelease(tag, name, notes, func(e *httpError) bool { return e.status == http.StatusConflict })
