@@ -831,3 +831,48 @@ func TestCommitFiles(t *testing.T) {
 		t.Errorf("commit files %v, want %v", tg.CommitFiles, want)
 	}
 }
+
+func TestIncludedModuleFileScopedLikeModuleBazel(t *testing.T) {
+	const root = `module(name = "m")
+include("//:ui.MODULE.bazel")
+`
+	const ui = `bazel_dep(name = "comps", version = "0.0.0")
+git_override(module_name = "comps", commit = "%s", remote = "https://x/comps.git")
+oci = use_extension("@m//tools:ext.bzl", "oci")
+oci.pull(name = "nginx", digest = "sha256:%s")
+`
+	const lock = `{"lockFileVersion": 1, "registryFileHashes": {}, "moduleExtensions": {}}`
+	files := map[string]string{"c1^": fmt.Sprintf(ui, "a", "1"), "c1": fmt.Sprintf(ui, "b", "1")}
+	in := input(map[string]graph.Closure{
+		"//ui:u":  cl([]string{"ui/BUILD"}, []string{"ui"}, []string{"comps+"}),
+		"//img:i": cl([]string{"img/BUILD"}, []string{"img"}, []string{"+oci+nginx"}),
+		"//go:g":  cl([]string{"go/BUILD"}, []string{"go"}, []string{"gazelle++go_deps+org_x"}),
+	}, commit("c1", fc('M', "ui.MODULE.bazel")))
+	in.Commits[0].Parents = []string{"c0"}
+	in.FileAt = func(rev, p string) ([]byte, bool) {
+		switch p {
+		case "MODULE.bazel":
+			return []byte(root), true
+		case "ui.MODULE.bazel":
+			v, ok := files[rev]
+			return []byte(v), ok
+		case "MODULE.bazel.lock":
+			return []byte(lock), true
+		}
+		return nil, false
+	}
+	// a git_override pin bump in the included file only changes the module's users
+	r := Build(in)
+	expect(t, r, "//ui:u", Changed, "c1")
+	expect(t, r, "//img:i", Unchanged)
+	expect(t, r, "//go:g", Unchanged)
+	// an extension tag edit: the main module's name comes from MODULE.bazel
+	files["c1"] = fmt.Sprintf(ui, "a", "2")
+	r = Build(in)
+	expect(t, r, "//img:i", Changed, "c1")
+	expect(t, r, "//ui:u", Unchanged)
+	expect(t, r, "//go:g", Unchanged)
+	// anything else in it (a constant) stays global
+	files["c1"] = files["c1^"] + "X = 1\n"
+	expect(t, Build(in), "//go:g", Changed, "c1")
+}
