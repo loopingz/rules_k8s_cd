@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.5.0 (2026-11-04)
+
+### Features
+
+- **change_report:** scope edits of included *.MODULE.bazel files like MODULE.bazel (#434) ([6a54772](https://github.com/loopingz/rules_k8s_cd/commit/6a547727a5f0f050ef280f3ad5dba2c6fb033789))
+- **release:** \--draft opens the release PRs as drafts (#431) ([c682d25](https://github.com/loopingz/rules_k8s_cd/commit/c682d2573babaa0d88a6d4cd3e2c687b3f4d4404))
+
 ## 4.4.0 (2026-10-31)
 
 ### Features
