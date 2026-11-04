@@ -165,12 +165,12 @@ func classify(in Input, pkgs map[string]bool, globs *globCache, c gitx.Commit, u
 			} else {
 				cc.global[p] = true
 			}
-		case p == moduleFile:
-			if level2 && len(changed) > 0 && moduleExplained(in, c.SHA) {
+		case p == moduleFile || isModuleInclude(p):
+			if level2 && len(changed) > 0 && moduleExplained(in, c.SHA, p) {
 				cc.scoped[p] = [][]string{changed}
-			} else if pats, ok := moduleDepScope(in, c, touched[lockFile], level2, changed); ok {
+			} else if pats, ok := moduleDepScope(in, c, p, touched[lockFile], level2, changed); ok {
 				cc.scoped[p] = [][]string{pats}
-			} else if pats, ok := moduleScope(in, c.SHA, usage); ok {
+			} else if pats, ok := moduleScope(in, c.SHA, p, usage); ok {
 				cc.scoped[p] = [][]string{pats}
 			} else {
 				cc.global[p] = true
@@ -222,6 +222,12 @@ func classify(in Input, pkgs map[string]bool, globs *globCache, c gitx.Commit, u
 }
 
 const bazelIgnore = ".bazelignore"
+
+// isModuleInclude reports whether p is a file MODULE.bazel may include()
+// (`*.MODULE.bazel`): its statements are scoped like MODULE.bazel's.
+func isModuleInclude(p string) bool {
+	return strings.HasSuffix(path.Base(p), ".MODULE.bazel")
+}
 
 func isBuildFile(p string) bool {
 	b := path.Base(p)
@@ -347,16 +353,17 @@ func ignoreScope(in Input, sha string) (dirs []string, ok bool) {
 	return dirs, true
 }
 
-// moduleDepScope scopes a MODULE.bazel edit of bazel_dep and override calls
-// (extdeps.ModuleDepChanges) to the repos of those modules plus the repos the
-// lockfile diff names. It needs the lockfile at the commit and its parent: an
-// unchanged lockfile means no registry module changed version.
-func moduleDepScope(in Input, c gitx.Commit, lockTouched, level2 bool, changed []string) (patterns []string, ok bool) {
+// moduleDepScope scopes an edit of bazel_dep and override calls in the module
+// file p (MODULE.bazel or an included *.MODULE.bazel; extdeps.ModuleDepChanges)
+// to the repos of those modules plus the repos the lockfile diff names. It
+// needs the lockfile at the commit and its parent: an unchanged lockfile means
+// no registry module changed version.
+func moduleDepScope(in Input, c gitx.Commit, p string, lockTouched, level2 bool, changed []string) (patterns []string, ok bool) {
 	if in.FileAt == nil || len(c.Parents) != 1 {
 		return nil, false
 	}
-	before, okb := in.FileAt(c.SHA+"^", moduleFile)
-	after, oka := in.FileAt(c.SHA, moduleFile)
+	before, okb := in.FileAt(c.SHA+"^", p)
+	after, oka := in.FileAt(c.SHA, p)
 	if !okb || !oka {
 		return nil, false
 	}
@@ -379,31 +386,40 @@ func moduleDepScope(in Input, c gitx.Commit, lockTouched, level2 bool, changed [
 	return append(patterns, changed...), true
 }
 
-// moduleScope returns the repo patterns MODULE.bazel's change in sha can
-// affect, statement by statement (extdeps.ModuleEditScope). ok is false when
-// it cannot tell, or when a pattern matches no repo of the universe closures:
-// such repos may be toolchains, which target closures do not show.
-func moduleScope(in Input, sha string, usage *mappedUsage) (patterns []string, ok bool) {
+// moduleScope returns the repo patterns the change of the module file p
+// (MODULE.bazel or an included *.MODULE.bazel) in sha can affect, statement by
+// statement (extdeps.ModuleEditScope). ok is false when it cannot tell, or
+// when a pattern matches no repo of the universe closures: such repos may be
+// toolchains, which target closures do not show.
+func moduleScope(in Input, sha, p string, usage *mappedUsage) (patterns []string, ok bool) {
 	if in.FileAt == nil {
 		return nil, false
 	}
-	before, okb := in.FileAt(sha+"^", moduleFile)
-	after, oka := in.FileAt(sha, moduleFile)
+	before, okb := in.FileAt(sha+"^", p)
+	after, oka := in.FileAt(sha, p)
 	if !okb || !oka {
 		return nil, false
 	}
-	patterns, ok = extdeps.ModuleEditScope(before, after, extdeps.MainRepoNames(after))
+	// The main repository's names are in the module() call of MODULE.bazel,
+	// which an included file does not repeat.
+	root := after
+	if p != moduleFile {
+		if r, ok := in.FileAt(sha, moduleFile); ok {
+			root = r
+		}
+	}
+	patterns, ok = extdeps.ModuleEditScope(before, after, extdeps.MainRepoNames(root))
 	if !ok {
 		return nil, false
 	}
-	for _, p := range patterns {
+	for _, pat := range patterns {
 		// A use_repo_rule repo ("*+name") that no target uses changes none
 		// (ModuleEditScope keeps those registered as toolchains global); an
 		// extension's repos may be toolchains, which closures do not show.
-		if strings.HasPrefix(p, "*+") {
+		if strings.HasPrefix(pat, "*+") {
 			continue
 		}
-		if used, _ := usage.isUsed(moduleFile+"\x00"+p, []string{p}); !used {
+		if used, _ := usage.isUsed(p+"\x00"+pat, []string{pat}); !used {
 			return nil, false
 		}
 	}
@@ -414,11 +430,11 @@ func moduleScope(in Input, sha string, usage *mappedUsage) (patterns []string, o
 	return patterns, true
 }
 
-// moduleExplained reports whether MODULE.bazel's change in sha only touched
-// bazel_dep calls. Missing content on either side is not explained.
-func moduleExplained(in Input, sha string) bool {
-	before, okb := in.FileAt(sha+"^", moduleFile)
-	after, oka := in.FileAt(sha, moduleFile)
+// moduleExplained reports whether the change of the module file p in sha only
+// touched bazel_dep calls. Missing content on either side is not explained.
+func moduleExplained(in Input, sha, p string) bool {
+	before, okb := in.FileAt(sha+"^", p)
+	after, oka := in.FileAt(sha, p)
 	return okb && oka && extdeps.ModuleChangeExplained(before, after)
 }
 
@@ -550,14 +566,14 @@ func under(dir, pkg string) bool {
 	return pkg == "" || dir == pkg || strings.HasPrefix(dir, pkg+"/")
 }
 
-// isGlobal reports whether p affects every target (MODULE.bazel and the
+// isGlobal reports whether p affects every target (the module files and the
 // lockfile are handled by the caller).
 func isGlobal(in Input, p string) bool {
 	b := path.Base(p)
 	switch {
 	case p == "WORKSPACE", p == "WORKSPACE.bazel", p == "WORKSPACE.bzlmod",
 		p == ".bazelrc", p == ".bazelversion", p == bazelIgnore, b == "REPO.bazel",
-		strings.HasSuffix(b, ".bazelrc"), strings.HasSuffix(b, ".MODULE.bazel"):
+		strings.HasSuffix(b, ".bazelrc"):
 		return true
 	}
 	for _, g := range in.GlobalGlobs {
