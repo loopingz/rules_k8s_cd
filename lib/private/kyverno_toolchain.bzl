@@ -1,10 +1,10 @@
 load("//lib/private:toolchain_factory.bzl", "create_toolchain")
 
 _binaries = {
-    "darwin_amd64": ("https://github.com/kyverno/kyverno/releases/download/v1.19.2/kyverno-cli_v1.19.2_darwin_x86_64.tar.gz", "b645654ab8e65bd4aa64de9228e274b388bab19b3404a4e9af70174b3d5ad230"),
-    "darwin_arm64": ("https://github.com/kyverno/kyverno/releases/download/v1.19.2/kyverno-cli_v1.19.2_darwin_arm64.tar.gz", "7915c03c613c22363a100adb3da8d06f2e2626d9d21a98b97f921795ffdc536f"),
-    "linux_amd64": ("https://github.com/kyverno/kyverno/releases/download/v1.19.2/kyverno-cli_v1.19.2_linux_x86_64.tar.gz", "357eaf1df8bc24ddd5a73979fadeaae6a032e8710f11af264229756e4956bf4a"),
-    "linux_arm64": ("https://github.com/kyverno/kyverno/releases/download/v1.19.2/kyverno-cli_v1.19.2_linux_arm64.tar.gz", "250f2a02f143d5c6425e686b13c130d3a3ba7372dba6a7210d599d1b0dd12e92"),
+    "darwin_amd64": ("https://github.com/kyverno/kyverno/releases/download/v1.20.0/kyverno-cli_v1.20.0_darwin_x86_64.tar.gz", "2e31ed3df7fda3252a74c897eb6b7b581e634e0759796b43ce0d2472d7376275"),
+    "darwin_arm64": ("https://github.com/kyverno/kyverno/releases/download/v1.20.0/kyverno-cli_v1.20.0_darwin_arm64.tar.gz", "9f7e537bdf39ff4f1819d978aec791a4dafa1cfd382f75f53baf422702452149"),
+    "linux_amd64": ("https://github.com/kyverno/kyverno/releases/download/v1.20.0/kyverno-cli_v1.20.0_linux_x86_64.tar.gz", "06b8f3ca7b5626473be8fb4d343ad54ab84e317142766f72420e7d44b80942e2"),
+    "linux_arm64": ("https://github.com/kyverno/kyverno/releases/download/v1.20.0/kyverno-cli_v1.20.0_linux_arm64.tar.gz", "7d002205369f8ebb8a5570efb6a1bfc4fa02e67ca74d6d8cf2f27783e0e54759"),
 }
 
 DEFAULT_KYVERNO_REPOSITORY = "kyverno"
