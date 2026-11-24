@@ -1,5 +1,5 @@
-apiVersion: kyverno.io/v1
-kind: ClusterPolicy
+apiVersion: policies.kyverno.io/v1beta1
+kind: ValidatingPolicy
 metadata:
   name: disallow-latest-tag
   annotations:
@@ -12,38 +12,21 @@ metadata:
       image changes. A best practice is to use an immutable tag that maps to a
       specific version of an application Pod.
 spec:
-  validationFailureAction: Audit
-  background: true
-  rules:
-    - name: require-image-tag
-      match:
-        any:
-          - resources:
-              kinds:
-                - Pod
-      validate:
-        message: "An image tag is required."
-        pattern:
-          spec:
-            containers:
-              - image: "*:*"
-            "=(initContainers)":
-              - image: "*:*"
-            "=(ephemeralContainers)":
-              - image: "*:*"
-    - name: validate-image-tag
-      match:
-        any:
-          - resources:
-              kinds:
-                - Pod
-      validate:
-        message: "Using a mutable image tag e.g. 'latest' is not allowed."
-        pattern:
-          spec:
-            containers:
-              - image: "!*:latest"
-            "=(initContainers)":
-              - image: "!*:latest"
-            "=(ephemeralContainers)":
-              - image: "!*:latest"
+  validationActions: [Audit]
+  evaluation:
+    background:
+      enabled: true
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+  variables:
+    - name: allContainers
+      expression: 'object.spec.containers + object.spec.?initContainers.orValue([]) + object.spec.?ephemeralContainers.orValue([])'
+  validations:
+    - expression: 'variables.allContainers.all(c, c.image.contains('':''))'
+      message: 'An image tag is required.'
+    - expression: 'variables.allContainers.all(c, !c.image.endsWith('':latest''))'
+      message: 'Using a mutable image tag e.g. ''latest'' is not allowed.'

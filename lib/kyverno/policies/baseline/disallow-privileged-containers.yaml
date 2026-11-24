@@ -1,5 +1,5 @@
-apiVersion: kyverno.io/v1
-kind: ClusterPolicy
+apiVersion: policies.kyverno.io/v1beta1
+kind: ValidatingPolicy
 metadata:
   name: disallow-privileged-containers
   annotations:
@@ -11,30 +11,19 @@ metadata:
       Privileged mode disables most security mechanisms and must not be allowed.
       This policy ensures Pods do not call for privileged mode.
 spec:
-  validationFailureAction: Audit
-  background: true
-  rules:
-    - name: privileged-containers
-      match:
-        any:
-          - resources:
-              kinds:
-                - Pod
-      validate:
-        message: >-
-          Privileged mode is disallowed. The fields
-          spec.containers[*].securityContext.privileged,
-          spec.initContainers[*].securityContext.privileged, and
-          spec.ephemeralContainers[*].securityContext.privileged must be unset or
-          set to `false`.
-        pattern:
-          spec:
-            "=(ephemeralContainers)":
-              - "=(securityContext)":
-                  "=(privileged)": "false"
-            "=(initContainers)":
-              - "=(securityContext)":
-                  "=(privileged)": "false"
-            containers:
-              - "=(securityContext)":
-                  "=(privileged)": "false"
+  validationActions: [Audit]
+  evaluation:
+    background:
+      enabled: true
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+  variables:
+    - name: allContainers
+      expression: 'object.spec.containers + object.spec.?initContainers.orValue([]) + object.spec.?ephemeralContainers.orValue([])'
+  validations:
+    - expression: 'variables.allContainers.all(c, !c.?securityContext.?privileged.orValue(false))'
+      message: 'Privileged mode is disallowed. The fields spec.containers[*].securityContext.privileged, spec.initContainers[*].securityContext.privileged, and spec.ephemeralContainers[*].securityContext.privileged must be unset or set to `false`.'

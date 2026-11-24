@@ -1,5 +1,5 @@
-apiVersion: kyverno.io/v1
-kind: ClusterPolicy
+apiVersion: policies.kyverno.io/v1beta1
+kind: ValidatingPolicy
 metadata:
   name: require-run-as-nonroot
   annotations:
@@ -11,43 +11,19 @@ metadata:
       Containers must be required to run as non-root users. This policy ensures
       runAsNonRoot is set to true.
 spec:
-  validationFailureAction: Audit
-  background: true
-  rules:
-    - name: run-as-non-root
-      match:
-        any:
-          - resources:
-              kinds:
-                - Pod
-      validate:
-        message: >-
-          Running as root is not allowed. Either the field
-          spec.securityContext.runAsNonRoot must be set to true, or the fields
-          spec.containers[*].securityContext.runAsNonRoot,
-          spec.initContainers[*].securityContext.runAsNonRoot, and
-          spec.ephemeralContainers[*].securityContext.runAsNonRoot must be set
-          to true.
-        anyPattern:
-          - spec:
-              securityContext:
-                runAsNonRoot: "true"
-              "=(ephemeralContainers)":
-                - "=(securityContext)":
-                    "=(runAsNonRoot)": "true"
-              "=(initContainers)":
-                - "=(securityContext)":
-                    "=(runAsNonRoot)": "true"
-              containers:
-                - "=(securityContext)":
-                    "=(runAsNonRoot)": "true"
-          - spec:
-              "=(ephemeralContainers)":
-                - securityContext:
-                    runAsNonRoot: "true"
-              "=(initContainers)":
-                - securityContext:
-                    runAsNonRoot: "true"
-              containers:
-                - securityContext:
-                    runAsNonRoot: "true"
+  validationActions: [Audit]
+  evaluation:
+    background:
+      enabled: true
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+  variables:
+    - name: allContainers
+      expression: 'object.spec.containers + object.spec.?initContainers.orValue([]) + object.spec.?ephemeralContainers.orValue([])'
+  validations:
+    - expression: 'object.spec.?securityContext.?runAsNonRoot.orValue(false) ? variables.allContainers.all(c, c.?securityContext.?runAsNonRoot.orValue(true)) : variables.allContainers.all(c, c.?securityContext.?runAsNonRoot.orValue(false))'
+      message: 'Running as root is not allowed. Either the field spec.securityContext.runAsNonRoot must be set to true, or the fields spec.containers[*].securityContext.runAsNonRoot, spec.initContainers[*].securityContext.runAsNonRoot, and spec.ephemeralContainers[*].securityContext.runAsNonRoot must be set to true.'

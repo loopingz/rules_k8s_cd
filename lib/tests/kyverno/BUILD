@@ -1,5 +1,5 @@
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
-load("//lib:kyverno.bzl", "kyverno_baseline", "kyverno_test")
+load("//lib:kyverno.bzl", "kyverno_baseline", "kyverno_best_practices", "kyverno_restricted", "kyverno_test")
 
 # The pinned CLI evaluates both policy APIs: CEL ValidatingPolicy (autogen to the Deployment) ...
 kyverno_test(
@@ -8,7 +8,7 @@ kyverno_test(
     policies = ["validating-policy.yaml"],
 )
 
-# ... and the legacy ClusterPolicy bundles shipped in lib/kyverno/policies
+# ... and the ValidatingPolicy presets shipped in lib/kyverno/policies (Kyverno 1.20 dropped ClusterPolicy)
 kyverno_baseline(
     name = "baseline_test",
     manifests = ["compliant.yaml"],
@@ -27,4 +27,37 @@ sh_test(
     srcs = ["expect_failure.sh"],
     args = ["$(rootpath :violating)"],
     data = [":violating"],
+)
+
+# Every preset fires on a manifest that breaks it, so a preset that silently stops matching fails CI
+kyverno_restricted(
+    name = "restricted_violating",
+    manifests = ["preset-violating.yaml"],
+    tags = ["manual"],
+)
+
+sh_test(
+    name = "restricted_violation_fails_test",
+    srcs = ["expect_failure.sh"],
+    args = [
+        "$(rootpath :restricted_violating)",
+        "5",
+    ],
+    data = [":restricted_violating"],
+)
+
+kyverno_best_practices(
+    name = "best_practices_violating",
+    manifests = ["preset-violating.yaml"],
+    tags = ["manual"],
+)
+
+sh_test(
+    name = "best_practices_violation_fails_test",
+    srcs = ["expect_failure.sh"],
+    args = [
+        "$(rootpath :best_practices_violating)",
+        "3",
+    ],
+    data = [":best_practices_violating"],
 )

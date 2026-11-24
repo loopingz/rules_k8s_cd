@@ -1,0 +1,19 @@
+# Breaks every preset rule: each kyverno_restricted / kyverno_best_practices policy must fail on it
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: bad}
+spec:
+  selector: {matchLabels: {app: bad}}
+  template:
+    metadata: {labels: {app: bad}}
+    spec:
+      hostNetwork: true
+      initContainers:
+        - name: init
+          image: busybox
+          securityContext: {privileged: true}
+      containers:
+        - name: app
+          image: nginx:latest
+          ports: [{containerPort: 80, hostPort: 8080}]
+          securityContext: {runAsNonRoot: false}

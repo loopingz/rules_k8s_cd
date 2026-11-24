@@ -1,5 +1,5 @@
-apiVersion: kyverno.io/v1
-kind: ClusterPolicy
+apiVersion: policies.kyverno.io/v1beta1
+kind: ValidatingPolicy
 metadata:
   name: disallow-host-namespaces
   annotations:
@@ -13,22 +13,16 @@ metadata:
       can be used to elevate privileges. Pods should not be allowed access to
       host namespaces.
 spec:
-  validationFailureAction: Audit
-  background: true
-  rules:
-    - name: host-namespaces
-      match:
-        any:
-          - resources:
-              kinds:
-                - Pod
-      validate:
-        message: >-
-          Sharing the host namespaces is disallowed. The fields
-          spec.hostNetwork, spec.hostIPC, and spec.hostPID must be unset or set
-          to `false`.
-        pattern:
-          spec:
-            "=(hostPID)": "false"
-            "=(hostIPC)": "false"
-            "=(hostNetwork)": "false"
+  validationActions: [Audit]
+  evaluation:
+    background:
+      enabled: true
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+  validations:
+    - expression: '!object.spec.?hostPID.orValue(false) && !object.spec.?hostIPC.orValue(false) && !object.spec.?hostNetwork.orValue(false)'
+      message: 'Sharing the host namespaces is disallowed. The fields spec.hostNetwork, spec.hostIPC, and spec.hostPID must be unset or set to `false`.'

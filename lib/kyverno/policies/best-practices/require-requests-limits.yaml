@@ -1,5 +1,5 @@
-apiVersion: kyverno.io/v1
-kind: ClusterPolicy
+apiVersion: policies.kyverno.io/v1beta1
+kind: ValidatingPolicy
 metadata:
   name: require-requests-limits
   annotations:
@@ -12,39 +12,19 @@ metadata:
       resources requested and consumed by each Pod. It is recommended to require
       resource requests and limits per Pod, especially for memory and CPU.
 spec:
-  validationFailureAction: Audit
-  background: true
-  rules:
-    - name: validate-resources
-      match:
-        any:
-          - resources:
-              kinds:
-                - Pod
-      validate:
-        message: >-
-          CPU and memory resource requests and memory limits are required for
-          containers.
-        pattern:
-          spec:
-            containers:
-              - resources:
-                  requests:
-                    memory: "?*"
-                    cpu: "?*"
-                  limits:
-                    memory: "?*"
-            "=(initContainers)":
-              - resources:
-                  requests:
-                    memory: "?*"
-                    cpu: "?*"
-                  limits:
-                    memory: "?*"
-            "=(ephemeralContainers)":
-              - resources:
-                  requests:
-                    memory: "?*"
-                    cpu: "?*"
-                  limits:
-                    memory: "?*"
+  validationActions: [Audit]
+  evaluation:
+    background:
+      enabled: true
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+  variables:
+    - name: allContainers
+      expression: 'object.spec.containers + object.spec.?initContainers.orValue([]) + object.spec.?ephemeralContainers.orValue([])'
+  validations:
+    - expression: 'variables.allContainers.all(c, c.?resources.?requests.?memory.orValue('''') != '''' && c.?resources.?requests.?cpu.orValue('''') != '''' && c.?resources.?limits.?memory.orValue('''') != '''')'
+      message: 'CPU and memory resource requests and memory limits are required for containers.'
