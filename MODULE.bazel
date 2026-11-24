@@ -8,13 +8,13 @@ module(
 bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
 bazel_dep(name = "rules_oci", version = "2.3.5")
-bazel_dep(name = "package_metadata", version = "0.0.13")
+bazel_dep(name = "package_metadata", version = "0.0.15")
 bazel_dep(name = "aspect_bazel_lib", version = "2.22.5")
 bazel_dep(name = "rules_go", version = "0.65.0")
 bazel_dep(name = "gazelle", version = "0.54.0")
 bazel_dep(name = "stardoc", version = "0.8.1")
 
-bazel_dep(name = "rules_shell", version = "0.8.0", dev_dependency = True)
+bazel_dep(name = "rules_shell", version = "0.10.0", dev_dependency = True)
 
 # Register all toolchains
 bazel_lib_toolchains = use_extension("@rules_k8s_cd//lib:extensions.bzl", "toolchains")
@@ -42,7 +42,7 @@ oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
 # Declare external images you need to pull, for example:
 oci.pull(
     name = "nginx",
-    digest = "sha256:5ab5b0b01097420873a3f3330f44248e34a3c2a3e8d5ee30658aeae8cb7435da",
+    digest = "sha256:84f7876d21d154885f99554d7ae325d8c2213f9169726ea7ab60642f2573a787",
     image = "docker.io/library/nginx",
     platforms = ["linux/amd64"],
 )
