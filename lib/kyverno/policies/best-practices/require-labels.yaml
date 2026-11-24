@@ -1,5 +1,5 @@
-apiVersion: kyverno.io/v1
-kind: ClusterPolicy
+apiVersion: policies.kyverno.io/v1beta1
+kind: ValidatingPolicy
 metadata:
   name: require-labels
   annotations:
@@ -12,18 +12,16 @@ metadata:
       or Deployment. This policy validates that the label
       app.kubernetes.io/name is specified with some value.
 spec:
-  validationFailureAction: Audit
-  background: true
-  rules:
-    - name: check-for-labels
-      match:
-        any:
-          - resources:
-              kinds:
-                - Pod
-      validate:
-        message: "The label `app.kubernetes.io/name` is required."
-        pattern:
-          metadata:
-            labels:
-              app.kubernetes.io/name: "?*"
+  validationActions: [Audit]
+  evaluation:
+    background:
+      enabled: true
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+  validations:
+    - expression: 'object.metadata.?labels[?''app.kubernetes.io/name''].orValue('''') != '''''
+      message: 'The label `app.kubernetes.io/name` is required.'

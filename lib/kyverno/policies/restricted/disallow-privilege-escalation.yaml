@@ -1,5 +1,5 @@
-apiVersion: kyverno.io/v1
-kind: ClusterPolicy
+apiVersion: policies.kyverno.io/v1beta1
+kind: ValidatingPolicy
 metadata:
   name: disallow-privilege-escalation
   annotations:
@@ -12,30 +12,19 @@ metadata:
       should not be allowed. This policy ensures the allowPrivilegeEscalation
       field is set to false.
 spec:
-  validationFailureAction: Audit
-  background: true
-  rules:
-    - name: privilege-escalation
-      match:
-        any:
-          - resources:
-              kinds:
-                - Pod
-      validate:
-        message: >-
-          Privilege escalation is disallowed. The fields
-          spec.containers[*].securityContext.allowPrivilegeEscalation,
-          spec.initContainers[*].securityContext.allowPrivilegeEscalation, and
-          spec.ephemeralContainers[*].securityContext.allowPrivilegeEscalation
-          must be set to false.
-        pattern:
-          spec:
-            "=(ephemeralContainers)":
-              - securityContext:
-                  allowPrivilegeEscalation: "false"
-            "=(initContainers)":
-              - securityContext:
-                  allowPrivilegeEscalation: "false"
-            containers:
-              - securityContext:
-                  allowPrivilegeEscalation: "false"
+  validationActions: [Audit]
+  evaluation:
+    background:
+      enabled: true
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+  variables:
+    - name: allContainers
+      expression: 'object.spec.containers + object.spec.?initContainers.orValue([]) + object.spec.?ephemeralContainers.orValue([])'
+  validations:
+    - expression: 'variables.allContainers.all(c, c.?securityContext.?allowPrivilegeEscalation.orValue(true) == false)'
+      message: 'Privilege escalation is disallowed. The fields spec.containers[*].securityContext.allowPrivilegeEscalation, spec.initContainers[*].securityContext.allowPrivilegeEscalation, and spec.ephemeralContainers[*].securityContext.allowPrivilegeEscalation must be set to false.'
