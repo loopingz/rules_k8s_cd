@@ -146,15 +146,23 @@ func runVersion(args []string, stderr io.Writer) error {
 		}
 	}
 
+	// The git values are volatile keys (GIT_COMMIT…, lib/stamp.sh): a new commit then reruns no
+	// stamped action. The STABLE_ names of older stamp scripts are still read.
+	git := func(key string) string {
+		if v, ok := status["GIT_"+key]; ok {
+			return v
+		}
+		return status["STABLE_GIT_"+key]
+	}
 	in := info{
-		Commit:     orUnknown(status["STABLE_GIT_COMMIT"]),
-		CommitFull: orUnknown(status["STABLE_GIT_COMMIT_FULL"]),
+		Commit:     orUnknown(git("COMMIT")),
+		CommitFull: orUnknown(git("COMMIT_FULL")),
 		Date:       unknown,
-		DateISO:    orUnknown(status["STABLE_GIT_COMMIT_DATE"]),
-		Branch:     orUnknown(status["STABLE_GIT_BRANCH"]),
+		DateISO:    orUnknown(git("COMMIT_DATE")),
+		Branch:     orUnknown(git("BRANCH")),
 		Component:  *component,
 	}
-	if t, err := time.Parse(time.RFC3339, status["STABLE_GIT_COMMIT_DATE"]); err == nil {
+	if t, err := time.Parse(time.RFC3339, git("COMMIT_DATE")); err == nil {
 		in.Date = t.Format("20060102")
 	}
 

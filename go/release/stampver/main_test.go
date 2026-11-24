@@ -252,3 +252,22 @@ func TestBranchInJSON(t *testing.T) {
 		t.Errorf("json: %s", b)
 	}
 }
+
+// The git values are volatile workspace status keys (GIT_COMMIT…, lib/stamp.sh), so that a new
+// commit does not rerun every stamped action; the STABLE_ names of older scripts still work.
+func TestVolatileGitKeys(t *testing.T) {
+	f := newFixture(t)
+	vol := f.write("volatile", "GIT_COMMIT abc1234\nGIT_COMMIT_FULL abc1234ffff\nGIT_COMMIT_DATE 2026-10-24T10:00:00+02:00\nGIT_BRANCH main\n")
+	txt, r := f.version("--volatile-status", vol, "--untagged", "{component}-{branch}-{date}-{commit}")
+	if txt != "web-main-20261024-abc1234\n" || r.CommitFull != "abc1234ffff" || r.DateISO != "2026-10-24T10:00:00+02:00" {
+		t.Errorf("got %q %+v", txt, r)
+	}
+	// The volatile name wins over a STABLE_ one left by an older script
+	f2 := newFixture(t)
+	st := f2.write("stable", "STABLE_GIT_COMMIT old0000\n")
+	vol2 := f2.write("volatile", "GIT_COMMIT abc1234\n")
+	txt, _ = f2.version("--stable-status", st, "--volatile-status", vol2)
+	if txt != "main-abc1234\n" {
+		t.Errorf("got %q", txt)
+	}
+}
