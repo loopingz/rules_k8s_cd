@@ -1,5 +1,32 @@
 # Changelog
 
+## 5.0.0 (2026-11-24)
+
+### Breaking Changes
+
+- **stamp:** volatile git keys, so a new commit reruns no stamped action (#443) ([a0549b1](https://github.com/loopingz/rules_k8s_cd/commit/a0549b182c517c407dc853254567159dc121efdb))
+
+### Features
+
+- **change_report:** scope edits of included *.MODULE.bazel files like MODULE.bazel (#434) ([6a54772](https://github.com/loopingz/rules_k8s_cd/commit/6a547727a5f0f050ef280f3ad5dba2c6fb033789))
+- **release:** \--draft opens the release PRs as drafts (#431) ([c682d25](https://github.com/loopingz/rules_k8s_cd/commit/c682d2573babaa0d88a6d4cd3e2c687b3f4d4404))
+
+### Bug Fixes
+
+- **kyverno:** ship the presets as ValidatingPolicy, since Kyverno 1.20 dropped ClusterPolicy (#445) ([07551c4](https://github.com/loopingz/rules_k8s_cd/commit/07551c4e32ec3b1ca59a1d78249528f28e1ac953))
+- **deps:** update dependency rules_shell to v0.10.0 (#442) ([7e00380](https://github.com/loopingz/rules_k8s_cd/commit/7e00380f7c79782690a610d9d95048440aac8f1b))
+- **deps:** update dependency grype to v0.122.1 (#437) ([4f0c9b9](https://github.com/loopingz/rules_k8s_cd/commit/4f0c9b946680143be5a12ce1b8738f1b520ffe8f))
+- **deps:** update dependency trivy to v0.76.2 (#438) ([4c2a325](https://github.com/loopingz/rules_k8s_cd/commit/4c2a3254156ed2ba92fbb2523a8b93f5822a2c37))
+
+### Other
+
+- **deps:** update nginx docker digest to c35c59a (#444) ([1228f38](https://github.com/loopingz/rules_k8s_cd/commit/1228f3878a43486f6a1d5b94b1e59e20cd4d9fa1))
+- **deps:** update dependency rules_oci to v2.3.5 (#441) ([dc63be7](https://github.com/loopingz/rules_k8s_cd/commit/dc63be72fa5738dd6e33185c5424445e1afea8b3))
+- **deps:** update dependency kyverno to v1.20.0 (#440) ([4594c1b](https://github.com/loopingz/rules_k8s_cd/commit/4594c1b6007f064c6fb245b4847debfca56027e2))
+- **deps:** update dependency bazel to v9.3.3 (#436) ([fae162d](https://github.com/loopingz/rules_k8s_cd/commit/fae162da007d8f194296fda0d292ee2ae8be411d))
+- **deps:** update dependency package_metadata to v0.0.15 (#433) ([5eaaaca](https://github.com/loopingz/rules_k8s_cd/commit/5eaaaca980815ddaa77bd57d2559f12be3f789a5))
+- **deps:** update nginx docker digest to 84f7876 (#435) ([77f3bff](https://github.com/loopingz/rules_k8s_cd/commit/77f3bff45fa9f2df08e9e3f5e6e0a67cdde10126))
+
 ## 4.4.0 (2026-10-31)
 
 ### Features
