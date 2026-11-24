@@ -58,7 +58,7 @@ def gitops(images = {}, environments = {}):
             substitutions = {
                 "{{environment}}": env,
                 "{{namespace}}": "bazel-" + env,
-                "{{commit}}": "{{STABLE_GIT_COMMIT}}",
+                "{{commit}}": "{{GIT_COMMIT}}",
                 "{{source}}": native.package_name(),
             },
         )

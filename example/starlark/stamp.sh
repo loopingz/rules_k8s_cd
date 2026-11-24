@@ -1,9 +1,9 @@
 #!/bin/bash
-STABLE_GIT_COMMIT=$(git rev-parse --short HEAD)
-STABLE_GIT_TAGS=$(git tag)
-STABLE_GIT_PR=$GITHUB_PULLREQUEST
+# Volatile keys (no STABLE_ prefix): a new commit reruns no stamped action (see lib/stamp.sh).
+GIT_COMMIT=$(git rev-parse --short HEAD)
+GIT_TAGS=$(git tag)
+GIT_PR=$GITHUB_PULLREQUEST
 
-echo "STABLE_GIT_COMMIT $STABLE_GIT_COMMIT"
-echo "STABLE_GIT_TAGS $STABLE_GIT_TAGS"
-echo "STABLE_GIT_PR $STABLE_GIT_PR"
-
+echo "GIT_COMMIT $GIT_COMMIT"
+echo "GIT_TAGS $GIT_TAGS"
+echo "GIT_PR $GIT_PR"

@@ -368,18 +368,24 @@ The build-time version relies on these workspace status keys, written by `lib/st
 
 ```bash
 #!/bin/bash
-STABLE_GIT_COMMIT=$(git rev-parse --short HEAD)
-STABLE_GIT_COMMIT_FULL=$(git rev-parse HEAD)
-STABLE_GIT_COMMIT_DATE=$(git show -s --format=%cI HEAD)
+GIT_COMMIT=$(git rev-parse --short HEAD)
+GIT_COMMIT_FULL=$(git rev-parse HEAD)
+GIT_COMMIT_DATE=$(git show -s --format=%cI HEAD)
 STABLE_GIT_TAGS_AT_HEAD=$(git tag --points-at HEAD | tr '\n' ' ' | sed 's/ *$//')
-STABLE_GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
-echo "STABLE_GIT_COMMIT $STABLE_GIT_COMMIT"
-echo "STABLE_GIT_COMMIT_FULL $STABLE_GIT_COMMIT_FULL"
-echo "STABLE_GIT_COMMIT_DATE $STABLE_GIT_COMMIT_DATE"
+echo "GIT_COMMIT $GIT_COMMIT"
+echo "GIT_COMMIT_FULL $GIT_COMMIT_FULL"
+echo "GIT_COMMIT_DATE $GIT_COMMIT_DATE"
 echo "STABLE_GIT_TAGS_AT_HEAD $STABLE_GIT_TAGS_AT_HEAD"
-echo "STABLE_GIT_BRANCH $STABLE_GIT_BRANCH"
+echo "GIT_BRANCH $GIT_BRANCH"
 ```
+
+Only `STABLE_GIT_TAGS_AT_HEAD` is a stable key: Bazel reruns every stamped action when a stable key
+changes, and nothing when only volatile keys do. With the commit volatile, a new commit rebuilds only
+what it changed, and a stamped output keeps the commit it was last built at; a release tag at HEAD
+still rebuilds what it versions. The `STABLE_GIT_COMMIT`, `STABLE_GIT_COMMIT_FULL`,
+`STABLE_GIT_COMMIT_DATE` and `STABLE_GIT_BRANCH` names of older scripts are still read.
 
 Copy the script into your repository and add it to your `.bazelrc`:
 
@@ -387,7 +393,7 @@ Copy the script into your repository and add it to your `.bazelrc`:
 build --workspace_status_command=./stamp.sh
 ```
 
-`lib/stamp.sh` of rules_k8s_cd also emits `STABLE_GIT_TAGS` and `STABLE_GIT_PR`, which this tool does not use.
+`lib/stamp.sh` of rules_k8s_cd also emits `GIT_TAGS` and `GIT_PR`, which this tool does not use.
 
 ## Migrating from release-please
 
